@@ -8,7 +8,7 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 
 - Every button has words on it. Nothing is hidden behind icons, hamburger menus, or keyboard shortcuts.
 - You can write and format a page without knowing Markdown: toolbar buttons such as **Heading**, **Bullet list**, **Link…**, and **Insert picture…** do it for you, and a live preview shows how the page will look.
-- Text is large by default and can be made larger. There are Light, Dark, and High contrast color schemes.
+- Text can be made larger in Settings, and the layout adapts to any window size, from a full desktop screen to half a screen or a phone. There are Light, Dark, and High contrast color schemes.
 - Messages use plain words and always say what to do next.
 
 ## What it does

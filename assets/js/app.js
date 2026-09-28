@@ -239,7 +239,12 @@ async function onRoute() {
     app.current = result || null;
     document.title = [result?.title, app.state.workspace?.name, 'Cairn'].filter(Boolean).join(' – ');
     if (!parsed.query.get('section')) window.scrollTo(0, 0);
-    if (!result?.keepFocus) main.focus({ preventScroll: true });
+    if (!result?.keepFocus) {
+      // Move focus to the new heading so screen readers announce the page.
+      const heading = main.querySelector('h1') || main;
+      if (heading !== main) heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
     if (result?.title) announce(`${result.title} opened`);
   } catch (err) {
     main.append(banner({

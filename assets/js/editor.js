@@ -226,7 +226,9 @@ function mountEditor(ctx, path, start) {
     h('label', { class: 'pane-label', for: 'md-text' }, 'Write'),
     ta,
     h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder.'));
-  const panes = h('div', { class: 'editor-panes', 'data-view': 'both' },
+  // Side by side only when there's room; narrow windows start on Write.
+  const startView = window.matchMedia('(max-width: 1000px)').matches ? 'write' : 'both';
+  const panes = h('div', { class: 'editor-panes', 'data-view': startView },
     writePane,
     h('section', { class: 'pane pane-preview', 'aria-labelledby': 'preview-h' },
       h('h2', { class: 'pane-label', id: 'preview-h' }, 'Preview: how the page will look'),
@@ -491,7 +493,7 @@ function mountEditor(ctx, path, start) {
   // --------------------------------------------------------- toolbar
   const tool = (label, iconName, fn) => button(label, { icon: iconName, onClick: () => { fn(); activity(); } });
   const viewBtn = (label, view) => button(label, {
-    'aria-pressed': view === 'both' ? 'true' : 'false',
+    'aria-pressed': view === startView ? 'true' : 'false',
     onClick: (e) => {
       panes.dataset.view = view;
       for (const b of e.currentTarget.parentElement.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));

@@ -8,7 +8,7 @@ Most people only need **Settings** in Cairn:
 | --- | --- | --- |
 | Your name | Shown to others while you edit. Empty means your Windows user name. | empty |
 | Colors | Light, Dark, or High contrast | Light |
-| Text size | Normal (18 px), Large (20 px), or Larger (23 px). Works together with browser zoom. | Normal |
+| Text size | Normal (16 px), Large (18 px), or Larger (20 px). Works together with browser zoom. | Normal |
 | Ask “Are you still editing?” after | Minutes without editing activity | 15 |
 | Unlock the page after | Minutes without editing activity; must be later than the question | 20 |
 | Keep my unsaved changes on this computer | Save drafts to disk so they survive closing Cairn | On |
