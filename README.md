@@ -21,7 +21,7 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 
 ## Quick start
 
-1. Get `cairn.exe` (see [CONTRIBUTING.md](CONTRIBUTING.md) to build it).
+1. Download the latest `cairn-…-windows-x64.zip` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and unzip it. (Or build it yourself: see [CONTRIBUTING.md](CONTRIBUTING.md).)
 2. Double-click `cairn.exe`. A small window opens and your browser shows Cairn.
 3. Choose **Create a new documentation folder** (or **Open a documentation folder we already use**).
 4. Choose **New page**, give it a title, and start writing. Choose **Publish changes** when you're done.
@@ -56,3 +56,8 @@ Screenshots are not yet included in the repository. The interface has three main
 - **Access control is the filesystem's job.** Cairn hides editing where you can't write, but the real protection is the shared folder's own permissions.
 - **Pictures:** PNG, JPEG, WebP, and GIF only. SVG is not accepted.
 - **No viewer presence.** Cairn does not show who is currently reading a page.
+- **Unsigned download.** `cairn.exe` is not code-signed, so Windows SmartScreen may warn the first time you run it. Choose **More info → Run anyway**, or check the file against the `.sha256` published next to it.
+
+## License
+
+[MIT](LICENSE). The bundled Inter font is under the SIL Open Font License (`assets/fonts/Inter-LICENSE.txt`).

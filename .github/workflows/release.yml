@@ -1,0 +1,75 @@
+name: Release
+
+# Push a tag such as v0.1.0 to build cairn.exe and publish it on the
+# GitHub Releases page. The tag must match the version in Cargo.toml.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Build and publish (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches Cargo.toml
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"').Matches[0].Groups[1].Value
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match Cargo.toml version $version"
+          }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Test
+        run: cargo test
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "cairn-$env:VERSION-windows-x64"
+          New-Item -ItemType Directory -Path "dist/$name" | Out-Null
+          Copy-Item target/release/cairn.exe, README.md, LICENSE, CHANGELOG.md "dist/$name/"
+          Copy-Item docs "dist/$name/docs" -Recurse
+          Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
+          $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Out-File -Encoding ascii "dist/$name.zip.sha256"
+
+          # Release notes: this version's section of CHANGELOG.md.
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## $([regex]::Escape($env:VERSION))\b" | Select-Object -First 1).LineNumber
+          $notes = @("See CHANGELOG.md.")
+          if ($start) {
+            $rest = $lines[$start..($lines.Count - 1)]
+            $end = ($rest | Select-String -Pattern '^## ' | Select-Object -First 1).LineNumber
+            $notes = if ($end) { $rest[0..($end - 2)] } else { $rest }
+          }
+          $notes += ""
+          $notes += "**To install:** download ``$name.zip``, unzip it, and double-click ``cairn.exe``. Instructions are in ``docs/getting-started.md`` inside the zip."
+          $notes | Out-File -Encoding utf8 dist/notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Cairn ${{ env.VERSION }}
+          body_path: dist/notes.md
+          files: |
+            dist/cairn-${{ env.VERSION }}-windows-x64.zip
+            dist/cairn-${{ env.VERSION }}-windows-x64.zip.sha256

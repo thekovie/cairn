@@ -2,6 +2,11 @@
 name = "cairn"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Local-first shared Markdown documentation in a folder you control"
+license = "MIT"
+repository = "https://github.com/thekovie/cairn"
+readme = "README.md"
 
 [dependencies]
 ammonia = "4.2.0"

@@ -2,7 +2,7 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-09-28)
 
 First working release, for Windows.
 
