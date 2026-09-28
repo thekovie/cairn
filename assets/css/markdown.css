@@ -1,0 +1,58 @@
+/* Rendered Markdown (article view and editor preview). */
+
+.md-body { max-width: var(--measure); font-size: var(--text-base); line-height: var(--leading-body); color: var(--fg); }
+.md-body > * + * { margin-top: var(--space-4); }
+.md-body h1 { font-size: var(--text-2xl); margin-top: 0; }
+.md-body h2 { font-size: var(--text-xl); margin-top: var(--space-7); padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--border); }
+.md-body h3 { font-size: var(--text-lg); margin-top: var(--space-6); }
+.md-body h4, .md-body h5, .md-body h6 { font-size: var(--text-md); margin-top: var(--space-5); }
+.md-body h1 + *, .md-body h2 + *, .md-body h3 + *, .md-body h4 + * { margin-top: var(--space-3); }
+.md-body h2, .md-body h3, .md-body h4 { scroll-margin-top: 6rem; }
+
+.md-body ul, .md-body ol { padding-left: 1.6em; }
+.md-body li + li { margin-top: var(--space-2); }
+.md-body li > ul, .md-body li > ol { margin-top: var(--space-2); }
+.md-body li input[type="checkbox"] { width: 1.1em; height: 1.1em; margin-right: 0.4em; vertical-align: -0.15em; accent-color: var(--accent); }
+
+.md-body a { font-weight: 500; }
+.md-body a.broken-link {
+  color: var(--danger);
+  text-decoration: underline dashed;
+  text-decoration-thickness: 2px;
+  cursor: help;
+}
+.md-body a.broken-link::after { content: " (missing)"; font-size: var(--text-sm); font-weight: 600; }
+.md-body a.blocked-link { color: var(--fg-muted); text-decoration: line-through; }
+.md-body a.external-image { display: inline-block; padding: var(--space-2) var(--space-3); border: 2px dashed var(--border-strong); border-radius: var(--radius); }
+.md-body .broken-image {
+  display: inline-block;
+  padding: var(--space-3) var(--space-4);
+  border: 2px dashed var(--danger);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-weight: 600;
+  background: var(--danger-soft);
+}
+
+.md-body img { max-width: 100%; height: auto; border-radius: var(--radius); border: var(--border-width) solid var(--border); }
+
+.md-body blockquote {
+  margin-left: 0; margin-right: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  font-style: italic;
+}
+
+.md-body code { font-family: var(--font-mono); font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 4px; border: var(--border-width) solid var(--border); }
+.md-body pre { background: var(--surface-2); border: var(--border-width) solid var(--border); border-radius: var(--radius); padding: var(--space-4); overflow-x: auto; line-height: 1.5; }
+.md-body pre code { background: none; border: 0; padding: 0; font-size: var(--text-sm); }
+
+.md-body table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+.md-body th, .md-body td { border: var(--border-width) solid var(--border-strong); padding: var(--space-2) var(--space-3); text-align: left; vertical-align: top; }
+.md-body th { background: var(--surface-2); font-weight: 700; }
+
+.md-body hr { border: 0; border-top: 2px solid var(--border); margin: var(--space-6) 0; }
+
+.md-body .footnote-definition { font-size: var(--text-sm); color: var(--fg-muted); }

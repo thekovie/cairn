@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-09-28T09:36:28.187Z",
+        "reason": "Deliberate: the plan the user approved chose Inter on ui-ux-pro-max's readability recommendation for a mixed-age, low-tech-confidence audience; vendored offline"
+      }
+    ]
+  }
+}

@@ -1,0 +1,150 @@
+/*
+ * Cairn design tokens.
+ *
+ * Direction: Swiss / minimal, high contrast, calm. Built for a mixed-age team
+ * with low tech confidence: large type, obvious states, color never the only
+ * signal. Every text/background pair below is checked by tests/contrast.rs
+ * (body text >= 7:1, secondary and state text >= 4.5:1) in all three themes.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/static/fonts/InterVariable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Light (default) ---------- */
+:root,
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --fg: #0f172a;
+  --fg-muted: #475569;
+  --border: #cbd5e1;
+  --border-strong: #64748b;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-fg: #ffffff;
+  --accent-soft: #eff6ff;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --warn: #92400e;
+  --warn-soft: #fffbeb;
+  --ok: #166534;
+  --ok-soft: #f0fdf4;
+  --focus: #1d4ed8;
+  --mark: #fef08a;
+  --shadow-overlay: 0 12px 32px rgba(15, 23, 42, 0.18);
+  --scrim: rgba(15, 23, 42, 0.5);
+  color-scheme: light;
+}
+
+/* ---------- Dark: desaturated tonal variants, not inverted ---------- */
+[data-theme="dark"] {
+  --bg: #0b1120;
+  --surface: #111827;
+  --surface-2: #1e293b;
+  --fg: #f1f5f9;
+  --fg-muted: #cbd5e1;
+  --border: #334155;
+  --border-strong: #94a3b8;
+  --accent: #93c5fd;
+  --accent-hover: #bfdbfe;
+  --accent-fg: #0b1120;
+  --accent-soft: #172554;
+  --danger: #fca5a5;
+  --danger-soft: #2a0f12;
+  --warn: #fcd34d;
+  --warn-soft: #2a1e05;
+  --ok: #86efac;
+  --ok-soft: #052e16;
+  --focus: #93c5fd;
+  --mark: #854d0e;
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+/* ---------- High contrast: near-black on white, heavier borders ---------- */
+[data-theme="contrast"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --fg: #000000;
+  --fg-muted: #1f2937;
+  --border: #000000;
+  --border-strong: #000000;
+  --accent: #0000cc;
+  --accent-hover: #000099;
+  --accent-fg: #ffffff;
+  --accent-soft: #e0e7ff;
+  --danger: #8b0000;
+  --danger-soft: #fff1f1;
+  --warn: #5c3300;
+  --warn-soft: #fff8e1;
+  --ok: #004d00;
+  --ok-soft: #eeffee;
+  --focus: #0000cc;
+  --mark: #ffff00;
+  --shadow-overlay: 0 0 0 3px #000000;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --border-width: 2px;
+  color-scheme: light;
+}
+
+:root {
+  /* Type: the base size is set on <html> by the text-size setting
+     (18 / 20 / 23 px). Everything else is in rem so the whole scale follows
+     it, and follows browser zoom and Windows text scaling. */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --text-sm: 0.889rem;   /* 16px at base 18 */
+  --text-base: 1rem;     /* 18px */
+  --text-md: 1.167rem;   /* 21px */
+  --text-lg: 1.389rem;   /* 25px */
+  --text-xl: 1.722rem;   /* 31px */
+  --text-2xl: 2.056rem;  /* 37px */
+  --leading-body: 1.65;
+  --leading-tight: 1.25;
+  --measure: 68ch;
+
+  /* 4/8 spacing rhythm */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --radius: 6px;
+  --target: 44px;
+  --focus-ring: 3px;
+
+  --duration-fast: 150ms;
+  --duration: 220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --z-sticky: 10;
+  --z-overlay: 100;
+  --z-toast: 1000;
+}
+
+:root:not([data-theme="contrast"]) {
+  --border-width: 1px;
+}
+
+html[data-text="normal"] { font-size: 112.5%; }  /* 18px with a 16px browser default */
+html[data-text="large"]  { font-size: 125%; }    /* 20px */
+html[data-text="larger"] { font-size: 143.75%; } /* 23px */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration: 0ms;
+  }
+}
