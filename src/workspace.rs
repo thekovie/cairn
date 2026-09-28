@@ -266,21 +266,8 @@ pub fn initialize(target: &InitTarget, display_name: &str) -> Result<InitOutcome
     }
 
     // Already a workspace (maybe someone else just finished): adopt it.
-    match read_marker(&dir) {
-        MarkerStatus::Valid(marker) => {
-            let _ = fs::remove_file(dir.join(INIT_JOURNAL));
-            return Ok(InitOutcome {
-                root: display_path(&canonical(&dir)),
-                marker,
-                created: false,
-            });
-        }
-        MarkerStatus::Invalid(reason) => {
-            return Err(CairnError::BadRequest(format!(
-                "This folder already has a {MARKER_FILE} file that can't be used: {reason}"
-            )));
-        }
-        MarkerStatus::Missing => {}
+    if let Some(done) = adopt_existing(&dir)? {
+        return Ok(done);
     }
 
     let journal_path = dir.join(INIT_JOURNAL);
@@ -292,21 +279,29 @@ pub fn initialize(target: &InitTarget, display_name: &str) -> Result<InitOutcome
     let proposed_bytes = serde_json::to_vec_pretty(&proposed).expect("journal serializes");
 
     // Refuse folders with unrelated content. Entries promised by an existing
-    // journal (an interrupted earlier attempt) are allowed.
+    // journal (an interrupted earlier attempt) are allowed. A concurrent
+    // initializer may finish (writing the marker and removing its journal)
+    // at any point, so every "someone else got here first" path re-checks
+    // for a finished workspace before failing.
     let existing_journal = read_journal(&journal_path)?;
     let allowed = match &existing_journal {
         Some(j) => j.entries.clone(),
         None => Vec::new(),
     };
-    check_only_expected_entries(&dir, &allowed)?;
+    if let Err(err) = check_only_expected_entries(&dir, &allowed) {
+        return match adopt_existing(&dir)? {
+            Some(done) => Ok(done),
+            None => Err(err),
+        };
+    }
 
     let journal = match existing_journal {
         Some(j) => j,
-        None if create_new_with(&journal_path, &proposed_bytes)? => proposed,
-        // Lost the race to another initializer: adopt its identity.
-        None => read_journal(&journal_path)?.ok_or_else(|| {
-            CairnError::Io("Another setup is in progress but its journal is unreadable.".into())
-        })?,
+        None => match claim_or_join(&dir, &journal_path, &proposed_bytes)? {
+            Claim::Journal(j) => j,
+            Claim::Ours => proposed,
+            Claim::Finished(done) => return Ok(done),
+        },
     };
 
     // Starter content. Every step is idempotent and never overwrites.
@@ -341,6 +336,54 @@ pub fn initialize(target: &InitTarget, display_name: &str) -> Result<InitOutcome
         marker: final_marker,
         created,
     })
+}
+
+/// If `dir` already has a valid marker, the outcome of adopting it.
+fn adopt_existing(dir: &Path) -> Result<Option<InitOutcome>> {
+    match read_marker(dir) {
+        MarkerStatus::Valid(marker) => {
+            let _ = fs::remove_file(dir.join(INIT_JOURNAL));
+            Ok(Some(InitOutcome {
+                root: display_path(&canonical(dir)),
+                marker,
+                created: false,
+            }))
+        }
+        MarkerStatus::Invalid(reason) => Err(CairnError::BadRequest(format!(
+            "This folder already has a {MARKER_FILE} file that can't be used: {reason}"
+        ))),
+        MarkerStatus::Missing => Ok(None),
+    }
+}
+
+enum Claim {
+    /// We created the journal; our proposed identity is the workspace's.
+    Ours,
+    /// Another initializer's journal: adopt its identity and finish its work.
+    Journal(InitJournal),
+    /// Another initializer already finished.
+    Finished(InitOutcome),
+}
+
+/// Create the init journal, or join whichever initializer beat us to it.
+fn claim_or_join(dir: &Path, journal_path: &Path, proposed: &[u8]) -> Result<Claim> {
+    for attempt in 0..40u64 {
+        if create_new_with(journal_path, proposed)? {
+            return Ok(Claim::Ours);
+        }
+        if let Some(done) = adopt_existing(dir)? {
+            return Ok(Claim::Finished(done));
+        }
+        if let Some(journal) = read_journal(journal_path)? {
+            return Ok(Claim::Journal(journal));
+        }
+        // The journal vanished between our attempt and the read (its owner
+        // is finishing). Give the marker a moment to appear, then retry.
+        std::thread::sleep(Duration::from_millis(10 + 10 * attempt.min(10)));
+    }
+    Err(CairnError::Io(
+        "Another setup of this folder is in progress. Please try again in a moment.".into(),
+    ))
 }
 
 fn canonical(dir: &Path) -> PathBuf {

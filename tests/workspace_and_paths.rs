@@ -70,6 +70,13 @@ fn newer_schema_opens_read_only() {
 
 #[test]
 fn concurrent_initialization_produces_one_identity() {
+    // Races depend on timing, so repeat to make a lost race likely to show up.
+    for _ in 0..25 {
+        concurrent_initialization_round();
+    }
+}
+
+fn concurrent_initialization_round() {
     let dir = tempfile::tempdir().unwrap();
     let target = dir.path().join("Shared");
     fs::create_dir_all(&target).unwrap();
