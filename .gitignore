@@ -1,0 +1,7 @@
+/target
+*.pdb
+# Never commit real documentation, drafts, or local config
+/sample-workspace/
+/*.local.json
+.cairn-*
+/.impeccable/hook.cache.json
