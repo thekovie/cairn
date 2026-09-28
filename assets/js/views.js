@@ -25,6 +25,30 @@ function pageRow(page, { showFolder = false } = {}) {
       showFolder && folder ? h('span', null, icon('folder'), ' ', folder.replaceAll('/', ' › ')) : null)));
 }
 
+// Unpublished work kept on this computer: new pages never published, and
+// pages with changes. Each row opens the editor where the person left off.
+function draftRow(d) {
+  const target = `${href.edit(d.path)}${d.is_new ? '?new=1' : ''}`;
+  return h('li', null, h('a', { class: 'row-link', href: target },
+    icon('edit'),
+    h('span', { class: 'row-title' }, d.title),
+    h('span', { class: 'row-side' }, `Saved ${relativeTime(d.updated_at)}`),
+    h('span', { class: 'row-meta' },
+      h('span', { class: 'chip chip-draft' }, icon('edit'),
+        d.is_new ? 'New page, not published yet' : 'Changes not published yet'),
+      d.folder ? h('span', null, icon('folder'), ' ', d.folder.replaceAll('/', ' › ')) : null)));
+}
+
+function draftsSection(drafts, { id, title, text }) {
+  if (!drafts.length) return null;
+  return h('section', { class: 'section', 'aria-labelledby': id },
+    h('h2', { id }, title),
+    h('p', { class: 'help' }, text),
+    h('ul', { class: 'list' }, drafts.map(draftRow)));
+}
+
+const loadDrafts = () => get('/api/drafts').then((r) => r.drafts).catch(() => []);
+
 function folderCard(folder) {
   const n = folder.page_count;
   return h('a', { class: 'folder-card', href: href.folder(folder.path) },
@@ -61,7 +85,7 @@ export function lockSentence(lock) {
 // ------------------------------------------------------------------ home
 
 export async function homeView(ctx) {
-  const data = await get('/api/home');
+  const [data, drafts] = await Promise.all([get('/api/home'), loadDrafts()]);
   const readOnly = Boolean(ctx.app.state.workspace?.read_only);
   const searchInput = h('input', { type: 'search', id: 'home-search', name: 'q', autocomplete: 'off' });
   const count = data.total_pages === 1 ? '1 page' : `${data.total_pages} pages`;
@@ -77,6 +101,12 @@ export async function homeView(ctx) {
     h('label', { for: 'home-search' }, 'Search all pages'),
     h('div', { class: 'hero-search' }, searchInput,
       button('Search', { icon: 'search', type: 'submit', kind: 'primary', large: true }))),
+
+    draftsSection(drafts, {
+      id: 'drafts-h',
+      title: 'Your unsaved changes',
+      text: 'Pages you started or changed but haven’t published. They are kept only on this computer. Choose one to carry on.',
+    }),
 
     h('section', { class: 'section', 'aria-labelledby': 'folders-h' },
       h('div', { class: 'page-head', style: 'margin-bottom: var(--space-4)' },
@@ -107,7 +137,8 @@ export async function homeView(ctx) {
 // ---------------------------------------------------------------- folder
 
 export async function folderView(ctx) {
-  const data = await get('/api/folder', { path: ctx.path });
+  const [data, drafts] = await Promise.all([get('/api/folder', { path: ctx.path }), loadDrafts()]);
+  const newHereDrafts = drafts.filter((d) => d.is_new && d.folder.toLowerCase() === data.path.toLowerCase());
   const newHere = () => linkButton('New page here', href.newPage(data.path), { icon: 'pagePlus', kind: 'primary' });
   const pageCount = data.pages.length + data.folders.reduce((n, f) => n + (f.page_count || 0), 0);
   const downloadBtn = button('Download this folder', {
@@ -129,6 +160,11 @@ export async function folderView(ctx) {
         h('h2', { id: 'sub-h' }, 'Folders inside'),
         h('div', { class: 'folder-grid' }, data.folders.map(folderCard)))
       : null,
+    draftsSection(newHereDrafts, {
+      id: 'new-drafts-h',
+      title: 'New pages you haven’t published',
+      text: 'Only you can see these, on this computer. Publish them when they’re ready.',
+    }),
     h('section', { class: 'section', 'aria-labelledby': 'pages-h' },
       h('h2', { id: 'pages-h' }, 'Pages'),
       data.pages.length

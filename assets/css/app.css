@@ -23,12 +23,16 @@ p { margin: 0; }
 a { color: var(--accent); text-underline-offset: 0.18em; }
 a:hover { color: var(--accent-hover); }
 
-/* One focus style everywhere: thick, offset, never removed. */
+/* One focus style for everything you can click or move between with Tab:
+   thick and offset. */
 :focus-visible {
   outline: var(--focus-ring) solid var(--focus);
   outline-offset: 2px;
   border-radius: 2px;
 }
+/* Headings and sections that Cairn moves focus to (so screen readers
+   announce a new page) can't be clicked or typed into, so they get no ring. */
+[tabindex="-1"]:focus-visible { outline-color: transparent; }
 
 .visually-hidden {
   position: absolute !important;
@@ -454,7 +458,10 @@ html[data-toolbar="words"] .btn-icon::after { display: none; }
   overflow-wrap: anywhere;
   caret-color: var(--accent);
 }
-.visual-doc:focus-visible { outline: 3px solid var(--focus); outline-offset: -4px; }
+/* While typing, the cursor shows where you are; a thick box around the
+   whole page is just noise. The pane's label turns blue instead. */
+.visual-doc:focus-visible { outline-color: transparent; }
+.pane:focus-within > .pane-label { color: var(--accent); }
 .visual-doc .ProseMirror-selectednode { outline: 3px solid var(--accent); outline-offset: 2px; }
 .visual-doc li > p { margin: 0; }
 .pane { display: flex; flex-direction: column; min-width: 0; }
@@ -469,7 +476,7 @@ html[data-toolbar="words"] .btn-icon::after { display: none; }
   line-height: 1.7;
   background: var(--surface);
 }
-.pane-write textarea:focus-visible { outline-offset: -4px; }
+.pane-write textarea:focus-visible { outline-color: transparent; }
 .pane-write.is-dragging textarea { background: var(--accent-soft); outline: 3px dashed var(--accent); outline-offset: -8px; }
 .pane-preview .md-body { padding: var(--space-4); overflow-wrap: anywhere; }
 .drop-hint { font-size: var(--text-sm); color: var(--fg-muted); padding: var(--space-2) var(--space-4) var(--space-3); border-top: var(--border-width) solid var(--border); }

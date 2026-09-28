@@ -309,6 +309,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/edit/status", get(api::edit_status))
         .route("/api/edit/release", post(api::edit_release))
         .route("/api/edit/reclaim", post(api::edit_reclaim))
+        .route("/api/drafts", get(api::drafts_list))
         .route("/api/draft/save", post(api::draft_save))
         .route("/api/draft/discard", post(api::draft_discard))
         .route(

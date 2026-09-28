@@ -127,7 +127,9 @@ Your unsaved changes are saved on **your own computer** every few seconds, never
 - **Kept in this window only**: persistent saving is turned off (see [Configuration](configuration.md)). Publish before closing Cairn.
 - An error message in red: saving failed. Keep the window open, then publish or try again.
 
-If you close the editor, close Cairn, or your computer restarts, your changes are kept. Next time you edit the page, Cairn offers **Continue with my changes** or **Start again from the published page**, and can show the differences. Pictures you added are kept with your unsaved changes too.
+If you close the editor, close Cairn, or your computer restarts, your changes are kept. To find them again, look under **Your unsaved changes** on the Home screen: it lists every page you started or changed but haven't published, including new pages that don't exist for anyone else yet. New pages are also listed in their folder under **New pages you haven't published**. Choose one to carry on where you left off.
+
+When you go back to a page that was already published, Cairn offers **Continue with my changes** or **Start again from the published page**, and can show the differences. Pictures you added are kept with your unsaved changes too.
 
 ## Publishing
 

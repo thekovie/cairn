@@ -127,6 +127,13 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
       editor.action(m.insert(md, inline));
       view().focus();
     },
+    /** Pass on any edit not yet reported (changes are reported after a short pause). */
+    flush() {
+      const md = editor.action(m.getMarkdown());
+      if (md === known) return;
+      known = md;
+      onChange(md);
+    },
     /** Replace the whole page body, e.g. after editing the Markdown directly. */
     setMarkdown(md) {
       if (md === known) return;

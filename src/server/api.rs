@@ -609,6 +609,10 @@ pub async fn new_page(
             if locks::status(&ws.root, &rel, &me)?.is_some_and(|l| !l.is_mine) {
                 continue;
             }
+            // An unpublished new page with this name is waiting in the drafts.
+            if st.drafts().load(&ws.instance_id(), &rel).is_some() {
+                continue;
+            }
             let id = body.template.as_deref().unwrap_or("builtin:blank");
             let content = page_from_template(st, &ws.root, id, title, &folder)?;
             return Ok(json!({ "path": rel, "content": content }));
@@ -699,6 +703,9 @@ pub async fn edit_start(
         let mut restore = Value::Null;
         let draft = match drafts.load(&instance, &rel) {
             Some(d) if resumed => d,
+            // A new page that was never published: there is nothing to
+            // choose between, so just carry on with it.
+            Some(d) if current.is_none() => d,
             Some(d) if d.content != published || !d.staged.is_empty() => {
                 restore = json!({
                     "updated_at": d.updated_at,
@@ -880,6 +887,41 @@ pub async fn edit_reclaim(
 pub struct ContentBody {
     path: String,
     content: String,
+}
+
+/// This person's unpublished work in the open documentation folder: new
+/// pages that were never published, and pages with changes. Newest first.
+pub async fn drafts_list(State(state): State<Arc<AppState>>) -> ApiResult {
+    blocking(state, |st| {
+        let ws = st.workspace()?;
+        let mut out: Vec<Value> = Vec::new();
+        let mut drafts = st.drafts().list(&ws.instance_id());
+        drafts.sort_by_key(|d| std::cmp::Reverse(d.updated_at));
+        for draft in drafts {
+            let Ok(rel) = validate_article_path(&draft.article) else {
+                continue;
+            };
+            let published = ws
+                .root
+                .resolve_for_create(&rel)
+                .ok()
+                .and_then(|p| read_optional(&p).ok().flatten())
+                .map(|b| String::from_utf8_lossy(&b).into_owned());
+            if !draft_has_changes(&draft, published.as_deref()) {
+                continue;
+            }
+            let (_, body) = parse_front_matter(&draft.content);
+            out.push(json!({
+                "path": rel,
+                "title": extract_title(body).unwrap_or_else(|| title_from_filename(&rel)),
+                "updated_at": draft.updated_at,
+                "is_new": published.is_none(),
+                "folder": parent_of(&rel),
+            }));
+        }
+        Ok(json!({ "drafts": out }))
+    })
+    .await
 }
 
 fn load_draft(st: &AppState, instance: &str, rel: &str) -> Result<Draft> {

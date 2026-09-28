@@ -372,6 +372,8 @@ function mountEditor(ctx, path, start) {
 
   // ---------------------------------------------------------- saving
   async function saveDraft() {
+    // Visual edits reach the text a moment later; take the latest now.
+    if (visual) visual.flush();
     clearTimeout(s.saveTimer);
     if (!s.dirty || s.closed) return true;
     const text = ta.value;
@@ -1022,7 +1024,9 @@ function mountEditor(ctx, path, start) {
     icon: 'exit',
     onClick: async (e) => {
       await whileBusy(e.currentTarget, 'Closing…', closeEditor);
-      toast('Your changes are kept on this computer. You can continue later.');
+      toast(s.isNew && !isTemplate
+        ? 'Your new page isn’t published yet. It’s kept on this computer: find it under “Your unsaved changes” on the Home screen.'
+        : 'Your changes are kept on this computer. You can continue later.');
       ctx.navigate(leaveTo());
     },
   });
@@ -1035,6 +1039,7 @@ function mountEditor(ctx, path, start) {
   }
   window.addEventListener('beforeunload', onBeforeUnload);
   window.addEventListener('pagehide', () => {
+    if (visual && !s.closed) visual.flush();
     if (s.dirty && !s.closed) {
       api('POST', '/api/draft/save', { path, content: ta.value }, { keepalive: true }).catch(() => {});
     }

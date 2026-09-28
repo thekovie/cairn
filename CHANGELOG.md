@@ -2,6 +2,15 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- A new page closed without publishing seemed to disappear: it was kept on your computer, but nothing showed it. The Home screen now has **Your unsaved changes**, listing every page you started or changed but haven't published (it survives restarting Cairn), and each folder lists its **New pages you haven't published**. Choosing one opens the editor where you left off.
+- Creating a new page with the same title as an unpublished one no longer reopens the old text; the new page gets its own file.
+- In Visual editing, words typed just before **Close editor** are always saved.
+- No more stray blue boxes: the page title no longer gets one when a page opens, and the writing area no longer has one while you type (the cursor shows where you are, and the pane's label turns blue). Buttons, links, and fields still show a clear focus ring when you move to them with the keyboard.
+
 ## 0.3.1 (2026-09-29)
 
 ### Fixed

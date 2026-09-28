@@ -160,6 +160,37 @@ impl DraftStore {
             .then_some(draft)
     }
 
+    /// Every draft for one documentation folder: those saved on this
+    /// computer and those held only in memory (the in-memory copy wins).
+    pub fn list(&self, instance_id: &str) -> Vec<Draft> {
+        let mut by_article: HashMap<String, Draft> = HashMap::new();
+        if let Some(base) = self.dir.as_ref() {
+            let inst: String = instance_id
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                .collect();
+            if let Ok(entries) = fs::read_dir(base.join(&inst)) {
+                for entry in entries.flatten() {
+                    let Ok(Some(bytes)) = read_optional(&entry.path().join("draft.json")) else {
+                        continue;
+                    };
+                    if let Ok(draft) = serde_json::from_slice::<Draft>(&bytes)
+                        && draft.instance_id == instance_id
+                    {
+                        by_article.insert(draft.article.to_lowercase(), draft);
+                    }
+                }
+            }
+        }
+        let prefix = format!("{instance_id}/");
+        for (key, entry) in self.mem.lock().expect("draft lock").iter() {
+            if let (true, Some(draft)) = (key.starts_with(&prefix), entry.draft.as_ref()) {
+                by_article.insert(draft.article.to_lowercase(), draft.clone());
+            }
+        }
+        by_article.into_values().collect()
+    }
+
     /// Stage a picture for a draft. The draft must already exist.
     pub fn add_image(
         &self,

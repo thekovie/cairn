@@ -598,6 +598,66 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn unpublished_new_pages_and_changed_pages_are_listed_as_drafts() {
+        let ws = common::workspace();
+        seed(&ws, "# Printer\n");
+        common::write(&ws.path.join("Guides/wifi.md"), "# Wi-Fi\n");
+        let (_home, st) = state(&ws);
+
+        // A new page, written and closed without publishing.
+        let new = r##"{"path":"Guides/opening-hours.md","is_new":true,"initial_content":"# Opening hours\n"}"##;
+        call(&st, "POST", "/api/edit/start", new).await;
+        let text = r##"{"path":"Guides/opening-hours.md","content":"# Opening hours\n\nMonday to Friday.\n"}"##;
+        call(&st, "POST", "/api/draft/save", text).await;
+        call(
+            &st,
+            "POST",
+            "/api/edit/release",
+            r#"{"path":"Guides/opening-hours.md"}"#,
+        )
+        .await;
+
+        // An existing page with real changes, and one opened without changes.
+        let path = format!(r#"{{"path":"{PAGE}"}}"#);
+        call(&st, "POST", "/api/edit/start", &path).await;
+        let edit = format!(r##"{{"path":"{PAGE}","content":"# Printer\n\nNew step.\n"}}"##);
+        call(&st, "POST", "/api/draft/save", &edit).await;
+        call(&st, "POST", "/api/edit/release", &path).await;
+        call(
+            &st,
+            "POST",
+            "/api/edit/start",
+            r#"{"path":"Guides/wifi.md"}"#,
+        )
+        .await;
+        call(
+            &st,
+            "POST",
+            "/api/edit/release",
+            r#"{"path":"Guides/wifi.md"}"#,
+        )
+        .await;
+
+        let drafts = call(&st, "GET", "/api/drafts", "").await["drafts"].clone();
+        let list = drafts.as_array().unwrap();
+        assert_eq!(list.len(), 2, "{drafts}");
+        let new = list
+            .iter()
+            .find(|d| d["path"] == "Guides/opening-hours.md")
+            .unwrap();
+        assert_eq!(new["is_new"], true);
+        assert_eq!(new["title"], "Opening hours");
+        assert_eq!(new["folder"], "Guides");
+        let changed = list.iter().find(|d| d["path"] == PAGE).unwrap();
+        assert_eq!(changed["is_new"], false);
+
+        // Drafts survive a restart (they are read back from disk).
+        st.drafts().clear_memory();
+        let again = call(&st, "GET", "/api/drafts", "").await;
+        assert_eq!(again["drafts"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
     async fn real_unsaved_changes_are_kept_when_the_editor_closes() {
         let ws = common::workspace();
         seed(&ws, "# Printer\n");
