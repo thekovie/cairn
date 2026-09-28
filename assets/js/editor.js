@@ -7,6 +7,7 @@
 import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
+  iconButton, toolbarKeys,
 } from './core.js';
 import { lockSentence } from './views.js';
 
@@ -409,8 +410,10 @@ function mountEditor(ctx, path, start) {
   function prefixLines(kind) {
     const lines = selectWholeLines().split('\n');
     let out;
-    if (kind === 'h2' || kind === 'h3') {
-      const mark = kind === 'h2' ? '## ' : '### ';
+    if (kind === 'p') {
+      out = lines.map((l) => l.replace(/^#{1,6}\s*/, ''));
+    } else if (kind === 'h1' || kind === 'h2' || kind === 'h3') {
+      const mark = { h1: '# ', h2: '## ', h3: '### ' }[kind];
       out = lines.map((l) => mark + (l.replace(/^#{1,6}\s*/, '') || 'Section title'));
     } else if (kind === 'ul') {
       const all = lines.every((l) => /^\s*[-*+]\s/.test(l));
@@ -546,38 +549,61 @@ function mountEditor(ctx, path, start) {
   });
 
   // --------------------------------------------------------- toolbar
-  const tool = (label, iconName, fn) => button(label, { icon: iconName, onClick: () => { fn(); activity(); } });
+  // Google Docs-style: compact icons, the name on hover or keyboard focus
+  // (or always, with "Show words" in Settings, and on touch screens).
+  const run = (fn) => () => { fn(); activity(); };
+  const tool = (label, iconName, fn, shortcut) => iconButton(label, { icon: iconName, shortcut, onClick: run(fn) });
+  const sep = () => h('span', { class: 'toolbar-sep', 'aria-hidden': 'true' });
   const viewBtn = (label, view) => button(label, {
+    class: 'btn btn-view',
     'aria-pressed': view === startView ? 'true' : 'false',
     onClick: (e) => {
       panes.dataset.view = view;
       for (const b of e.currentTarget.parentElement.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
     },
   });
-  const toolbar = h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
-    tool('Heading', 'heading', () => prefixLines('h2')),
-    tool('Subheading', 'heading', () => prefixLines('h3')),
-    tool('Bold', 'bold', () => wrap('**', '**', 'bold words')),
-    tool('Italic', 'italic', () => wrap('_', '_', 'slanted words')),
-    h('span', { class: 'toolbar-sep', 'aria-hidden': 'true' }),
+
+  const styleSelect = h('select', { id: 'tb-style', class: 'toolbar-select', 'aria-label': 'Text style' },
+    h('option', { value: 'p' }, 'Normal text'),
+    h('option', { value: 'h2' }, 'Heading'),
+    h('option', { value: 'h3' }, 'Subheading'),
+    h('option', { value: 'h1' }, 'Page title'));
+  styleSelect.addEventListener('change', run(() => prefixLines(styleSelect.value)));
+  // Show the style of the line the cursor is on.
+  const syncStyle = () => {
+    const v = ta.value;
+    const from = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    const hashes = v.slice(from).match(/^(#{1,6})\s/)?.[1].length || 0;
+    styleSelect.value = { 0: 'p', 1: 'h1', 2: 'h2' }[hashes] || 'h3';
+  };
+  for (const ev of ['keyup', 'click', 'focus']) ta.addEventListener(ev, syncStyle);
+
+  const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
+    styleSelect,
+    sep(),
+    tool('Bold', 'bold', () => wrap('**', '**', 'bold words'), 'Ctrl+B'),
+    tool('Italic', 'italic', () => wrap('_', '_', 'slanted words'), 'Ctrl+I'),
+    sep(),
     tool('Bullet list', 'list', () => prefixLines('ul')),
     tool('Numbered list', 'listNumbered', () => prefixLines('ol')),
-    h('span', { class: 'toolbar-sep', 'aria-hidden': 'true' }),
+    sep(),
     tool('Link…', 'link', insertLink),
+    tool('Insert picture…', 'image', () => fileInput.click()),
     tool('Table…', 'table', insertTable),
     tool('Code', 'code', code),
-    tool('Insert picture…', 'image', () => fileInput.click()),
     h('div', { class: 'view-switch', role: 'group', 'aria-label': 'What to show' },
-      viewBtn('Write and preview', 'both'), viewBtn('Write only', 'write'), viewBtn('Preview only', 'preview')));
+      viewBtn('Write and preview', 'both'), viewBtn('Write only', 'write'), viewBtn('Preview only', 'preview'))));
 
   // Templates: worded buttons insert fill-in fields so nobody types {{…}}.
+  // They stay worded: there is no icon anyone would recognize for them.
+  const word = (label, iconName, fn) => button(label, { icon: iconName, onClick: run(fn) });
   const fillInBar = isTemplate
-    ? h('div', { class: 'toolbar toolbar-insert', role: 'toolbar', 'aria-label': 'Insert a fill-in field', 'aria-controls': 'md-text' },
+    ? toolbarKeys(h('div', { class: 'toolbar toolbar-insert', role: 'toolbar', 'aria-label': 'Insert a fill-in field', 'aria-controls': 'md-text' },
       h('span', { class: 'toolbar-label', 'aria-hidden': 'true' }, 'Insert:'),
-      tool('Page title', 'page', () => replaceSelection('{{title}}')),
-      tool('Today’s date', 'clock', () => replaceSelection('{{date}}')),
-      tool('Author’s name', 'user', () => replaceSelection('{{author}}')),
-      tool('Folder name', 'folder', () => replaceSelection('{{folder}}')))
+      word('Page title', 'page', () => replaceSelection('{{title}}')),
+      word('Today’s date', 'clock', () => replaceSelection('{{date}}')),
+      word('Author’s name', 'user', () => replaceSelection('{{author}}')),
+      word('Folder name', 'folder', () => replaceSelection('{{folder}}'))))
     : null;
 
   ta.addEventListener('keydown', (e) => {

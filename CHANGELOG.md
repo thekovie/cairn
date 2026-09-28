@@ -4,6 +4,10 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Changed
+
+- The editor toolbar is now one compact row of icons, like Google Docs. Each button's name appears when you point at it or move to it with the keyboard, with its shortcut (for example “Bold (Ctrl+B)”). Heading and Subheading are now a **Text style** list that also shows the style of the current line. To always see the names, choose **Settings → Appearance → Editor toolbar → Icons and words**; on touch screens they are always shown.
+
 ### Fixed
 
 - Opening a page in the editor and closing it without changing anything no longer shows “You have unsaved changes to this page” afterwards, and the page's button says **Edit this page** again instead of **Continue editing**.

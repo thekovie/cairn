@@ -42,6 +42,9 @@ pub struct AppConfig {
     pub pdf_paper: String,
     /// Browser used to make PDFs. `None` means find Microsoft Edge or Chrome.
     pub pdf_browser: Option<PathBuf>,
+    /// Show words beside the editor's toolbar icons (otherwise the name
+    /// appears on hover and keyboard focus).
+    pub toolbar_labels: bool,
 }
 
 impl Default for AppConfig {
@@ -60,6 +63,7 @@ impl Default for AppConfig {
             timezone: None,
             pdf_paper: "a4".into(),
             pdf_browser: None,
+            toolbar_labels: false,
         }
     }
 }

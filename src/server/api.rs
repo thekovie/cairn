@@ -134,6 +134,7 @@ fn state_view(state: &AppState) -> Value {
             "timezone": cfg.timezone,
             "system_timezone": crate::timefmt::zone_name(&crate::timefmt::user_zone(None)),
             "pdf_paper": cfg.pdf_paper,
+            "toolbar_labels": cfg.toolbar_labels,
             "pdf_available":
                 !crate::export::pdf::find_browsers(cfg.pdf_browser.as_deref()).is_empty(),
         },
@@ -1259,6 +1260,7 @@ pub struct SettingsBody {
     /// IANA zone name, or "" for this computer's timezone.
     timezone: Option<String>,
     pdf_paper: Option<String>,
+    toolbar_labels: Option<bool>,
 }
 
 pub async fn save_settings(
@@ -1289,6 +1291,9 @@ pub async fn save_settings(
         }
         if let Some(v) = body.pdf_paper {
             cfg.pdf_paper = v;
+        }
+        if let Some(v) = body.toolbar_labels {
+            cfg.toolbar_labels = v;
         }
         let drafts_changed = body
             .persistent_drafts

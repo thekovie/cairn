@@ -22,9 +22,11 @@ Your name comes from **Settings → Your name**. If you leave it empty, your Win
 
 ### Formatting with the toolbar
 
-| Button | What it does |
+The toolbar is a single row of icons. To see what a button does, point at it with the mouse, or move to it with **Tab** (then the arrow keys move along the toolbar): its name appears just below it. If you'd rather always see the names, choose **Settings → Appearance → Editor toolbar → Icons and words**. On touch screens the names are always shown.
+
+| Control | What it does |
 | --- | --- |
-| **Heading**, **Subheading** | Turn the current line into a section title. |
+| **Text style** list (Normal text, Heading, Subheading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
 | **Bold**, **Italic** | Style the selected words. With nothing selected, example words are inserted for you to replace. |
 | **Bullet list**, **Numbered list** | Turn the selected lines into a list. Choose again to undo. |
 | **Link…** | Link to another page in this documentation (pick it from the list) or to a website. |

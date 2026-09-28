@@ -24,6 +24,7 @@ export function applyPrefs(config) {
   const root = document.documentElement;
   root.dataset.theme = config?.appearance || 'light';
   root.dataset.text = config?.text_size || 'normal';
+  root.dataset.toolbar = config?.toolbar_labels ? 'words' : 'icons';
   setTimeZone(config?.timezone || null);
 }
 
@@ -176,6 +177,36 @@ export function button(label, { icon: iconName, kind, onClick, type = 'button', 
   const cls = ['btn', kind && `btn-${kind}`, large && 'btn-large'].filter(Boolean).join(' ');
   return h('button', { type, class: cls, onclick: onClick, ...rest },
     iconName ? icon(iconName) : null, h('span', null, label));
+}
+
+/**
+ * A compact toolbar button. The label is always in the button (screen
+ * readers read it, and it becomes visible when "Show words" is on or on
+ * touch screens); otherwise it appears as a tooltip on hover and keyboard
+ * focus, with the keyboard shortcut if there is one.
+ */
+export function iconButton(label, { icon: iconName, shortcut, onClick, ...rest } = {}) {
+  if (!label || !String(label).trim()) throw new Error('Buttons must have a visible text label');
+  const tip = shortcut ? `${label} (${shortcut})` : label;
+  return h('button', {
+    type: 'button', class: 'btn btn-icon', onclick: onClick, dataset: { tip },
+    'aria-keyshortcuts': shortcut ? shortcut.replace('Ctrl', 'Control') : null, ...rest,
+  }, icon(iconName), h('span', { class: 'btn-icon-label' }, label));
+}
+
+/** Arrow keys, Home, and End move between the controls of a toolbar. */
+export function toolbarKeys(toolbar) {
+  toolbar.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const items = [...toolbar.querySelectorAll('button:not([disabled]), select')]
+      .filter((el) => el.offsetParent !== null);
+    const i = items.indexOf(e.target);
+    if (i === -1) return;
+    const next = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: items.length - 1 }[e.key];
+    e.preventDefault();
+    items[(next + items.length) % items.length].focus();
+  });
+  return toolbar;
 }
 
 export function linkButton(label, target, { icon: iconName, kind, large } = {}) {

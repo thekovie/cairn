@@ -660,7 +660,12 @@ export async function settingsView(ctx) {
         { value: 'normal', label: 'Normal', text: 'The standard size.' },
         { value: 'large', label: 'Large', text: 'A little bigger.' },
         { value: 'larger', label: 'Larger', text: 'Much bigger.' },
-      ], cfg.text_size, (v) => saveSettings(ctx, { text_size: v }, 'Text size changed.'))),
+      ], cfg.text_size, (v) => saveSettings(ctx, { text_size: v }, 'Text size changed.')),
+      radioGroup('toolbar_labels', 'Editor toolbar', [
+        { value: 'icons', label: 'Icons only', text: 'Point at a button, or move to it with Tab, to see its name.' },
+        { value: 'words', label: 'Icons and words', text: 'Every button shows its name. Takes more room.' },
+      ], cfg.toolbar_labels ? 'words' : 'icons',
+      (v) => saveSettings(ctx, { toolbar_labels: v === 'words' }, 'Toolbar changed.'))),
 
     timezoneSection(cfg, (body, message) => saveSettings(ctx, body, message)),
 

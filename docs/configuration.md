@@ -12,6 +12,7 @@ Most people only need **Settings** in Cairn:
 | Ask “Are you still editing?” after | Minutes without editing activity | 15 |
 | Unlock the page after | Minutes without editing activity; must be later than the question | 20 |
 | Keep my unsaved changes on this computer | Save drafts to disk so they survive closing Cairn | On |
+| Editor toolbar | Icons only (names on hover and keyboard focus) or Icons and words | Icons only |
 | Time and timezone | Automatic (this computer's timezone) or a chosen region and city. All times shown are converted to it. | Automatic |
 | PDF downloads: Paper size | A4 or US Letter | A4 |
 | Name of this documentation | The workspace display name, shown to everyone | set at creation |
@@ -56,6 +57,7 @@ Settings are stored in `%LOCALAPPDATA%\Cairn\config.json`:
 | `text_size` | `normal`, `large`, `larger` |
 | `timezone` | An IANA timezone name such as `"Asia/Manila"` or `"America/New_York"`, or `null` for this computer's timezone. Only affects how times are shown. |
 | `pdf_paper` | `a4` or `letter` |
+| `toolbar_labels` | `true` shows words beside the editor's toolbar icons; `false` (default) shows them on hover and keyboard focus |
 | `pdf_browser` | Full path to `msedge.exe` or `chrome.exe` used to make PDFs, or `null` to find Microsoft Edge, then Google Chrome, in their usual places. If the path doesn't exist, PDFs fall back to the print view. |
 
 If the file is missing, Cairn uses the defaults. If it's invalid, Cairn uses the defaults and shows a notice. An administrator can pre-deploy this file, for example to turn off persistent drafts.
