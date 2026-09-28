@@ -2,6 +2,8 @@
 
 ## Prerequisites (Windows)
 
+Setting up a new computer? [docs/building.md](docs/building.md) walks through every step, from installing the tools to a finished `cairn.exe`.
+
 1. **Rust** 1.88 or newer (the project uses the 2024 edition). Install from <https://rustup.rs>. `rustup` installs `cargo`, `rustfmt`, and `clippy`.
 2. **Microsoft C++ Build Tools**, which Rust needs to link Windows programs:
 

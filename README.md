@@ -24,7 +24,7 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 
 ## Quick start
 
-1. Download the latest `cairn-…-windows-x64.zip` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and unzip it. (Or build it yourself: see [CONTRIBUTING.md](CONTRIBUTING.md).)
+1. Download the latest `cairn-…-windows-x64.zip` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and unzip it. (Or build it yourself: see [Building cairn.exe](docs/building.md).)
 2. Double-click `cairn.exe`. A small window opens and your browser shows Cairn.
 3. Choose **Create a new documentation folder** (or **Open a documentation folder we already use**).
 4. Choose **New page**, give it a title, and start writing. Choose **Publish changes** when you're done.
@@ -48,7 +48,8 @@ Screenshots are not yet included in the repository. The interface has three main
 | [Configuration](docs/configuration.md) | Settings and the workspace file format |
 | [Troubleshooting](docs/troubleshooting.md) | Shared-folder access, failed publishing, abandoned locks, restoring unsaved changes |
 | [Two-computer test checklist](docs/manual-two-computer-checklist.md) | Manual checks for network-share behavior |
-| [Contributing](CONTRIBUTING.md) | Building, running, and testing |
+| [Building cairn.exe](docs/building.md) | Step by step: from a new Windows computer to your own `cairn.exe` |
+| [Contributing](CONTRIBUTING.md) | Running, testing, and working on the code |
 | [Changelog](CHANGELOG.md) | What changed in each release |
 
 ## Limitations

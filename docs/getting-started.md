@@ -9,7 +9,7 @@ Cairn is a single program, `cairn.exe`. There is nothing to install.
 - Download the latest `cairn-…-windows-x64.zip` from <https://github.com/thekovie/cairn/releases/latest>, right-click it, choose **Extract All…**, and keep the folder somewhere convenient, such as `C:\Tools\Cairn`.
 - Or, if someone gave you `cairn.exe`, copy it somewhere convenient.
 - The first time you open it, Windows may say **Windows protected your PC**, because the program isn't signed by a publisher. Choose **More info**, then **Run anyway**.
-- To build it yourself from the source code, follow [CONTRIBUTING.md](../CONTRIBUTING.md). The result is `target\release\cairn.exe`.
+- To build it yourself from the source code, follow [Building cairn.exe](building.md). The result is `target\release\cairn.exe`.
 
 Tip: right-click `cairn.exe` and choose **Send to → Desktop (create shortcut)** so it's easy to find.
 
