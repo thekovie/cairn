@@ -2,6 +2,12 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- Opening a page in the editor and closing it without changing anything no longer shows “You have unsaved changes to this page” afterwards, and the page's button says **Edit this page** again instead of **Continue editing**.
+
 ## 0.2.0 (2026-09-28)
 
 ### Added

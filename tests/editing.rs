@@ -527,3 +527,96 @@ fn previous_versions_can_be_listed_inspected_and_restored() {
     assert_eq!(history::list_versions(&ws.root, PAGE).unwrap().len(), 3);
     assert!(history::read_version(&ws.root, PAGE, "../../shared-docs.json").is_err());
 }
+
+// ------------------------------------------- opening and closing the editor
+
+mod routes {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use cairn::server::build_router;
+    use http_body_util::BodyExt;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    const PORT: u16 = 4325;
+
+    fn state(ws: &common::TestWorkspace) -> (tempfile::TempDir, Arc<AppState>) {
+        let home = tempfile::tempdir().unwrap();
+        let state = AppState::new(home.path().to_path_buf(), AppConfig::default(), None);
+        state.set_port(PORT);
+        open_at(&state, &ws.path).unwrap();
+        (home, state)
+    }
+
+    async fn call(st: &Arc<AppState>, method: &str, uri: &str, json: &str) -> serde_json::Value {
+        let body = if method == "GET" {
+            Body::empty()
+        } else {
+            Body::from(json.to_string())
+        };
+        let req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("host", format!("127.0.0.1:{PORT}"))
+            .header("x-cairn-token", &st.token)
+            .header("content-type", "application/json")
+            .body(body)
+            .unwrap();
+        let res = build_router(st.clone()).oneshot(req).await.unwrap();
+        assert!(res.status().is_success(), "{uri}: {}", res.status());
+        let bytes = res.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    async fn has_draft(st: &Arc<AppState>) -> bool {
+        call(st, "GET", "/api/page?path=Guides%2Fprinter.md", "").await["has_draft"]
+            .as_bool()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn opening_and_closing_the_editor_without_changes_leaves_no_unsaved_changes() {
+        let ws = common::workspace();
+        seed(&ws, "# Printer\n");
+        let (_home, st) = state(&ws);
+        let path = format!(r#"{{"path":"{PAGE}"}}"#);
+
+        call(&st, "POST", "/api/edit/start", &path).await;
+        assert!(
+            !has_draft(&st).await,
+            "an untouched copy is not unsaved work"
+        );
+
+        call(&st, "POST", "/api/edit/release", &path).await;
+        assert!(!has_draft(&st).await);
+        let instance = st.workspace().unwrap().instance_id();
+        assert!(
+            st.drafts().load(&instance, PAGE).is_none(),
+            "the unchanged copy is removed on close"
+        );
+    }
+
+    #[tokio::test]
+    async fn real_unsaved_changes_are_kept_when_the_editor_closes() {
+        let ws = common::workspace();
+        seed(&ws, "# Printer\n");
+        let (_home, st) = state(&ws);
+        let path = format!(r#"{{"path":"{PAGE}"}}"#);
+
+        call(&st, "POST", "/api/edit/start", &path).await;
+        let edit = format!(r##"{{"path":"{PAGE}","content":"# Printer\n\nNew step.\n"}}"##);
+        call(&st, "POST", "/api/draft/save", &edit).await;
+        call(&st, "POST", "/api/edit/release", &path).await;
+
+        assert!(has_draft(&st).await);
+        let instance = st.workspace().unwrap().instance_id();
+        assert!(
+            st.drafts()
+                .load(&instance, PAGE)
+                .unwrap()
+                .content
+                .contains("New step.")
+        );
+    }
+}

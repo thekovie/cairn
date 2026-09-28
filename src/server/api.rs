@@ -498,7 +498,10 @@ pub async fn page(State(state): State<Arc<AppState>>, Query(q): Query<PathQuery>
             "hash": sha256_hex(&bytes),
             "lock": lock,
             "cannot_edit_reason": cannot_edit_reason(st, &ws, &rel, &path),
-            "has_draft": st.drafts().load(&instance, &rel).is_some(),
+            "has_draft": st
+                .drafts()
+                .load(&instance, &rel)
+                .is_some_and(|d| draft_has_changes(&d, Some(&text))),
             "editing_here": editing_here,
             "folder": parent_of(&rel),
             "breadcrumbs": breadcrumbs(parent_of(&rel)),
@@ -749,6 +752,12 @@ pub async fn edit_start(
     .await
 }
 
+/// Whether a draft holds work that isn't already published. Opening the
+/// editor saves a copy of the published page, which is not unsaved work.
+fn draft_has_changes(draft: &Draft, published: Option<&str>) -> bool {
+    !draft.staged.is_empty() || published != Some(draft.content.as_str())
+}
+
 fn with_session<T>(st: &AppState, rel: &str, f: impl FnOnce(&mut EditSession) -> T) -> Result<T> {
     let ws = st.workspace()?;
     let key = AppState::session_key(&ws.instance_id(), rel);
@@ -831,6 +840,18 @@ pub async fn edit_release(
             }
         } else {
             edits.remove(&key);
+            drop(edits);
+            // Closing without changes: forget the untouched copy, so the page
+            // doesn't claim there are unsaved changes.
+            let instance = ws.instance_id();
+            let drafts = st.drafts();
+            if let Some(draft) = drafts.load(&instance, &rel) {
+                let published = read_optional(&ws.root.resolve_for_create(&rel)?)?
+                    .map(|b| String::from_utf8_lossy(&b).into_owned());
+                if !draft.is_new && !draft_has_changes(&draft, published.as_deref()) {
+                    drafts.discard(&instance, &rel)?;
+                }
+            }
         }
         Ok(json!({ "released": true }))
     })
