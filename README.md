@@ -43,9 +43,13 @@ A page, with its owner, status, review date, and editing state beside it.
 
 ![A page in Cairn with its details panel](docs/screenshots/page.png)
 
-The editor: worded formatting buttons and a live preview, so nobody needs to know Markdown.
+Visual editing: write on the page as it will look. Markdown shortcuts such as `## ` and `- ` format as you type.
 
-![The Cairn editor with the formatting toolbar and live preview](docs/screenshots/editor.png)
+![Visual editing in Cairn, with the page editable as it will look](docs/screenshots/visual.png)
+
+Or write Markdown with a live preview beside it. Point at a toolbar icon to see its name.
+
+![The Cairn editor in Markdown mode with the icon toolbar and live preview](docs/screenshots/editor.png)
 
 <details>
 <summary>More screenshots: templates, downloads, and timezones</summary>

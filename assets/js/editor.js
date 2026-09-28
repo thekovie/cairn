@@ -680,8 +680,9 @@ function mountEditor(ctx, path, start) {
     showStyle(v.slice(from).match(/^(#{1,6})\s/)?.[1].length || 0);
   };
   for (const ev of ['keyup', 'click', 'focus']) ta.addEventListener(ev, syncStyle);
-  for (const ev of ['keyup', 'click']) {
-    visualRoot.addEventListener(ev, () => { if (visual) showStyle(visual.headingLevel()); });
+  // The editor applies a cursor move just after the event, so read it a tick later.
+  for (const ev of ['keyup', 'mouseup', 'focusin']) {
+    visualRoot.addEventListener(ev, () => setTimeout(() => { if (visual) showStyle(visual.headingLevel()); }, 0));
   }
 
   const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },

@@ -439,7 +439,7 @@ html[data-toolbar="words"] .btn-icon::after { display: none; }
 .editor-panes[data-view="preview"] .pane-write { display: none; }
 
 /* Visual editing: one pane, the page as it will look, editable in place. */
-.pane-visual { display: none; }
+.editor-panes:not([data-view="visual"]) .pane-visual { display: none; }
 .editor-panes[data-view="visual"] { grid-template-columns: 1fr; }
 .editor-panes[data-view="visual"] .pane-write,
 .editor-panes[data-view="visual"] .pane-preview { display: none; }

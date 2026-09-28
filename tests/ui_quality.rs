@@ -251,6 +251,17 @@ fn buttons_always_carry_visible_words() {
 }
 
 #[test]
+fn only_the_chosen_editing_mode_is_shown() {
+    // `.pane` sets `display: flex`, so hiding the visual pane needs a more
+    // specific rule than `.pane-visual` alone (which `.pane` would override).
+    let css = asset("css/app.css");
+    assert!(
+        css.contains(".editor-panes:not([data-view=\"visual\"]) .pane-visual { display: none; }")
+    );
+    assert!(css.contains(".editor-panes[data-view=\"visual\"] .pane-preview { display: none; }"));
+}
+
+#[test]
 fn the_vendored_editor_engine_never_talks_to_the_network() {
     let bundle = asset("vendor/milkdown.js");
     for call in [

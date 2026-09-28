@@ -2,6 +2,13 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- In **Markdown and preview** and **Markdown only**, an empty Visual area also appeared and pushed the preview down the page.
+- In Visual editing, the **Text style** list now shows the style of the line you click on straight away.
+
 ## 0.3.0 (2026-09-29)
 
 ### Added
