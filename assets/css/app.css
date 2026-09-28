@@ -517,6 +517,54 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
 .inline-form .field { flex: 1 1 16rem; margin: 0; }
 .version-preview { margin-top: var(--space-5); }
 
+/* Author display rules must never beat the hidden attribute. */
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------------------ templates */
+.tpl-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  align-items: start;
+  padding: var(--space-4) var(--space-3);
+}
+.tpl-row > .icon { color: var(--accent); width: 1.4em; height: 1.4em; margin-top: 0.15em; }
+.tpl-text h3 { margin: 0; }
+.tpl-text p { margin: var(--space-1) 0 0; max-width: var(--measure); }
+.tpl-text .row-meta { display: block; }
+.tpl-actions { grid-column: 2; }
+.tpl-actions .push-right { margin-left: auto; }
+
+.toolbar-insert {
+  position: static;
+  align-items: center;
+  border-radius: 0;
+  background: var(--surface-2);
+}
+.toolbar-label { font-weight: 600; margin-right: var(--space-1); }
+
+/* ------------------------------------------------------- time and export */
+.tz-chooser {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.tz-chooser .field { margin: 0; }
+.tz-preview {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  margin: 0 0 var(--space-4);
+}
+
+.dl-status:empty { display: none; }
+.dl-status { margin-top: var(--space-4); }
+.dl-progress { display: flex; flex-direction: column; gap: var(--space-2); }
+.dl-progress label { font-weight: 600; }
+.dl-progress progress { width: 100%; height: 1.25rem; accent-color: var(--accent); }
+
 /* ------------------------------------------------------------ responsive
  * Tuned for: full desktop (1280px+), half of a 1920 screen (~960px), half
  * of a 1366 laptop screen (~680px), and phones (360–430px). Navigation stays
@@ -602,4 +650,9 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   .inline-form .field { flex-basis: 100%; }
   .toasts { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); max-width: none; }
   .empty { padding: var(--space-5); }
+  .tpl-row { grid-template-columns: minmax(0, 1fr); }
+  .tpl-row > .icon { display: none; }
+  .tpl-actions { grid-column: 1; }
+  .tpl-actions .btn { flex: 1 1 100%; }
+  .tpl-actions .push-right { margin-left: 0; }
 }

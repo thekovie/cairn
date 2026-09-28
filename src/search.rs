@@ -59,6 +59,7 @@ pub struct SearchHit {
 pub fn skip_dir_name(name: &str) -> bool {
     name.starts_with('.')
         || name.eq_ignore_ascii_case(SYSTEM_DIR)
+        || name.eq_ignore_ascii_case(crate::templates::TEMPLATES_DIR)
         || name.to_ascii_lowercase().ends_with(".assets")
 }
 

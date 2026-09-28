@@ -91,6 +91,20 @@ The information block at the top of the page has a mistake in it. Open the page 
 
 The link points to a page or picture that doesn't exist, perhaps because it was renamed or moved. Edit the page and fix the link with **Link…**.
 
+## “PDFs can't be made automatically on this computer”
+
+Cairn makes PDFs with Microsoft Edge or Google Chrome. This message means neither was found, or neither worked. Some computers have tools that send every Edge launch to another browser, which stops Edge from making PDFs.
+
+- Choose **Open the print window instead**, then **Save as PDF** (or **Microsoft Print to PDF**) as the printer.
+- Installing Google Chrome usually makes one-click PDFs work.
+- An administrator can point Cairn at a specific browser with `pdf_browser` in the [settings file](configuration.md#settings-file).
+
+Markdown downloads always work.
+
+## Times look wrong
+
+Check **Settings → Time and timezone**. Times are shown in the timezone chosen there, marked with their difference from GMT (for example “GMT+8”). If it says Automatic, check the timezone in Windows (**Settings → Time & language**).
+
 ## Where are the log files?
 
 Cairn prints problems in its window. It doesn't write log files or send reports anywhere.

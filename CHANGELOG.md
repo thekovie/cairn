@@ -2,6 +2,20 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## 0.2.0 (2026-09-28)
+
+### Added
+
+- **Timezones.** Settings → Time and timezone: keep this computer's timezone (the default) or choose a region and city. Every time Cairn shows is converted to your timezone and marked with its offset, for example “Being edited by Alex since 2:30 PM GMT+8”. Times are still saved in one standard form (UTC), so nothing in the shared folder changes when someone picks a different timezone. The Today button and new pages' review date use your timezone's date.
+- **Team templates.** A new Templates page lists your team's templates and the built-in ones. Make a template from scratch or by copying a built-in one, edit it with the normal editor (with buttons to insert the page title, today's date, the author's name, or the folder name), and delete it with a confirmation. Deleted templates can be restored. Templates are stored in the documentation folder's `_templates` folder, so each documentation folder has its own set.
+- The New page screen shows your team's templates first, then the built-in ones, and offers a filter when there are many. “Use for a new page” on the Templates page opens it with that template chosen.
+- **Downloads.** A Download button on every page saves it as a PDF, as Markdown with its pictures (.zip), or as a single Markdown file. “Download this folder” and Settings → “Download everything” save a .zip of Markdown files and pictures, or of PDFs, with progress and a Cancel button.
+- PDFs are made on your computer with Microsoft Edge or Google Chrome, with pictures included and a header showing the owner, status, and dates. If neither browser works, Cairn opens a print view instead, where you can choose “Save as PDF”. Paper size (A4 or US Letter) is in Settings.
+
+### Fixed
+
+- A dialog left open when using the browser's Back button now closes with the screen it belongs to.
+
 ## 0.1.1 (2026-09-28)
 
 ### Changed

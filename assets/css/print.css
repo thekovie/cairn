@@ -1,0 +1,114 @@
+/*
+ * Printed and PDF pages. Used twice: inlined into the self-contained HTML
+ * that Microsoft Edge turns into a PDF, and by the in-app print view
+ * (#/print/...) when a PDF can't be made automatically.
+ */
+
+.print-doc {
+  background: #ffffff;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 11pt;
+  line-height: 1.55;
+  margin: 0;
+  /* Fixed sizes on paper: the fluid screen scale depends on window width. */
+  --text-sm: 9.5pt;
+  --text-base: 11pt;
+  --text-md: 12pt;
+  --text-lg: 13.5pt;
+  --text-xl: 16pt;
+  --text-2xl: 21pt;
+  --space-6: 1.4rem;
+  --space-7: 1.9rem;
+  --measure: none;
+}
+
+.print-doc .print-head {
+  border-bottom: 2px solid var(--border-strong);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.print-doc .print-ws {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.print-doc .print-head h1,
+.print-doc .print-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+}
+.print-doc .print-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.print-doc .print-meta div { display: flex; gap: var(--space-2); }
+.print-doc .print-meta dt { font-weight: 600; color: var(--fg-muted); }
+.print-doc .print-meta dd { margin: 0; }
+
+.print-doc .print-foot {
+  margin-top: var(--space-7);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+/* Keep things that read as one unit on one sheet where possible. */
+.print-doc pre,
+.print-doc table,
+.print-doc img,
+.print-doc blockquote,
+.print-doc tr { break-inside: avoid; }
+.print-doc h2,
+.print-doc h3,
+.print-doc h4 { break-after: avoid; }
+.print-doc p { orphans: 3; widows: 3; }
+
+/* On paper nothing scrolls: wrap code and let tables use the full width. */
+.print-doc pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; }
+.print-doc table { display: table; overflow: visible; }
+.print-doc img { max-height: 22cm; object-fit: contain; }
+
+/* Links: in-app links were turned into plain text; show where web links go. */
+.print-doc a { color: var(--fg); text-decoration: underline; }
+.print-doc a:not([href]) { text-decoration: none; font-weight: inherit; }
+.print-doc a[href^="http"]::after {
+  content: " (" attr(href) ")";
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.print-doc .print-title { font-weight: 700; }
+
+/* In-app print view: the page as it will print, below the instructions. */
+.print-bar { margin-bottom: var(--space-6); }
+.print-bar .banner { margin: var(--space-4) 0; }
+main > .print-doc {
+  max-width: 50rem;
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius);
+}
+
+@media print {
+  html, body { background: #ffffff; }
+  .skip-link,
+  .toasts,
+  .topbar,
+  .sidenav,
+  .banners,
+  .no-print { display: none !important; }
+  .shell { display: block !important; }
+  #main { padding: 0 !important; margin: 0 !important; }
+  main > .print-doc { max-width: none; padding: 0; border: 0; }
+}

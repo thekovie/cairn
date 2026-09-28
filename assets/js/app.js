@@ -6,6 +6,8 @@
 //   #/new?folder=...    new page        #/history/<path>   earlier versions
 //   #/search?q=...      search          #/settings         settings
 //   #/setup             choose or create a documentation folder
+//   #/templates         team and built-in templates
+//   #/print/<path>      a page laid out for printing (PDF fallback)
 
 import {
   bootstrapToken, hasToken, get, h, clear, icon, button, banner, href, announce, errorText, applyPrefs,
@@ -14,6 +16,8 @@ import {
 import * as views from './views.js';
 import { setupView } from './setup.js';
 import { editorView } from './editor.js';
+import { templatesView } from './templates.js';
+import { printView } from './export.js';
 
 const app = {
   state: null,
@@ -33,6 +37,8 @@ const ROUTES = {
   history: views.historyView,
   settings: views.settingsView,
   setup: setupView,
+  templates: templatesView,
+  print: printView,
 };
 
 function parseHash() {
@@ -141,7 +147,9 @@ function renderNav() {
     h('div', { class: 'sidenav-section' },
       h('ul', { class: 'navlist' },
         navLink('Home', href.home(), 'home', route === ''),
-        navLink('Search', href.search(''), 'search', route === 'search'))),
+        navLink('Search', href.search(''), 'search', route === 'search'),
+        navLink('Templates', href.templates(), 'template',
+          route === 'templates' || (route === 'edit' && top === '_templates')))),
     h('div', { class: 'sidenav-section' },
       h('h2', null, 'Folders'),
       app.nav.length
@@ -200,6 +208,8 @@ async function onRoute() {
   }
   if (app.current?.cleanup) app.current.cleanup();
   app.current = null;
+  // A dialog belongs to the screen that opened it (e.g. after the Back button).
+  for (const dlg of document.querySelectorAll('dialog[open]')) dlg.close('cancel');
 
   let parsed = parseHash();
   if (!app.state.workspace && parsed.route !== 'setup') {

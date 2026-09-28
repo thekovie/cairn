@@ -24,6 +24,7 @@ export function applyPrefs(config) {
   const root = document.documentElement;
   root.dataset.theme = config?.appearance || 'light';
   root.dataset.text = config?.text_size || 'normal';
+  setTimeZone(config?.timezone || null);
 }
 
 // ------------------------------------------------------------------- API
@@ -150,6 +151,10 @@ const ICONS = {
   power: '<path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17.5v.01"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
+  template: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h8M8 11h8M8 15h4" stroke-dasharray="2 2"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 };
 
 export function icon(name) {
@@ -352,35 +357,96 @@ export async function formDialog({ title, intro, fields, submitLabel, cancelLabe
 
 // ------------------------------------------------------------ formatting
 
-const dateTimeFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
-const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+// Every stored time is UTC. Times are shown in the timezone chosen in
+// Settings (or this computer's), and clock times carry an offset label such
+// as "GMT+8" so nobody has to guess which zone a time is in.
 
-export const formatDateTime = (secs) => dateTimeFmt.format(new Date(secs * 1000));
-export const formatTime = (secs) => timeFmt.format(new Date(secs * 1000));
+/** This computer's own timezone, e.g. "Asia/Manila". */
+export const systemTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+let formats = makeFormats(undefined);
+
+function makeFormats(timeZone) {
+  const tz = timeZone ? { timeZone } : {};
+  const make = (opts, locale) => new Intl.DateTimeFormat(locale, { ...opts, ...tz });
+  const day = { year: 'numeric', month: 'short', day: 'numeric' };
+  const clock = { hour: 'numeric', minute: '2-digit' };
+  return {
+    zone: timeZone || systemTimeZone(),
+    dateTime: make({ ...day, ...clock, timeZoneName: 'shortOffset' }),
+    time: make({ ...clock, timeZoneName: 'shortOffset' }),
+    clock: make(clock),
+    day: make(day),
+    ymd: make({ year: 'numeric', month: '2-digit', day: '2-digit' }, 'en-CA'),
+  };
+}
+
+/** Use `name` (an IANA timezone) for every time shown; null = this computer's. */
+export function setTimeZone(name) {
+  try {
+    formats = makeFormats(name || undefined);
+  } catch {
+    formats = makeFormats(undefined); // unknown to this browser: fall back safely
+  }
+}
+
+/** The timezone times are shown in, e.g. "Asia/Manila". */
+export const timeZoneName = () => formats.zone;
+
+/** "GMT+8" for `zone` at `date` (now by default). */
+export function zoneOffsetLabel(zone, date = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' })
+      .formatToParts(date);
+    return parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT';
+  } catch {
+    return '';
+  }
+}
+
+export const formatDateTime = (secs) => formats.dateTime.format(new Date(secs * 1000));
+export const formatTime = (secs) => formats.time.format(new Date(secs * 1000));
 
 export function formatIsoDateTime(iso) {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : dateTimeFmt.format(d);
+  return Number.isNaN(d.getTime()) ? iso : formats.dateTime.format(d);
 }
 
-/** "2026-01-31" → "Jan 31, 2026" (a calendar date, not shifted by time zone). */
+/** Today's calendar date as "YYYY-MM-DD" in the chosen timezone. */
+export const todayYmd = () => formats.ymd.format(new Date());
+
+/** "2026-01-31" → "Jan 31, 2026" (a calendar date, never shifted by timezone). */
 export function formatDay(ymd) {
   if (!ymd) return '';
   const [y, m, d] = ymd.split('-').map(Number);
-  return dateFmt.format(new Date(y, m - 1, d));
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+function dayNumber(date) {
+  const [y, m, d] = formats.ymd.format(date).split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / 86400000;
+}
+
+/** Whether a moment falls on today's date in the chosen timezone. */
+export const isToday = (secs) => dayNumber(new Date()) === dayNumber(new Date(secs * 1000));
+
+/** "today at 2:30 PM", "yesterday at …", "3 days ago", or a date. Days are
+ *  counted in the chosen timezone; the zone label is left out because it is
+ *  implied and only adds noise here. */
 export function relativeTime(secs) {
   if (!secs) return '';
   const then = new Date(secs * 1000);
-  const now = new Date();
-  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(now) - startOfDay(then)) / 86400000);
-  if (days === 0) return `today at ${timeFmt.format(then)}`;
-  if (days === 1) return `yesterday at ${timeFmt.format(then)}`;
+  const days = dayNumber(new Date()) - dayNumber(then);
+  if (days === 0) return `today at ${formats.clock.format(then)}`;
+  if (days === 1) return `yesterday at ${formats.clock.format(then)}`;
   if (days > 1 && days < 7) return `${days} days ago`;
-  return dateFmt.format(then);
+  return formats.day.format(then);
+}
+
+/** A <time> element (machine-readable UTC for screen readers and tools). */
+export function timeEl(secs, text) {
+  return h('time', { datetime: new Date(secs * 1000).toISOString() }, text);
 }
 
 export function formatSize(bytes) {
@@ -402,7 +468,49 @@ export const href = {
   search: (q) => `#/search?${new URLSearchParams({ q: q || '' })}`,
   settings: () => '#/settings',
   setup: () => '#/setup',
+  templates: () => '#/templates',
+  print: (p) => `#/print/${encodePath(p)}`,
 };
+
+// -------------------------------------------------------------- downloads
+
+/** File name from a Content-Disposition header (prefers the UTF-8 form). */
+function dispositionName(header, fallback) {
+  const star = header?.match(/filename\*=UTF-8''([^;]+)/i);
+  if (star) {
+    try { return decodeURIComponent(star[1]); } catch { /* fall through */ }
+  }
+  return header?.match(/filename="([^"]+)"/i)?.[1] || fallback;
+}
+
+/**
+ * Fetch a file with the per-launch token and hand it to the browser as a
+ * download. Resolves with the saved file name; throws ApiError on failure.
+ */
+export async function downloadFile(path, query, fallbackName = 'download') {
+  const url = query ? `${path}?${new URLSearchParams(query)}` : path;
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'X-Cairn-Token': token || '' }, cache: 'no-store' });
+  } catch {
+    throw new ApiError(0, 'offline',
+      "Cairn isn't responding. Check that the Cairn window is still open, then try again.");
+  }
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    throw new ApiError(res.status, data?.error || 'error',
+      data?.message || 'The download could not be made. Please try again.', data);
+  }
+  const name = dispositionName(res.headers.get('Content-Disposition'), fallbackName);
+  const blobUrl = URL.createObjectURL(await res.blob());
+  const a = h('a', { href: blobUrl, download: name, class: 'visually-hidden' });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  return name;
+}
 
 export function breadcrumbsNav(crumbs, { includeHome = true } = {}) {
   const items = [];

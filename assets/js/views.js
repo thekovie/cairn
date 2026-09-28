@@ -5,8 +5,10 @@ import {
   get, post, h, clear, icon, button, linkButton, banner, emptyState, breadcrumbsNav, statusChip,
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
   confirmDialog, formDialog, whileBusy, errorText, diffView, fieldError, announce, applyPrefs,
-  appendChildren,
+  appendChildren, isToday,
 } from './core.js';
+import { openPageDownload, openBulkDownload } from './export.js';
+import { timezoneSection } from './timezone.js';
 
 // ---------------------------------------------------------------- pieces
 
@@ -52,9 +54,7 @@ async function createFolder(ctx, parent) {
 }
 
 export function lockSentence(lock) {
-  const since = new Date(lock.created_at * 1000);
-  const today = new Date().toDateString() === since.toDateString();
-  const when = today ? formatTime(lock.created_at) : formatDateTime(lock.created_at);
+  const when = isToday(lock.created_at) ? formatTime(lock.created_at) : formatDateTime(lock.created_at);
   return `Being edited by ${lock.display_name} since ${when}`;
 }
 
@@ -109,14 +109,21 @@ export async function homeView(ctx) {
 export async function folderView(ctx) {
   const data = await get('/api/folder', { path: ctx.path });
   const newHere = () => linkButton('New page here', href.newPage(data.path), { icon: 'pagePlus', kind: 'primary' });
+  const pageCount = data.pages.length + data.folders.reduce((n, f) => n + (f.page_count || 0), 0);
+  const downloadBtn = button('Download this folder', {
+    icon: 'download',
+    onClick: () => openBulkDownload({ scope: 'folder', path: data.path, name: data.name, pageCount }),
+  });
   ctx.main.append(
     breadcrumbsNav(data.breadcrumbs.slice(0, -1)),
     h('div', { class: 'page-head' },
       h('h1', null, h('span', { class: 'visually-hidden' }, 'Folder: '), data.name),
-      data.can_write
-        ? h('div', { class: 'actions' }, newHere(),
-          button('New folder inside', { icon: 'folderPlus', onClick: () => createFolder(ctx, data.path) }))
-        : null),
+      h('div', { class: 'actions' },
+        data.can_write ? newHere() : null,
+        data.can_write
+          ? button('New folder inside', { icon: 'folderPlus', onClick: () => createFolder(ctx, data.path) })
+          : null,
+        pageCount ? downloadBtn : null)),
     data.folders.length
       ? h('section', { class: 'section', style: 'margin-top: 0', 'aria-labelledby': 'sub-h' },
         h('h2', { id: 'sub-h' }, 'Folders inside'),
@@ -174,7 +181,10 @@ export async function searchView(ctx) {
 function editArea(ctx, data) {
   const lock = data.lock;
   const reasonId = 'edit-reason';
-  const versionsLink = linkButton('Earlier versions', href.history(data.path), { icon: 'history' });
+  const versionsLink = [
+    linkButton('Earlier versions', href.history(data.path), { icon: 'history' }),
+    button('Download', { icon: 'download', onClick: () => openPageDownload(ctx, data) }),
+  ];
   if (lock && !lock.is_mine) {
     if (lock.reclaimable_by_me) {
       return h('div', { class: 'actions' },
@@ -415,15 +425,46 @@ export async function historyView(ctx) {
 
 // -------------------------------------------------------------- new page
 
-const TEMPLATES = [
-  { value: 'blank', title: 'Blank page', text: 'Start with an empty page.' },
-  { value: 'how-to', title: 'Step-by-step guide', text: 'Explain how to do a task, one step at a time.' },
-  { value: 'troubleshooting', title: 'Problem and fix', text: 'Describe a problem and how to solve it.' },
-  { value: 'reference', title: 'Reference list', text: 'A table of facts or settings to look up.' },
-];
+const FILTER_ABOVE = 8;
+
+/** "Start from": team templates first, then built-in ones; a filter field
+ *  appears when there are many. */
+function templatePicker(templates, preselect) {
+  const selected = templates.some((t) => t.id === preselect) ? preselect : 'builtin:blank';
+  const card = (t) => h('label', { class: 'choice', dataset: { search: `${t.name} ${t.description}`.toLowerCase() } },
+    h('input', { type: 'radio', name: 'template', value: t.id, checked: t.id === selected }),
+    h('span', null, h('strong', null, t.name), t.description ? h('span', null, t.description) : null));
+  const group = (legend, list) => (list.length
+    ? h('fieldset', { class: 'choices choices-row' }, h('legend', null, legend), list.map(card))
+    : null);
+  const team = templates.filter((t) => !t.builtin);
+  const groups = h('div', null,
+    group('Your team’s templates', team),
+    group(team.length ? 'Built in' : 'Start from', templates.filter((t) => t.builtin)));
+  if (templates.length <= FILTER_ABOVE) return groups;
+
+  const filter = h('input', { type: 'search', id: 'np-filter', autocomplete: 'off' });
+  const none = h('p', { class: 'help', hidden: true }, 'No templates match. Try another word.');
+  filter.addEventListener('input', () => {
+    const words = filter.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    for (const c of groups.querySelectorAll('.choice')) {
+      const match = words.every((w) => c.dataset.search.includes(w)) || c.querySelector('input').checked;
+      c.hidden = !match;
+      if (match) shown += 1;
+    }
+    for (const fs of groups.querySelectorAll('fieldset')) {
+      fs.hidden = ![...fs.querySelectorAll('.choice')].some((c) => !c.hidden);
+    }
+    none.hidden = shown > 0;
+  });
+  return h('div', null,
+    h('div', { class: 'field' }, h('label', { for: 'np-filter' }, 'Find a template'), filter),
+    none, groups);
+}
 
 export async function newPageView(ctx) {
-  const { folders } = await get('/api/folders');
+  const [{ folders }, { templates }] = await Promise.all([get('/api/folders'), get('/api/templates')]);
   const wanted = ctx.query.get('folder') || '';
   const titleInput = h('input', {
     type: 'text', id: 'np-title', name: 'title', autocomplete: 'off', 'aria-describedby': 'np-title-help',
@@ -447,7 +488,7 @@ export async function newPageView(ctx) {
         titleInput.focus();
         return;
       }
-      const template = form.querySelector('input[name="template"]:checked')?.value || 'blank';
+      const template = form.querySelector('input[name="template"]:checked')?.value || 'builtin:blank';
       try {
         const res = await whileBusy(submit, 'Creating…',
           () => post('/api/page/new', { folder: folderSelect.value, title, template }));
@@ -464,11 +505,7 @@ export async function newPageView(ctx) {
     h('p', { class: 'help', id: 'np-title-help' }, 'For example: How to connect to the office printer.'),
     titleError),
   h('div', { class: 'field' }, h('label', { for: 'np-folder' }, 'Which folder should it go in?'), folderSelect),
-  h('fieldset', { class: 'choices choices-row' },
-    h('legend', null, 'Start from'),
-    TEMPLATES.map((t, i) => h('label', { class: 'choice' },
-      h('input', { type: 'radio', name: 'template', value: t.value, checked: i === 0 }),
-      h('span', null, h('strong', null, t.title), h('span', null, t.text))))),
+  templatePicker(templates, ctx.query.get('template')),
   h('div', { class: 'actions' }, submit, linkButton('Go back', wanted ? href.folder(wanted) : href.home())));
 
   ctx.main.append(
@@ -533,13 +570,34 @@ function workspaceSection(ctx, ws) {
     },
   });
 
+  const downloadAll = button('Download everything', {
+    icon: 'download',
+    onClick: () => openBulkDownload({ scope: 'all', name: ws.name }),
+  });
+
   return h('section', { class: 'settings-section', 'aria-labelledby': 'set-ws' },
     h('h2', { id: 'set-ws' }, 'Documentation folder'),
     h('p', { class: 'label' }, 'Location'),
     h('p', { class: 'path-box' }, ws.root),
     ws.storage?.notes?.length ? banner({ tone: 'warn', text: ws.storage.notes.join(' ') }) : null,
     ws.read_only ? null : renameForm,
-    h('div', { class: 'actions', style: 'margin-top: var(--space-5)' }, switchButton));
+    h('div', { class: 'actions', style: 'margin-top: var(--space-5)' }, downloadAll, switchButton),
+    h('p', { class: 'help' }, '“Download everything” saves every page, picture, and template as one .zip file (Markdown or PDFs), for a backup or to share.'));
+}
+
+function pdfSection(ctx, cfg) {
+  return h('section', { class: 'settings-section', 'aria-labelledby': 'set-pdf' },
+    h('h2', { id: 'set-pdf' }, 'PDF downloads'),
+    cfg.pdf_available
+      ? h('p', { class: 'help' }, 'PDFs are made on this computer with Microsoft Edge or Google Chrome. Nothing is sent anywhere.')
+      : banner({
+        tone: 'warn', title: 'PDFs can’t be made automatically on this computer',
+        text: 'No working Microsoft Edge or Google Chrome was found. When you download a page as a PDF, Cairn opens the print window instead; choose “Save as PDF” there.',
+      }),
+    radioGroup('pdf_paper', 'Paper size', [
+      { value: 'a4', label: 'A4', text: 'Used in most countries.' },
+      { value: 'letter', label: 'US Letter', text: 'Used in the US, Canada, and the Philippines.' },
+    ], cfg.pdf_paper, (v) => saveSettings(ctx, { pdf_paper: v }, 'Paper size saved.')));
 }
 
 function quitSection() {
@@ -604,6 +662,8 @@ export async function settingsView(ctx) {
         { value: 'larger', label: 'Larger', text: 'Much bigger.' },
       ], cfg.text_size, (v) => saveSettings(ctx, { text_size: v }, 'Text size changed.'))),
 
+    timezoneSection(cfg, (body, message) => saveSettings(ctx, body, message)),
+
     h('section', { class: 'settings-section', 'aria-labelledby': 'set-edit' },
       h('h2', { id: 'set-edit' }, 'When you step away while editing'),
       h('p', { class: 'help' }, 'Only one person can edit a page at a time. If you stop typing for a while, Cairn asks whether you are still there, and later unlocks the page so others can edit it. Your text is always kept.'),
@@ -633,6 +693,7 @@ export async function settingsView(ctx) {
       h('div', { class: 'actions', style: 'margin-top: var(--space-4)' },
         button('Save', { kind: 'primary', onClick: () => saveSettings(ctx, { persistent_drafts: draftsCheck.checked }, 'Saved.') }))),
 
+    pdfSection(ctx, cfg),
     state.workspace ? workspaceSection(ctx, state.workspace) : null,
     quitSection());
   return { title: 'Settings' };

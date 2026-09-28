@@ -6,7 +6,7 @@
 
 import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
-  openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime,
+  openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
 } from './core.js';
 import { lockSentence } from './views.js';
 
@@ -77,9 +77,46 @@ export function writeMeta(text, fields) {
   return `---\n${lines.join('\n')}\n---\n${m ? '' : '\n'}${body}`;
 }
 
-function todayYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// --------------------------------------------------------- template details
+
+const TEMPLATE_KEYS = ['template_name', 'template_description'];
+
+export const isTemplatePath = (path) => /^_templates\/[^/]+\.md$/i.test(path);
+
+export function readTemplateMeta(text) {
+  const fields = { template_name: '', template_description: '' };
+  const m = text.match(FRONT);
+  if (!m) return fields;
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
+    if (kv && TEMPLATE_KEYS.includes(kv[1])) fields[kv[1]] = unquote(kv[2]);
+  }
+  return fields;
+}
+
+export function writeTemplateMeta(text, fields) {
+  const m = text.match(FRONT);
+  const others = m
+    ? m[1].split(/\r?\n/).filter((line) => {
+      const kv = line.match(/^([A-Za-z_]+):/);
+      return !(kv && TEMPLATE_KEYS.includes(kv[1])) && line.trim() !== '';
+    })
+    : [];
+  const lines = [`template_name: ${yamlValue(fields.template_name.trim())}`];
+  if (fields.template_description.trim()) {
+    lines.push(`template_description: ${yamlValue(fields.template_description.trim())}`);
+  }
+  const body = m ? text.slice(m[0].length) : `\n${text}`;
+  return `---\n${[...lines, ...others].join('\n')}\n---\n${body}`;
+}
+
+/** Fill-in fields shown with example values in the template preview. */
+function withExampleValues(text, author) {
+  return text
+    .replaceAll('{{title}}', 'Example page title')
+    .replaceAll('{{date}}', todayYmd())
+    .replaceAll('{{author}}', author || 'Your name')
+    .replaceAll('{{folder}}', 'Example folder');
 }
 
 // ------------------------------------------------------------ small helpers
@@ -144,8 +181,11 @@ export async function editorView(ctx) {
 }
 
 function lockedScreen(ctx, path, lock) {
+  const back = isTemplatePath(path)
+    ? linkButton('Back to templates', href.templates(), { icon: 'back', kind: 'primary' })
+    : linkButton('Back to the page', href.page(path), { icon: 'back', kind: 'primary' });
   const actions = [
-    linkButton('Back to the page', href.page(path), { icon: 'back', kind: 'primary' }),
+    back,
     button('Try again', { icon: 'refresh', onClick: () => window.dispatchEvent(new HashChangeEvent('hashchange')) }),
   ];
   if (lock.reclaimable_by_me) {
@@ -213,6 +253,13 @@ function mountEditor(ctx, path, start) {
     persistent: start.persistent,
     isNew: start.is_new,
   };
+  const isTemplate = isTemplatePath(path);
+  const author = ctx.app.state?.user?.display_name || '';
+  // Where "Close" and "Discard" lead back to.
+  const leaveTo = () => {
+    if (isTemplate) return href.templates();
+    return s.isNew ? href.folder(folderOf(path)) : href.page(path);
+  };
 
   // ---------------------------------------------------------------- DOM
   const titleEl = h('h1', null, 'Editing');
@@ -238,8 +285,12 @@ function mountEditor(ctx, path, start) {
     class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true',
   });
   const publishError = h('div', { style: 'flex-basis: 100%' });
-  const publishBtn = button('Publish changes', { icon: 'publish', kind: 'primary', large: true, 'aria-describedby': 'publish-note' });
-  const publishNote = h('span', { class: 'publish-note', id: 'publish-note' }, 'Everyone will see this version.');
+  const publishBtn = button(isTemplate ? 'Publish template' : 'Publish changes',
+    { icon: 'publish', kind: 'primary', large: true, 'aria-describedby': 'publish-note' });
+  const readyNote = isTemplate
+    ? 'Everyone can use this version for new pages.'
+    : 'Everyone will see this version.';
+  const publishNote = h('span', { class: 'publish-note', id: 'publish-note' }, readyNote);
 
   // ---------------------------------------------------------- statuses
   function setSave(kind, text) {
@@ -252,7 +303,7 @@ function mountEditor(ctx, path, start) {
       h('span', null, s.lockHeld ? 'Locked for you: others can read but not edit' : 'Not locked: others can edit this page'));
     publishBtn.disabled = !s.lockHeld;
     publishNote.textContent = s.lockHeld
-      ? 'Everyone will see this version.'
+      ? readyNote
       : 'Lock the page again before publishing (see the message above).';
   }
   setLock();
@@ -299,10 +350,14 @@ function mountEditor(ctx, path, start) {
   // --------------------------------------------------------- preview
   async function refreshPreview() {
     try {
-      const res = await post('/api/preview', { path, content: ta.value });
+      const content = isTemplate ? withExampleValues(ta.value, author) : ta.value;
+      const res = await post('/api/preview', { path, content });
       previewBody.innerHTML = res.html; // sanitized by the server
-      titleEl.textContent = `Editing: ${res.title}`;
-      document.title = `Editing: ${res.title} – Cairn`;
+      const heading = isTemplate
+        ? `Editing template: ${readTemplateMeta(ta.value).template_name || 'Untitled template'}`
+        : `Editing: ${res.title}`;
+      titleEl.textContent = heading;
+      document.title = `${heading} – Cairn`;
     } catch { /* keep the last preview */ }
   }
   function schedulePreview() {
@@ -515,6 +570,16 @@ function mountEditor(ctx, path, start) {
     h('div', { class: 'view-switch', role: 'group', 'aria-label': 'What to show' },
       viewBtn('Write and preview', 'both'), viewBtn('Write only', 'write'), viewBtn('Preview only', 'preview')));
 
+  // Templates: worded buttons insert fill-in fields so nobody types {{…}}.
+  const fillInBar = isTemplate
+    ? h('div', { class: 'toolbar toolbar-insert', role: 'toolbar', 'aria-label': 'Insert a fill-in field', 'aria-controls': 'md-text' },
+      h('span', { class: 'toolbar-label', 'aria-hidden': 'true' }, 'Insert:'),
+      tool('Page title', 'page', () => replaceSelection('{{title}}')),
+      tool('Today’s date', 'clock', () => replaceSelection('{{date}}')),
+      tool('Author’s name', 'user', () => replaceSelection('{{author}}')),
+      tool('Folder name', 'folder', () => replaceSelection('{{folder}}')))
+    : null;
+
   ta.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     const k = e.key.toLowerCase();
@@ -563,6 +628,47 @@ function mountEditor(ctx, path, start) {
             button('Today', { onClick: () => { detailInputs.last_reviewed.value = todayYmd(); applyDetails(); } }))),
         h('div', { class: 'field' }, h('label', { for: 'pd-tags' }, 'Tags'), detailInputs.tags,
           h('p', { class: 'help', id: 'pd-tags-help' }, 'Separate with commas.')))));
+
+  // ------------------------------------------------------ template details
+  let templatePanel = null;
+  if (isTemplate) {
+    const nameInput = h('input', { type: 'text', id: 'td-name', autocomplete: 'off', maxlength: '80', required: true });
+    const descInput = h('textarea', { id: 'td-desc', rows: '2', maxlength: '300', 'aria-describedby': 'td-desc-help' });
+    const nameError = h('div', { class: 'error-slot' });
+    const syncTemplateFromText = () => {
+      const fields = readTemplateMeta(ta.value);
+      if (document.activeElement !== nameInput) nameInput.value = fields.template_name;
+      if (document.activeElement !== descInput) descInput.value = fields.template_description;
+    };
+    const applyTemplate = () => {
+      clear(nameError);
+      nameInput.removeAttribute('aria-invalid');
+      if (!nameInput.value.trim()) {
+        nameError.append(h('p', { class: 'field-error', role: 'alert' }, icon('alert'),
+          h('span', null, 'A template needs a name, so people can find it.')));
+        nameInput.setAttribute('aria-invalid', 'true');
+        return;
+      }
+      const next = writeTemplateMeta(ta.value,
+        { template_name: nameInput.value, template_description: descInput.value });
+      if (next !== ta.value) {
+        ta.value = next;
+        changed();
+      }
+    };
+    nameInput.addEventListener('change', applyTemplate);
+    descInput.addEventListener('change', applyTemplate);
+    const previousSync = syncDetailsFromText;
+    syncDetailsFromText = () => { previousSync(); syncTemplateFromText(); };
+    syncTemplateFromText();
+    templatePanel = h('details', { class: 'details-panel', open: true },
+      h('summary', null, 'Template details: name and description'),
+      h('div', { class: 'details-body' },
+        h('div', { class: 'meta-grid' },
+          h('div', { class: 'field' }, h('label', { for: 'td-name' }, 'Template name (required)'), nameInput, nameError),
+          h('div', { class: 'field' }, h('label', { for: 'td-desc' }, 'Description'), descInput,
+            h('p', { class: 'help', id: 'td-desc-help' }, 'One sentence about when to use it. Shown when someone picks a template.')))));
+  }
 
   const helpPanel = h('details', { class: 'details-panel' },
     h('summary', null, 'Formatting help'),
@@ -682,6 +788,11 @@ function mountEditor(ctx, path, start) {
     if (res.result === 'published') {
       s.closed = true;
       finish();
+      if (isTemplate) {
+        toast('Template published. Everyone can use it for new pages now.');
+        ctx.navigate(href.templates());
+        return;
+      }
       toast(res.new_pictures
         ? 'Published, with your pictures. Everyone can see this version now.'
         : 'Published. Everyone can see this version now.');
@@ -742,7 +853,7 @@ function mountEditor(ctx, path, start) {
         s.closed = true;
         finish();
         toast('Your changes were discarded.');
-        ctx.navigate(s.isNew ? href.folder(folderOf(path)) : href.page(path));
+        ctx.navigate(leaveTo());
       } catch (err) { toast(errorText(err), { error: true }); }
     },
   });
@@ -752,7 +863,7 @@ function mountEditor(ctx, path, start) {
     onClick: async (e) => {
       await whileBusy(e.currentTarget, 'Closing…', closeEditor);
       toast('Your changes are kept on this computer. You can continue later.');
-      ctx.navigate(s.isNew ? href.folder(folderOf(path)) : href.page(path));
+      ctx.navigate(leaveTo());
     },
   });
 
@@ -770,6 +881,13 @@ function mountEditor(ctx, path, start) {
   }, { once: true });
 
   // ------------------------------------------------------------ render
+  if (isTemplate) {
+    const name = readTemplateMeta(ta.value).template_name || 'this template';
+    notices.append(banner({
+      tone: 'info', title: `You’re editing the template “${name}” for the whole team`,
+      text: 'Changes apply to pages created from now on; pages already made from it don’t change. Use the “Insert” buttons to add fields that are filled in for each new page; the preview shows example values for them.',
+    }));
+  }
   if (!s.persistent) {
     notices.append(banner({
       tone: 'warn', title: 'Unsaved changes are kept only while Cairn is open',
@@ -788,7 +906,9 @@ function mountEditor(ctx, path, start) {
       titleEl,
       h('div', { class: 'editor-status' }, lockStatus, saveStatus)),
     notices,
+    templatePanel,
     toolbar,
+    fillInBar,
     panes,
     fileInput,
     h('div', { class: 'editor-foot' },

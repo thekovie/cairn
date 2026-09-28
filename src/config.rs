@@ -35,6 +35,13 @@ pub struct AppConfig {
     pub appearance: String,
     /// "normal", "large", or "larger".
     pub text_size: String,
+    /// IANA timezone to show times in (for example "Asia/Manila").
+    /// `None` means this computer's timezone. Stored times are always UTC.
+    pub timezone: Option<String>,
+    /// Paper size for PDF export: "a4" or "letter".
+    pub pdf_paper: String,
+    /// Browser used to make PDFs. `None` means find Microsoft Edge or Chrome.
+    pub pdf_browser: Option<PathBuf>,
 }
 
 impl Default for AppConfig {
@@ -50,6 +57,9 @@ impl Default for AppConfig {
             max_image_dimension: 8000,
             appearance: "light".into(),
             text_size: "normal".into(),
+            timezone: None,
+            pdf_paper: "a4".into(),
+            pdf_browser: None,
         }
     }
 }
@@ -84,6 +94,12 @@ impl AppConfig {
             .is_some_and(|n| n.chars().count() > 60)
         {
             return bad("Please use a name of 60 characters or fewer.");
+        }
+        if !["a4", "letter"].contains(&self.pdf_paper.as_str()) {
+            return bad("Unknown paper size.");
+        }
+        if let Some(zone) = &self.timezone {
+            crate::timefmt::validate_zone(zone)?;
         }
         Ok(())
     }

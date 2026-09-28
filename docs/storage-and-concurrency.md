@@ -80,6 +80,14 @@ If Cairn stops without releasing a lock (power cut, crash, network cable pulled)
 
 Unsaved changes are written to the editor's own computer (`%LOCALAPPDATA%\Cairn\drafts`) within about 10 seconds of the last change (normally 2.5 seconds), including pictures that have not been published yet. They are never written into the shared folder. A draft is deleted only after a verified publish, or when the user chooses **Discard my changes**. If persistent drafts are turned off, or the drafts folder can't be written, drafts live only in the running program and the editor says so.
 
+## Times are stored as UTC
+
+Every time Cairn writes (lock `created_at` and `heartbeat_at`, draft `updated_at`, earlier-version names) is UTC, so computers in different timezones agree on every moment and on how old a lock is. Each person's timezone setting only changes how times are displayed. The one date-only value, `last_reviewed`, is a calendar date and is never shifted.
+
+## Templates
+
+Team templates are ordinary pages in `_templates/`, so they use the same edit locks, drafts, conflict checks, publishing sequence, and earlier versions as any page. Deleting a template requires its edit lock and an unchanged hash, and saves it to Earlier versions before removing the file, which is how **Restore** works.
+
 ## Conflicts
 
 When editing starts, Cairn records a SHA-256 hash of the published page. Immediately before publishing it hashes the page again. If the hashes differ, for any reason (another Cairn user, Notepad, a restored backup), **nothing is written**. The user sees both versions and chooses whether to keep editing or to publish their version anyway. Either way the other version is preserved: it stays on disk, or it goes to Earlier versions.

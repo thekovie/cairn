@@ -134,6 +134,9 @@ fn js_files() -> Vec<(String, String)> {
         "js/views.js",
         "js/setup.js",
         "js/editor.js",
+        "js/templates.js",
+        "js/export.js",
+        "js/timezone.js",
     ]
     .iter()
     .map(|f| (f.to_string(), asset(f)))
@@ -142,7 +145,12 @@ fn js_files() -> Vec<(String, String)> {
 
 #[test]
 fn focus_outlines_are_never_removed() {
-    for file in ["css/tokens.css", "css/app.css", "css/markdown.css"] {
+    for file in [
+        "css/tokens.css",
+        "css/app.css",
+        "css/markdown.css",
+        "css/print.css",
+    ] {
         let css = asset(file).replace(' ', "");
         for banned in ["outline:none", "outline:0;", "outline:0}"] {
             assert!(
@@ -249,11 +257,15 @@ fn the_whole_ui_is_embedded_and_nothing_loads_from_the_network() {
         "css/tokens.css",
         "css/app.css",
         "css/markdown.css",
+        "css/print.css",
         "js/app.js",
         "js/core.js",
         "js/views.js",
         "js/setup.js",
         "js/editor.js",
+        "js/templates.js",
+        "js/export.js",
+        "js/timezone.js",
         "fonts/InterVariable-latin.woff2",
         "fonts/Inter-LICENSE.txt",
     ] {
@@ -267,6 +279,7 @@ fn the_whole_ui_is_embedded_and_nothing_loads_from_the_network() {
         "css/tokens.css",
         "css/app.css",
         "css/markdown.css",
+        "css/print.css",
         "index.html",
     ] {
         sources.push((css.to_string(), asset(css)));

@@ -45,11 +45,15 @@ Plain HTML, CSS, and JavaScript modules in `assets/`, embedded into the program 
 | `assets/index.html` | Page shell |
 | `assets/css/tokens.css` | Colors, type scale, and spacing for the Light, Dark, and High contrast themes |
 | `assets/css/app.css`, `markdown.css` | Layout, components, rendered pages |
-| `assets/js/core.js` | API calls, safe DOM building, icons, dialogs, messages |
+| `assets/css/print.css` | Paper layout, used by PDFs and the print view |
+| `assets/js/core.js` | API calls, safe DOM building, icons, dialogs, messages, timezone-aware time formatting, downloads |
 | `assets/js/app.js` | Start-up, routing (`#/page/…`), layout |
 | `assets/js/views.js` | Home, folder, search, page, earlier versions, new page, settings |
 | `assets/js/setup.js` | Choosing or creating a documentation folder |
-| `assets/js/editor.js` | The editor |
+| `assets/js/editor.js` | The editor, including template mode |
+| `assets/js/templates.js` | The Templates page |
+| `assets/js/export.js` | Download dialogs, folder download progress, the print view |
+| `assets/js/timezone.js` | Settings → Time and timezone |
 
 Text from files is always inserted as text, never as HTML. The only HTML inserted is page HTML the server has already sanitized.
 
@@ -68,7 +72,10 @@ Text from files is always inserted as text, never as HTML. The only HTML inserte
 | `history.rs` | Earlier versions. |
 | `search.rs` | In-memory index, folder listings, search. |
 | `config.rs` | Per-user settings. |
-| `server/` | HTTP routes, security, idle time-outs. |
+| `timefmt.rs` | Timezones: validation, the user's zone, "GMT+8" labels, today's date. Stored times are always UTC. |
+| `templates.rs` | Built-in and team templates, filling in `{{…}}` fields, finding deleted templates. |
+| `export/` | Choosing files and zipping them (`archive.rs`), self-contained printable HTML (`html.rs`), PDFs via headless Edge or Chrome (`pdf.rs`). |
+| `server/` | HTTP routes (`api.rs`, `api_templates.rs`, `api_export.rs`), security, idle time-outs. |
 
 ## Files on disk
 
@@ -79,6 +86,7 @@ shared-docs.json                                  workspace marker
 README.md
 <Folder>/<page>.md                                pages (Markdown, optional front matter)
 <Folder>/<page>.assets/<picture>                  pictures for that page
+_templates/<template>.md                          team templates for this documentation
 _system/locks/<hash>.lock                         who is editing what
 _system/locks/released/*.json                     locks released by a maintainer
 _system/history/<page path>/<UTC time>-<hash>.md  earlier versions
@@ -94,4 +102,16 @@ drafts/<workspace id>/<page hash>/staged/<pictures not yet published>
 
 ## Search
 
-When a folder is opened, Cairn reads every `.md` file once into an in-memory index of titles and plain text. After that it re-reads only files whose size or modified time changed, at most every few seconds. `_system`, `.assets` folders, hidden files, and links are skipped. Nothing is stored on disk.
+When a folder is opened, Cairn reads every `.md` file once into an in-memory index of titles and plain text. After that it re-reads only files whose size or modified time changed, at most every few seconds. `_system`, `_templates`, `.assets` folders, hidden files, and links are skipped. Nothing is stored on disk.
+
+## Downloads and PDFs
+
+Markdown downloads are zips of the files exactly as stored, with workspace-relative paths so links between pages and pictures keep working after unzipping. `_system`, hidden and temporary files, and anything reached through a link or junction are never included.
+
+For a PDF, the page is rendered with the same sanitizing renderer, pictures are embedded as `data:` URIs, in-app links become plain text, and the styles and font are inlined. The resulting HTML carries its own Content-Security-Policy (`default-src 'none'`, no scripts). Cairn writes it to a private temporary folder and runs Microsoft Edge (or Chrome) headless with a separate throwaway profile and `--print-to-pdf`, so the person's open browser is never touched. The run is limited to 60 seconds and the temporary folder is always deleted. If one browser fails (for example, when a tool redirects every Edge launch), the next is tried. If none works, the API answers `409 pdf_unavailable` and the interface offers its print view instead.
+
+Folder and whole-documentation downloads run as in-memory jobs, one at a time, so the interface can show progress and cancel. Finished files are handed over once and dropped after 10 minutes.
+
+## Timezones
+
+Everything written to disk stays UTC: lock and draft times are Unix seconds, and earlier-version names are UTC stamps. Only display converts. The browser formats times with `Intl.DateTimeFormat` in the chosen zone, labelled with `shortOffset` ("GMT+8"). The server uses the [jiff](https://github.com/BurntSushi/jiff) crate with bundled timezone data (Windows has no tz database Rust can read) for PDF headers and for `{{date}}` in templates.

@@ -31,6 +31,9 @@ pub enum CairnError {
     InvalidImage(String),
     #[error("{0}")]
     Io(String),
+    /// No browser that can make PDFs was found on this computer.
+    #[error("{0}")]
+    PdfUnavailable(String),
 }
 
 pub type Result<T> = std::result::Result<T, CairnError>;
@@ -64,6 +67,7 @@ impl CairnError {
             CairnError::PathRejected(_) => "path_rejected",
             CairnError::InvalidImage(_) => "invalid_image",
             CairnError::Io(_) => "io_error",
+            CairnError::PdfUnavailable(_) => "pdf_unavailable",
         }
     }
 }

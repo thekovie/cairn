@@ -120,6 +120,36 @@ pub fn current_hash(root: &Root, article_rel: &str) -> Result<Option<String>> {
     Ok(read_optional(&path)?.map(|b| sha256_hex(&b)))
 }
 
+/// Delete a page (currently used for team templates). Requires the edit
+/// lock and an unchanged file, and keeps the content in version history so
+/// it can be restored.
+pub fn delete_article(
+    root: &Root,
+    article_rel: &str,
+    identity: &Identity,
+    base_hash: &str,
+) -> Result<String> {
+    let rel = validate_article_path(article_rel)?;
+    verify_held(root, &rel, identity)?;
+    let path = root.resolve(&rel)?;
+    let current = fs::read(&path)?;
+    if sha256_hex(&current) != base_hash {
+        return Err(CairnError::Conflict(
+            "Someone changed this since you opened it, so it wasn't deleted.".into(),
+        ));
+    }
+    if let Some(parent) = path.parent()
+        && !can_write_dir(parent)
+    {
+        return Err(CairnError::PermissionDenied(
+            "You don't have permission to change files in this folder.".into(),
+        ));
+    }
+    let version = history::save_version(root, &rel, &current)?;
+    fs::remove_file(&path)?;
+    Ok(version)
+}
+
 fn remove_created(created: &[(PathBuf, usize)]) {
     for (p, _) in created {
         let _ = fs::remove_file(p);

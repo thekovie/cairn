@@ -1,6 +1,8 @@
 //! The local HTTP server: shared state, routing, and background work.
 
 pub mod api;
+pub mod api_export;
+pub mod api_templates;
 pub mod idle;
 pub mod security;
 
@@ -83,6 +85,8 @@ pub struct AppState {
     pub drafts: RwLock<Arc<DraftStore>>,
     /// Folders where a write probe failed this session.
     pub denied_dirs: Mutex<HashSet<String>>,
+    /// Folder and whole-documentation downloads being prepared.
+    pub exports: api_export::ExportJobs,
     pub shutdown: tokio::sync::Notify,
 }
 
@@ -126,6 +130,7 @@ impl AppState {
             edits: Mutex::new(HashMap::new()),
             drafts: RwLock::new(Arc::new(drafts)),
             denied_dirs: Mutex::new(HashSet::new()),
+            exports: Default::default(),
             shutdown: tokio::sync::Notify::new(),
         })
     }
@@ -221,7 +226,7 @@ impl IntoResponse for ApiError {
             CairnError::NotFound(_) => StatusCode::NOT_FOUND,
             CairnError::BadRequest(_) | CairnError::PathRejected(_) => StatusCode::BAD_REQUEST,
             CairnError::PermissionDenied(_) | CairnError::ReadOnly(_) => StatusCode::FORBIDDEN,
-            CairnError::Conflict(_) => StatusCode::CONFLICT,
+            CairnError::Conflict(_) | CairnError::PdfUnavailable(_) => StatusCode::CONFLICT,
             CairnError::Locked(_) => StatusCode::LOCKED,
             CairnError::InvalidImage(_) => StatusCode::UNPROCESSABLE_ENTITY,
             CairnError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -290,6 +295,15 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/search", get(api::search))
         .route("/api/pages", get(api::all_pages))
         .route("/api/folders", get(api::all_folders))
+        .route("/api/templates", get(api_templates::list))
+        .route("/api/templates/new", post(api_templates::create))
+        .route("/api/templates/delete", post(api_templates::delete))
+        .route("/api/templates/deleted", get(api_templates::deleted))
+        .route("/api/export/page", get(api_export::page))
+        .route("/api/export/jobs", post(api_export::start_job))
+        .route("/api/export/jobs/{id}", get(api_export::job_status))
+        .route("/api/export/jobs/{id}/file", get(api_export::job_file))
+        .route("/api/export/jobs/{id}/cancel", post(api_export::job_cancel))
         .route("/api/edit/start", post(api::edit_start))
         .route("/api/edit/activity", post(api::edit_activity))
         .route("/api/edit/status", get(api::edit_status))

@@ -34,9 +34,9 @@ use crate::publish::{
 use crate::search::{list_folder, parent_of};
 use crate::workspace::{self, Discovery, InitTarget};
 
-type ApiResult = std::result::Result<Json<Value>, ApiError>;
+pub(super) type ApiResult = std::result::Result<Json<Value>, ApiError>;
 
-async fn blocking<F>(state: Arc<AppState>, f: F) -> ApiResult
+pub(super) async fn blocking<F>(state: Arc<AppState>, f: F) -> ApiResult
 where
     F: FnOnce(&AppState) -> Result<Value> + Send + 'static,
 {
@@ -49,12 +49,6 @@ where
         })?
         .map(Json)
         .map_err(ApiError)
-}
-
-fn today() -> String {
-    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
-    let fmt = time::macros::format_description!("[year]-[month]-[day]");
-    now.format(&fmt).unwrap_or_default()
 }
 
 fn breadcrumbs(folder: &str) -> Vec<Value> {
@@ -86,7 +80,7 @@ fn line_diff(old: &str, new: &str) -> Vec<Value> {
         .collect()
 }
 
-fn require_writable(ws: &OpenWorkspace) -> Result<()> {
+pub(super) fn require_writable(ws: &OpenWorkspace) -> Result<()> {
     match &ws.read_only {
         Some(reason) => Err(CairnError::ReadOnly(reason.clone())),
         None => Ok(()),
@@ -137,6 +131,11 @@ fn state_view(state: &AppState) -> Value {
             "text_size": cfg.text_size,
             "max_image_mb": cfg.max_image_mb,
             "last_workspace": cfg.last_workspace.as_ref().map(|p| p.display().to_string()),
+            "timezone": cfg.timezone,
+            "system_timezone": crate::timefmt::zone_name(&crate::timefmt::user_zone(None)),
+            "pdf_paper": cfg.pdf_paper,
+            "pdf_available":
+                !crate::export::pdf::find_browsers(cfg.pdf_browser.as_deref()).is_empty(),
         },
         "drafts_persistent": state.drafts().is_persistent(),
         "config_warning": state.config_warning,
@@ -528,36 +527,36 @@ fn slugify_title(title: &str) -> String {
     if slug.is_empty() { "page".into() } else { slug }
 }
 
-fn yaml_quote(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+/// Today's date in the timezone this person chose (or this computer's).
+pub(super) fn today_for(st: &AppState) -> String {
+    let cfg = st.config();
+    crate::timefmt::today(&crate::timefmt::user_zone(cfg.timezone.as_deref()))
 }
 
-fn template_body(kind: &str, title: &str, owner: &str) -> String {
-    let front = format!(
-        "---\nowner: {}\nstatus: draft\nlast_reviewed: {}\ntags: []\n---\n\n# {title}\n\n",
-        yaml_quote(owner),
-        today()
-    );
-    let rest = match kind {
-        "how-to" => {
-            "Use this page to explain how to do one task, step by step.\n\n\
-             ## Before you start\n\n- What you need\n\n\
-             ## Steps\n\n1. First step\n2. Second step\n3. Third step\n\n\
-             ## If something goes wrong\n\nWhat to check, or who to ask.\n"
-        }
-        "troubleshooting" => {
-            "## The problem\n\nDescribe what people see (an error message, a symptom).\n\n\
-             ## Why it happens\n\nA short explanation.\n\n\
-             ## How to fix it\n\n1. First thing to try\n2. Next thing to try\n\n\
-             ## Still not working?\n\nWho to contact.\n"
-        }
-        "reference" => {
-            "A short summary of what this page lists.\n\n\
-             | Item | Details |\n| --- | --- |\n| Example | Description |\n"
-        }
-        _ => "Start writing here.\n",
+/// Text for a new page from a template id: "builtin:<key>", a bare
+/// built-in key (older clients), or "_templates/<file>.md".
+fn page_from_template(
+    st: &AppState,
+    root: &Root,
+    id: &str,
+    title: &str,
+    folder: &str,
+) -> Result<String> {
+    let id = if id.contains(':') || id.contains('/') {
+        id.to_string()
+    } else {
+        format!("builtin:{id}")
     };
-    front + rest
+    let raw = crate::templates::load(root, &id)?;
+    let author = st.identity().display_name;
+    let date = today_for(st);
+    let vars = crate::templates::Vars {
+        title,
+        date: &date,
+        author: &author,
+        folder,
+    };
+    Ok(crate::templates::instantiate(&raw, &vars))
 }
 
 #[derive(Deserialize)]
@@ -606,8 +605,8 @@ pub async fn new_page(
             if locks::status(&ws.root, &rel, &me)?.is_some_and(|l| !l.is_mine) {
                 continue;
             }
-            let kind = body.template.as_deref().unwrap_or("blank");
-            let content = template_body(kind, title, &me.display_name);
+            let id = body.template.as_deref().unwrap_or("builtin:blank");
+            let content = page_from_template(st, &ws.root, id, title, &folder)?;
             return Ok(json!({ "path": rel, "content": content }));
         }
         Err(CairnError::Conflict(
@@ -1236,6 +1235,9 @@ pub struct SettingsBody {
     idle_warning_minutes: Option<u64>,
     idle_release_minutes: Option<u64>,
     persistent_drafts: Option<bool>,
+    /// IANA zone name, or "" for this computer's timezone.
+    timezone: Option<String>,
+    pdf_paper: Option<String>,
 }
 
 pub async fn save_settings(
@@ -1259,6 +1261,13 @@ pub async fn save_settings(
         }
         if let Some(v) = body.idle_release_minutes {
             cfg.idle_release_minutes = v;
+        }
+        if let Some(zone) = body.timezone {
+            let zone = zone.trim().to_string();
+            cfg.timezone = (!zone.is_empty()).then_some(zone);
+        }
+        if let Some(v) = body.pdf_paper {
+            cfg.pdf_paper = v;
         }
         let drafts_changed = body
             .persistent_drafts

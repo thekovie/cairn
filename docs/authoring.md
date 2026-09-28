@@ -151,3 +151,38 @@ On any page, choose **Earlier versions** to see every version that was replaced 
 - **Restore this version** to make it the current page again. The page it replaces is kept in the list, so a restore can itself be undone.
 
 Earlier versions are ordinary Markdown files in `_system/history/`.
+
+## Templates
+
+A template gives new pages a ready-made structure, such as headings for meeting notes or an incident report. Choose **Templates** in the sidebar to see them:
+
+- **Your team's templates** belong to this documentation folder. Other documentation folders have their own.
+- **Built in** templates come with Cairn.
+
+To make one, choose **New template**, give it a name and a short description, and pick what to start from (Blank, or a copy of another template). It opens in the editor with a notice that you're editing a template for the whole team. In the editor:
+
+- **Template details** holds the name and description people see when they choose a template.
+- The **Insert** buttons add fields that are filled in for each new page: **Page title**, **Today's date**, **Author's name**, and **Folder name**. You'll see them written as `{{title}}`, `{{date}}`, `{{author}}`, and `{{folder}}`.
+- The preview shows example values in their place.
+
+Choose **Publish template** to make it available. Editing a template later only affects pages created afterwards.
+
+**Delete** asks first. Deleted templates are listed under **Deleted templates** on the same page, with **Restore** to bring one back.
+
+To use a template, choose **Use for a new page** beside it, or pick it under **Start from** on the New page screen.
+
+## Downloads
+
+Choose **Download** on any page:
+
+- **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top.
+- **Markdown with pictures (.zip)**: for backups or moving to another tool.
+- **Markdown file (.md)**: just the text.
+
+On a folder, **Download this folder** saves all its pages (and folders inside it) as one .zip, either as Markdown with pictures or as one PDF per page. **Settings → Download everything** does the same for the whole documentation, including templates. A progress bar shows how far along it is, and **Close** stops it.
+
+PDFs are made on your own computer by Microsoft Edge or Google Chrome; nothing is uploaded. If neither works on your computer, Cairn offers to **open the print window instead**: choose **Save as PDF** (or **Microsoft Print to PDF**) as the printer.
+
+## Times and timezones
+
+Every time in Cairn is shown in your timezone, with its difference from GMT, for example “2:30 PM GMT+8”. By default that's your computer's timezone. To change it, go to **Settings → Time and timezone**, choose **Choose a timezone**, then a region and a city. Cairn stores every time in one standard form, so people in different timezones always see the same moment in their own local time.
