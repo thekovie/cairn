@@ -2,6 +2,19 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## 0.1.1 (2026-09-28)
+
+### Changed
+
+- Text is smaller by default. Normal is now 16px (the size of most websites), Large is 18px, and Larger is 20px. Headings scale with the window.
+- The layout adapts to any window size: full screen, half a screen, or a phone. Below 800px wide, the folder list becomes a strip of buttons above the page instead of a sidebar.
+- On narrow windows the editor opens on Write only; choose Preview only or Write and preview to switch.
+
+### Fixed
+
+- At half-screen widths the folder list stretched to fill the window and pushed the page far down.
+- Setting up the same folder from several computers at the same moment could fail for one of them instead of joining the new documentation.
+
 ## 0.1.0 (2026-09-28)
 
 First working release, for Windows.
