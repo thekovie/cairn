@@ -437,6 +437,26 @@ html[data-toolbar="words"] .btn-icon::after { display: none; }
 .editor-panes[data-view="write"] .pane-preview { display: none; }
 .editor-panes[data-view="preview"] { grid-template-columns: 1fr; }
 .editor-panes[data-view="preview"] .pane-write { display: none; }
+
+/* Visual editing: one pane, the page as it will look, editable in place. */
+.pane-visual { display: none; }
+.editor-panes[data-view="visual"] { grid-template-columns: 1fr; }
+.editor-panes[data-view="visual"] .pane-write,
+.editor-panes[data-view="visual"] .pane-preview { display: none; }
+.editor-panes[data-view="visual"] .pane-visual { display: flex; }
+.visual-root { flex: 1; display: flex; }
+.visual-root > * { flex: 1; min-width: 0; display: flex; } /* Milkdown's own wrapper */
+.visual-doc {
+  flex: 1;
+  min-height: 60vh;
+  padding: var(--space-4) var(--space-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: var(--accent);
+}
+.visual-doc:focus-visible { outline: 3px solid var(--focus); outline-offset: -4px; }
+.visual-doc .ProseMirror-selectednode { outline: 3px solid var(--accent); outline-offset: 2px; }
+.visual-doc li > p { margin: 0; }
 .pane { display: flex; flex-direction: column; min-width: 0; }
 .pane + .pane { border-left: 2px solid var(--border); }
 .pane-label { font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); padding: var(--space-3) var(--space-4) 0; margin: 0; }

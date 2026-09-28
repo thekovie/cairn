@@ -38,7 +38,9 @@ The token reaches the browser in the URL fragment (`#t=…`), which browsers nev
 
 ## The browser interface
 
-Plain HTML, CSS, and JavaScript modules in `assets/`, embedded into the program at build time with [rust-embed](https://github.com/pyrossh/rust-embed). There is no front-end build step and no Node.js. The interface works offline; the Inter font (SIL Open Font License) is included.
+Plain HTML, CSS, and JavaScript modules in `assets/`, embedded into the program at build time with [rust-embed](https://github.com/pyrossh/rust-embed). There is no front-end build step and no Node.js; the one third-party library, the visual editor engine, is committed pre-built (see `vendor/milkdown/README.md`).
+
+Visual editing never becomes a second source of truth: the Markdown text box is. Visual edits are converted to Markdown and written back to it immediately, so drafts, locks, conflict checks, publishing, and history are unchanged. The front-matter block is split off first and never passes through the visual editor. The editor's schema only knows Markdown constructs, so pasted HTML is reduced to those, and raw HTML in a page is shown as text. The interface works offline; the Inter font (SIL Open Font License) is included.
 
 | File | Purpose |
 | --- | --- |
@@ -54,6 +56,8 @@ Plain HTML, CSS, and JavaScript modules in `assets/`, embedded into the program 
 | `assets/js/templates.js` | The Templates page |
 | `assets/js/export.js` | Download dialogs, folder download progress, the print view |
 | `assets/js/timezone.js` | Settings → Time and timezone |
+| `assets/js/visual.js` | Visual editing, on top of the vendored editor engine |
+| `assets/vendor/milkdown.js` | [Milkdown](https://milkdown.dev) (ProseMirror + remark, MIT), pre-built from `vendor/milkdown/` and loaded only when visual editing is first used. Licenses in `milkdown.LICENSES.txt`. |
 
 Text from files is always inserted as text, never as HTML. The only HTML inserted is page HTML the server has already sanitized.
 

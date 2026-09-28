@@ -137,6 +137,7 @@ fn js_files() -> Vec<(String, String)> {
         "js/templates.js",
         "js/export.js",
         "js/timezone.js",
+        "js/visual.js",
     ]
     .iter()
     .map(|f| (f.to_string(), asset(f)))
@@ -250,6 +251,23 @@ fn buttons_always_carry_visible_words() {
 }
 
 #[test]
+fn the_vendored_editor_engine_never_talks_to_the_network() {
+    let bundle = asset("vendor/milkdown.js");
+    for call in [
+        "fetch(",
+        "XMLHttpRequest",
+        "WebSocket",
+        "sendBeacon",
+        "EventSource",
+        "importScripts",
+        "eval(",
+        "new Function",
+    ] {
+        assert!(!bundle.contains(call), "the editor bundle uses {call}");
+    }
+}
+
+#[test]
 fn the_whole_ui_is_embedded_and_nothing_loads_from_the_network() {
     let names = cairn::server::embedded_asset_names();
     for needed in [
@@ -266,6 +284,8 @@ fn the_whole_ui_is_embedded_and_nothing_loads_from_the_network() {
         "js/templates.js",
         "js/export.js",
         "js/timezone.js",
+        "js/visual.js",
+        "vendor/milkdown.js",
         "fonts/InterVariable-latin.woff2",
         "fonts/Inter-LICENSE.txt",
     ] {

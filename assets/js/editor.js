@@ -9,6 +9,7 @@ import {
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
   iconButton, toolbarKeys,
 } from './core.js';
+import { createVisualEditor } from './visual.js';
 import { lockSentence } from './views.js';
 
 const SAVE_DELAY_MS = 2500;
@@ -76,6 +77,20 @@ export function writeMeta(text, fields) {
   const body = m ? text.slice(m[0].length) : text;
   if (!lines.length) return body.replace(/^\r?\n/, '');
   return `---\n${lines.join('\n')}\n---\n${m ? '' : '\n'}${body}`;
+}
+
+// ------------------------------------------------------------ visual mode
+
+const VIEW_KEY = 'cairn.editView';
+const VIEWS = ['visual', 'both', 'write'];
+
+/** Split the page details block off the top, so visual editing never touches it. */
+export function splitFront(text) {
+  const m = text.match(FRONT);
+  if (!m) return { front: '', body: text };
+  const rest = text.slice(m[0].length);
+  const gap = rest.match(/^(?:\r?\n)*/)[0];
+  return { front: m[0] + gap, body: rest.slice(gap.length) };
 }
 
 // --------------------------------------------------------- template details
@@ -274,13 +289,50 @@ function mountEditor(ctx, path, start) {
     h('label', { class: 'pane-label', for: 'md-text' }, 'Write'),
     ta,
     h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder.'));
-  // Side by side only when there's room; narrow windows start on Write.
-  const startView = window.matchMedia('(max-width: 1000px)').matches ? 'write' : 'both';
+  // Visual editing: type on the page as it will look (see visual.js).
+  const visualRoot = h('div', { class: 'visual-root' });
+  const visualPane = h('section', { class: 'pane pane-visual', 'aria-labelledby': 'visual-h' },
+    h('h2', { class: 'pane-label', id: 'visual-h' }, 'Visual: edit the page as it will look'),
+    visualRoot,
+    h('p', { class: 'drop-hint' }, 'Tip: type # and a space for a heading, - and a space for a bullet list, or **words** for bold. You can paste or drag in pictures too.'));
+  // The way of editing is remembered in this browser. Otherwise: side by
+  // side when there's room, and Markdown only on narrow windows.
+  let savedView = null;
+  try { savedView = localStorage.getItem(VIEW_KEY); } catch { savedView = null; }
+  const startView = VIEWS.includes(savedView) ? savedView
+    : window.matchMedia('(max-width: 1000px)').matches ? 'write' : 'both';
   const panes = h('div', { class: 'editor-panes', 'data-view': startView },
+    visualPane,
     writePane,
     h('section', { class: 'pane pane-preview', 'aria-labelledby': 'preview-h' },
       h('h2', { class: 'pane-label', id: 'preview-h' }, 'Preview: how the page will look'),
       previewBody));
+  // The visual editor is created the first time it's shown. The Markdown in
+  // the text box stays the source of truth; visual edits are written back.
+  let visual = null;
+  const inVisual = () => (panes.dataset.view === 'visual' ? visual : null);
+  async function ensureVisual() {
+    const { body } = splitFront(ta.value);
+    if (visual) {
+      visual.setMarkdown(body);
+      return visual;
+    }
+    try {
+      visual = await createVisualEditor({
+        root: visualRoot, markdown: body, pagePath: path,
+        readKey: start.read_key, staged: start.staged || [],
+        onChange: (md) => {
+          ta.value = splitFront(ta.value).front + md;
+          changed();
+        },
+      });
+    } catch {
+      toast('Visual editing could not start. You can keep writing in Markdown.', { error: true });
+      return null;
+    }
+    return visual;
+  }
+
   const fileInput = h('input', {
     type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif',
     class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true',
@@ -432,15 +484,20 @@ function mountEditor(ctx, path, start) {
   }
 
   function code() {
+    if (inVisual()) {
+      visual.run('code');
+      return;
+    }
     const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
     if (sel.includes('\n')) insertBlock(`\`\`\`\n${sel}\n\`\`\``);
     else wrap('`', '`', 'code');
   }
 
   async function insertLink() {
+    const vis = inVisual();
     const selStart = ta.selectionStart;
     const selEnd = ta.selectionEnd;
-    const selected = ta.value.slice(selStart, selEnd);
+    const selected = vis ? vis.selectedText() : ta.value.slice(selStart, selEnd);
     let pages = [];
     try { pages = (await get('/api/pages')).pages.filter((p) => p.path !== path); } catch { pages = []; }
     const values = await formDialog({
@@ -457,8 +514,11 @@ function mountEditor(ctx, path, start) {
       ],
       submitLabel: 'Add link',
     });
-    ta.focus();
-    ta.setSelectionRange(selStart, selEnd);
+    if (vis) vis.focus();
+    else {
+      ta.focus();
+      ta.setSelectionRange(selStart, selEnd);
+    }
     if (!values) return;
     let target = values.page ? relativeLink(path, values.page) : values.url.trim();
     if (!target) {
@@ -466,7 +526,9 @@ function mountEditor(ctx, path, start) {
       return;
     }
     if (!values.page && !/^(https?:|mailto:|#)/i.test(target)) target = `https://${target}`;
-    replaceSelection(`[${values.text.trim().replace(/[[\]]/g, '')}](${target})`);
+    const link = `[${values.text.trim().replace(/[[\]]/g, '')}](${target})`;
+    if (vis) vis.insert(link, true);
+    else replaceSelection(link);
   }
 
   async function insertTable() {
@@ -479,11 +541,19 @@ function mountEditor(ctx, path, start) {
       ],
       submitLabel: 'Add table',
     });
-    ta.focus();
-    ta.setSelectionRange(selStart, selStart);
+    const vis = inVisual();
+    if (vis) vis.focus();
+    else {
+      ta.focus();
+      ta.setSelectionRange(selStart, selStart);
+    }
     if (!values) return;
     const cols = Math.min(8, Math.max(1, parseInt(values.cols, 10) || 3));
     const rows = Math.min(30, Math.max(1, parseInt(values.rows, 10) || 3));
+    if (vis) {
+      vis.run('table', { row: rows + 1, col: cols }); // plus the heading row
+      return;
+    }
     const cells = (fn) => `| ${Array.from({ length: cols }, (_, i) => fn(i)).join(' | ')} |`;
     insertBlock([cells((i) => `Column ${i + 1}`), cells(() => '---'),
       ...Array.from({ length: rows }, () => cells(() => ' '))].join('\n'));
@@ -502,15 +572,24 @@ function mountEditor(ctx, path, start) {
       fields: [{ name: 'alt', label: 'Description', value: guess }],
       submitLabel: 'Insert picture',
     });
-    ta.focus();
-    ta.setSelectionRange(pos, pos);
+    const vis = inVisual();
+    if (vis) vis.focus();
+    else {
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+    }
     if (!values) return;
     setSave(null, 'Adding picture…');
     try {
       const q = new URLSearchParams({ path, name: file.name || 'picture' });
       const res = await api('POST', `/api/draft/image?${q}`, file, { raw: true });
       const alt = (values.alt || 'Picture').replace(/[[\]]/g, '');
-      insertBlock(`![${alt}](${res.link})`);
+      if (vis) {
+        vis.addStaged(res.link, res.name);
+        vis.insert(`![${alt}](${res.link})`);
+      } else {
+        insertBlock(`![${alt}](${res.link})`);
+      }
       if (res.save_error) setSave('error', res.save_error);
       announce('Picture inserted.');
     } catch (err) {
@@ -554,45 +633,71 @@ function mountEditor(ctx, path, start) {
   const run = (fn) => () => { fn(); activity(); };
   const tool = (label, iconName, fn, shortcut) => iconButton(label, { icon: iconName, shortcut, onClick: run(fn) });
   const sep = () => h('span', { class: 'toolbar-sep', 'aria-hidden': 'true' });
+  // Each action goes to whichever editor is showing.
+  const either = (visualAction, textAction) => () => {
+    const vis = inVisual();
+    if (vis) visualAction(vis);
+    else textAction();
+  };
+  const insertText = (text) => either((v) => v.insert(text, true), () => replaceSelection(text));
+
+  const viewSwitch = h('div', { class: 'view-switch', role: 'group', 'aria-label': 'How to edit' });
+  async function setView(view) {
+    panes.dataset.view = view;
+    for (const b of viewSwitch.children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    try { localStorage.setItem(VIEW_KEY, view); } catch { /* remembered for this visit only */ }
+    if (view === 'visual') {
+      const vis = await ensureVisual();
+      if (vis) vis.focus();
+      else setView('both');
+    } else {
+      ta.focus();
+    }
+  }
   const viewBtn = (label, view) => button(label, {
-    class: 'btn btn-view',
+    class: 'btn btn-view', dataset: { view },
     'aria-pressed': view === startView ? 'true' : 'false',
-    onClick: (e) => {
-      panes.dataset.view = view;
-      for (const b of e.currentTarget.parentElement.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
-    },
+    onClick: () => setView(view),
   });
+  viewSwitch.append(
+    viewBtn('Visual', 'visual'),
+    viewBtn('Markdown and preview', 'both'),
+    viewBtn('Markdown only', 'write'));
 
   const styleSelect = h('select', { id: 'tb-style', class: 'toolbar-select', 'aria-label': 'Text style' },
     h('option', { value: 'p' }, 'Normal text'),
     h('option', { value: 'h2' }, 'Heading'),
     h('option', { value: 'h3' }, 'Subheading'),
     h('option', { value: 'h1' }, 'Page title'));
-  styleSelect.addEventListener('change', run(() => prefixLines(styleSelect.value)));
+  styleSelect.addEventListener('change', run(either(
+    (v) => (styleSelect.value === 'p' ? v.run('paragraph') : v.run('heading', Number(styleSelect.value.slice(1)))),
+    () => prefixLines(styleSelect.value))));
   // Show the style of the line the cursor is on.
+  const showStyle = (hashes) => { styleSelect.value = { 0: 'p', 1: 'h1', 2: 'h2' }[hashes] || 'h3'; };
   const syncStyle = () => {
     const v = ta.value;
     const from = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
-    const hashes = v.slice(from).match(/^(#{1,6})\s/)?.[1].length || 0;
-    styleSelect.value = { 0: 'p', 1: 'h1', 2: 'h2' }[hashes] || 'h3';
+    showStyle(v.slice(from).match(/^(#{1,6})\s/)?.[1].length || 0);
   };
   for (const ev of ['keyup', 'click', 'focus']) ta.addEventListener(ev, syncStyle);
+  for (const ev of ['keyup', 'click']) {
+    visualRoot.addEventListener(ev, () => { if (visual) showStyle(visual.headingLevel()); });
+  }
 
   const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
     styleSelect,
     sep(),
-    tool('Bold', 'bold', () => wrap('**', '**', 'bold words'), 'Ctrl+B'),
-    tool('Italic', 'italic', () => wrap('_', '_', 'slanted words'), 'Ctrl+I'),
+    tool('Bold', 'bold', either((v) => v.run('bold'), () => wrap('**', '**', 'bold words')), 'Ctrl+B'),
+    tool('Italic', 'italic', either((v) => v.run('italic'), () => wrap('_', '_', 'slanted words')), 'Ctrl+I'),
     sep(),
-    tool('Bullet list', 'list', () => prefixLines('ul')),
-    tool('Numbered list', 'listNumbered', () => prefixLines('ol')),
+    tool('Bullet list', 'list', either((v) => v.run('bullet'), () => prefixLines('ul'))),
+    tool('Numbered list', 'listNumbered', either((v) => v.run('ordered'), () => prefixLines('ol'))),
     sep(),
     tool('Link…', 'link', insertLink),
     tool('Insert picture…', 'image', () => fileInput.click()),
     tool('Table…', 'table', insertTable),
     tool('Code', 'code', code),
-    h('div', { class: 'view-switch', role: 'group', 'aria-label': 'What to show' },
-      viewBtn('Write and preview', 'both'), viewBtn('Write only', 'write'), viewBtn('Preview only', 'preview'))));
+    viewSwitch));
 
   // Templates: worded buttons insert fill-in fields so nobody types {{…}}.
   // They stay worded: there is no icon anyone would recognize for them.
@@ -600,11 +705,38 @@ function mountEditor(ctx, path, start) {
   const fillInBar = isTemplate
     ? toolbarKeys(h('div', { class: 'toolbar toolbar-insert', role: 'toolbar', 'aria-label': 'Insert a fill-in field', 'aria-controls': 'md-text' },
       h('span', { class: 'toolbar-label', 'aria-hidden': 'true' }, 'Insert:'),
-      word('Page title', 'page', () => replaceSelection('{{title}}')),
-      word('Today’s date', 'clock', () => replaceSelection('{{date}}')),
-      word('Author’s name', 'user', () => replaceSelection('{{author}}')),
-      word('Folder name', 'folder', () => replaceSelection('{{folder}}'))))
+      word('Page title', 'page', insertText('{{title}}')),
+      word('Today’s date', 'clock', insertText('{{date}}')),
+      word('Author’s name', 'user', insertText('{{author}}')),
+      word('Folder name', 'folder', insertText('{{folder}}'))))
     : null;
+
+  // Pictures pasted or dropped into the visual editor go through the same
+  // upload as the Markdown box (before the editor would handle them itself).
+  const pictureFrom = (files) => [...(files || [])]
+    .find((f) => f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+  visualRoot.addEventListener('paste', (e) => {
+    const file = pictureFrom(e.clipboardData?.files);
+    if (!file) return;
+    e.preventDefault();
+    e.stopPropagation();
+    addPicture(file);
+  }, true);
+  visualRoot.addEventListener('drop', (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const file = pictureFrom(e.dataTransfer.files);
+    if (file) addPicture(file);
+    else toast('Only pictures can be dropped here (PNG, JPEG, WebP, or GIF).', { error: true });
+  }, true);
+  visualRoot.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      s.dirty = true;
+      saveDraft();
+    }
+  });
 
   ta.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
@@ -794,6 +926,7 @@ function mountEditor(ctx, path, start) {
     clearInterval(statusTimer);
     clearTimeout(s.saveTimer);
     clearTimeout(s.previewTimer);
+    if (visual) visual.destroy();
     window.removeEventListener('beforeunload', onBeforeUnload);
   }
 
@@ -945,7 +1078,8 @@ function mountEditor(ctx, path, start) {
     helpPanel);
 
   refreshPreview();
-  setTimeout(() => ta.focus(), 0);
+  if (startView === 'visual') setView('visual');
+  else setTimeout(() => ta.focus(), 0);
 
   return {
     title: 'Editing',

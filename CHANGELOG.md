@@ -4,6 +4,10 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Added
+
+- **Visual editing.** Choose **Visual** in the editor to write on the page as it will look. Markdown shortcuts work as you type: `## ` makes a heading, `- ` a bullet list, `**words**` bold, and so on. The toolbar, pictures (paste, drag, or button), links, and tables all work there, and the page is still saved as Markdown. Cairn remembers whether you last used Visual or Markdown.
+
 ### Changed
 
 - The editor toolbar is now one compact row of icons, like Google Docs. Each button's name appears when you point at it or move to it with the keyboard, with its shortcut (for example “Bold (Ctrl+B)”). Heading and Subheading are now a **Text style** list that also shows the style of the current line. To always see the names, choose **Settings → Appearance → Editor toolbar → Icons and words**; on touch screens they are always shown.

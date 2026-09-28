@@ -16,9 +16,28 @@ Your name comes from **Settings → Your name**. If you leave it empty, your Win
 | **Write** (left) | The text of the page. |
 | **Preview** (right) | How the page will look. It updates as you type. |
 | Toolbar | Buttons that format text for you. |
-| **Write and preview / Write only / Preview only** | Choose what to see. |
+| **Visual / Markdown and preview / Markdown only** | Choose how to edit (see below). Your choice is remembered. |
 | **Page details** | Owner, status, last reviewed date, and tags. |
 | **Formatting help** | A short table of formatting, for anyone who prefers typing it. |
+
+### Visual editing
+
+Choose **Visual** to write directly on the page as it will look, like in a word processor. You can use the toolbar, or type these shortcuts and the formatting appears as you type:
+
+| Type | To get |
+| --- | --- |
+| `#` then a space | Page title |
+| `##` then a space | Heading (`###` for a subheading) |
+| `-` then a space | Bullet list |
+| `1.` then a space | Numbered list |
+| `>` then a space | Quote |
+| `**words**` | **Bold** |
+| `_words_` | _Italic_ |
+| `` `words` `` | Code |
+
+Pictures can be pasted or dragged in, just like in Markdown mode. The page details block (owner, status, and so on) isn't shown in Visual mode; edit it with **Page details** below the editor.
+
+The page is still saved as Markdown. Visual editing writes it in a standard, tidy form, so after your first change there, some lines may be written slightly differently (for example `-` for every bullet). The page looks the same.
 
 ### Formatting with the toolbar
 

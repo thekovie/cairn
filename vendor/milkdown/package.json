@@ -1,0 +1,14 @@
+{
+  "name": "cairn-vendor-milkdown",
+  "private": true,
+  "description": "Builds assets/vendor/milkdown.js, the visual editor engine. Run only when updating it: npm ci && npm run build",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --format=esm --minify --legal-comments=eof --target=es2022 --metafile=meta.json --outfile=../../assets/vendor/milkdown.js && node licenses.js"
+  },
+  "devDependencies": {
+    "@milkdown/kit": "7.22.2",
+    "esbuild": "0.28.2"
+  }
+}

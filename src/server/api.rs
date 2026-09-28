@@ -748,6 +748,9 @@ pub async fn edit_start(
             "idle_warning_minutes": cfg.idle_warning_minutes,
             "idle_release_minutes": cfg.idle_release_minutes,
             "storage_reliable": ws.storage.reliable_locking,
+            // For the visual editor, which shows pictures itself.
+            "read_key": st.read_key,
+            "staged": draft.staged,
         }))
     })
     .await
