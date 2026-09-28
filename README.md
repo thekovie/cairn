@@ -35,7 +35,36 @@ The full walkthrough is in [docs/getting-started.md](docs/getting-started.md).
 
 ## Screenshots
 
-Screenshots are not yet included in the repository. The interface has three main areas: a list of folders on the left, the page in the middle, and the page's details (owner, status, editing state, contents) on the right.
+The home screen: folders, search, and recently changed pages.
+
+![Cairn home screen showing folders and recently changed pages](docs/screenshots/home.png)
+
+A page, with its owner, status, review date, and editing state beside it.
+
+![A page in Cairn with its details panel](docs/screenshots/page.png)
+
+The editor: worded formatting buttons and a live preview, so nobody needs to know Markdown.
+
+![The Cairn editor with the formatting toolbar and live preview](docs/screenshots/editor.png)
+
+<details>
+<summary>More screenshots: templates, downloads, and timezones</summary>
+
+Team templates, kept with each documentation folder.
+
+![The Templates page listing team and built-in templates](docs/screenshots/templates.png)
+
+Download a page as a PDF or as Markdown.
+
+![The download dialog with PDF, Markdown with pictures, and Markdown choices](docs/screenshots/download.png)
+
+Choose the timezone times are shown in.
+
+![Settings: Time and timezone, with Asia and Manila selected](docs/screenshots/timezone.png)
+
+</details>
+
+The screenshots use made-up sample content.
 
 ## Documentation
 
