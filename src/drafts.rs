@@ -250,6 +250,27 @@ impl DraftStore {
         read_optional(&dir.join("staged").join(name)).ok()?
     }
 
+    /// Move a draft to `new` (a page that was renamed or moved), taking its
+    /// staged pictures along.
+    pub fn relocate(&self, old: &Draft, new: Draft) -> Result<()> {
+        let pictures: Vec<(StagedImage, Vec<u8>)> = new
+            .staged
+            .iter()
+            .filter_map(|s| {
+                self.image_bytes(&old.instance_id, &old.article, &s.name)
+                    .map(|b| (s.clone(), b))
+            })
+            .collect();
+        self.save(&new);
+        for (image, bytes) in pictures {
+            self.add_image(&new.instance_id, &new.article, image, bytes)?;
+        }
+        if !old.article.eq_ignore_ascii_case(&new.article) {
+            self.discard(&old.instance_id, &old.article)?;
+        }
+        Ok(())
+    }
+
     /// Remove a draft and its staged pictures (after a verified publish or an
     /// explicit discard).
     pub fn discard(&self, instance_id: &str, article: &str) -> Result<()> {

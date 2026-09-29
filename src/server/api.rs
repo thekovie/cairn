@@ -336,7 +336,7 @@ pub struct PathQuery {
     path: String,
 }
 
-fn folder_rel(raw: &str) -> Result<String> {
+pub(super) fn folder_rel(raw: &str) -> Result<String> {
     let rel = normalize_relative(raw)?;
     if is_system_path(&rel) {
         return Err(CairnError::PathRejected(
@@ -512,7 +512,7 @@ pub async fn page(State(state): State<Arc<AppState>>, Query(q): Query<PathQuery>
     .await
 }
 
-fn slugify_title(title: &str) -> String {
+pub(super) fn slugify_title(title: &str) -> String {
     let mut slug = String::new();
     let mut dash = false;
     for c in title.chars().flat_map(char::to_lowercase) {

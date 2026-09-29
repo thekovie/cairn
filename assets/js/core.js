@@ -559,6 +559,7 @@ export const href = {
   settings: () => '#/settings',
   setup: () => '#/setup',
   templates: () => '#/templates',
+  deleted: () => '#/deleted',
   print: (p) => `#/print/${encodePath(p)}`,
 };
 

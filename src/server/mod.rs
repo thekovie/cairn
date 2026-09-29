@@ -2,6 +2,7 @@
 
 pub mod api;
 pub mod api_export;
+pub mod api_manage;
 pub mod api_templates;
 pub mod idle;
 pub mod security;
@@ -292,6 +293,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/folder/create", post(api::create_folder))
         .route("/api/page", get(api::page))
         .route("/api/page/new", post(api::new_page))
+        .route("/api/page/rename", post(api_manage::rename_page))
+        .route("/api/page/move", post(api_manage::move_page))
+        .route("/api/page/delete", post(api_manage::delete_page))
+        .route("/api/folder/rename", post(api_manage::rename_folder))
+        .route("/api/folder/move", post(api_manage::move_folder))
+        .route("/api/folder/delete", post(api_manage::delete_folder))
+        .route("/api/trash", get(api_manage::trash_list))
+        .route("/api/trash/restore", post(api_manage::trash_restore))
         .route("/api/search", get(api::search))
         .route("/api/pages", get(api::all_pages))
         .route("/api/folders", get(api::all_folders))

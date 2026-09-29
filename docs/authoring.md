@@ -175,6 +175,26 @@ On any page, choose **Earlier versions** to see every version that was replaced 
 
 Earlier versions are ordinary Markdown files in `_system/history/`.
 
+## Renaming, moving, and deleting
+
+Beside every page, the **Organize** box has:
+
+- **Rename**: give the page a new title. Its file gets a matching name.
+- **Move**: put the page in another folder (or at the top level).
+- **Delete**: the page goes to **Recently deleted**. Cairn asks first.
+
+At the bottom of every folder, **Organize this folder** has **Rename folder**, **Move folder** (into another folder), and **Delete folder** (with everything in it).
+
+When a page or folder is renamed or moved:
+
+- Its pictures and earlier versions go with it.
+- Links to it from other pages are updated, and so are links in the moved pages to anything outside them. Each page that changes keeps its previous text under **Earlier versions**, as with any publish.
+- If someone is editing a page that links to it, that page is left alone. Cairn lists it afterwards, so its link can be fixed later with **Link…**.
+
+Nothing can be renamed, moved, or deleted while someone is editing it; Cairn says who is. If you have the page open in the editor yourself, publish or close it first.
+
+**Recently deleted** (in the sidebar) lists deleted pages and folders, who deleted them, and when. **Restore** puts one back where it was, with its pictures and earlier versions. If something new has been created in its place in the meantime, rename or move that first. Deleted items are kept in `_system/trash/` until someone removes them from there.
+
 ## Templates
 
 A template gives new pages a ready-made structure, such as headings for meeting notes or an incident report. Choose **Templates** in the sidebar to see them:

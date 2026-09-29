@@ -7,6 +7,7 @@
 //   #/search?q=...      search          #/settings         settings
 //   #/setup             choose or create a documentation folder
 //   #/templates         team and built-in templates
+//   #/deleted           recently deleted pages and folders
 //   #/print/<path>      a page laid out for printing (PDF fallback)
 
 import {
@@ -18,6 +19,7 @@ import { setupView } from './setup.js';
 import { editorView } from './editor.js';
 import { templatesView } from './templates.js';
 import { printView } from './export.js';
+import { deletedView } from './manage.js';
 
 const app = {
   state: null,
@@ -39,6 +41,7 @@ const ROUTES = {
   settings: views.settingsView,
   setup: setupView,
   templates: templatesView,
+  deleted: deletedView,
   print: printView,
 };
 
@@ -150,7 +153,8 @@ function renderNav() {
         navLink('Home', href.home(), 'home', route === ''),
         navLink('Search', href.search(''), 'search', route === 'search'),
         navLink('Templates', href.templates(), 'template',
-          route === 'templates' || (route === 'edit' && top === '_templates')))),
+          route === 'templates' || (route === 'edit' && top === '_templates')),
+        navLink('Recently deleted', href.deleted(), 'trash', route === 'deleted'))),
     h('div', { class: 'sidenav-section' },
       h('h2', null, 'Folders'),
       app.nav.length
@@ -213,6 +217,7 @@ const LOADING_TEXT = {
   history: 'Opening earlier versions…',
   new: 'Getting ready…',
   templates: 'Opening templates…',
+  deleted: 'Opening recently deleted…',
   settings: 'Opening settings…',
   print: 'Preparing the page for printing…',
 };

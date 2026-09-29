@@ -114,6 +114,7 @@ Inside the workspace:
 | `_templates/*.md` | This documentation's team templates (not shown as pages or in search) |
 | `_system/locks/` | Edit locks (don't edit these by hand; use `cairn locks`) |
 | `_system/history/` | Earlier versions of pages |
+| `_system/trash/` | Recently deleted pages and folders, restorable in Cairn. Deleting a folder in here removes it for good. |
 | `_system/.probe/` | Temporary files from the storage check |
 | Files and folders starting with `.` | Ignored |
 

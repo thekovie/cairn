@@ -18,6 +18,7 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 - **Never lose work.** Unsaved changes are kept privately on your own computer every few seconds. If someone changed the page while you were writing, Cairn shows both versions instead of overwriting either one.
 - **Pictures** by button, paste, or drag and drop. They are stored next to the page in a normal folder.
 - **Earlier versions** of every page are kept and can be restored.
+- **Rename, move, and delete** pages and folders. Links between pages are updated for you, and anything deleted can be brought back from **Recently deleted**.
 - **Team templates** for pages you write often, kept with each documentation folder, with fields such as the title and today's date filled in for you.
 - **Download** a page as PDF or Markdown, or a whole folder or all documentation as a .zip. PDFs are made on your own computer.
 - **Your timezone.** Times are stored in one standard form and shown in each person's timezone, marked like “2:30 PM GMT+8”.

@@ -2,6 +2,16 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **Rename, move, and delete pages.** Beside every page, the new **Organize** box has **Rename** (a new title, and a matching file name), **Move** (to another folder), and **Delete**. A page's pictures and earlier versions go with it.
+- **Rename, move, and delete folders**, under **Organize this folder** at the bottom of each folder. Everything inside goes with it.
+- **Links keep working.** When a page or folder is renamed or moved, links to it from other pages are updated, and so are the moved pages' own links. Each page that changes keeps its previous text under **Earlier versions**. If someone is editing a page that links to it, that page is left alone and Cairn lists it afterwards.
+- **Recently deleted**, in the sidebar. Deleting never destroys anything: deleted pages and folders are listed here with who deleted them and when, and **Restore** puts one back exactly where it was, with its pictures and earlier versions.
+- Nothing can be renamed, moved, or deleted while someone is editing it; Cairn says who is. A page isn't deleted if it changed since you opened it.
+
 ## 0.3.4 (2026-09-29)
 
 ### Added

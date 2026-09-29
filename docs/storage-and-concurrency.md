@@ -88,6 +88,17 @@ Every time Cairn writes (lock `created_at` and `heartbeat_at`, draft `updated_at
 
 Team templates are ordinary pages in `_templates/`, so they use the same edit locks, drafts, conflict checks, publishing sequence, and earlier versions as any page. Deleting a template requires its edit lock and an unchanged hash, and saves it to Earlier versions before removing the file, which is how **Restore** works.
 
+## Renaming, moving, and deleting
+
+These take the edit lock of every page involved (the page, or every page in the folder) before touching anything, and give them back when done. If anyone holds one of those locks, nothing changes and the person is told who is editing. A page Cairn has open in this person's own editor is refused too.
+
+- **Moving a page** writes it at its new path with exclusive creation, moves its `.assets` folder, then removes the old file. If a step fails, the steps before it are undone. Its folder in `_system/history` moves with it.
+- **Moving a folder** first adjusts links in its pages that point outside it (saving each page's previous text to Earlier versions), then renames the folder in one step. If the rename fails, those pages are put back.
+- **Links in other pages** are then updated one page at a time, each like a publish: under that page's edit lock, only if it hasn't changed since it was read, and with its previous text saved to Earlier versions. A page someone is editing is skipped and reported, never overwritten.
+- **Deleting** renames the page (with its `.assets`) or folder into `_system/trash/<id>/content/`, after writing `item.json` there. **Restore** renames it back, and refuses if something now exists at the original path.
+
+This person's own unsaved changes to moved pages move with them. Unsaved changes on other people's computers stay under the old path: publishing them shows the usual conflict screen, because the page is no longer there.
+
 ## Conflicts
 
 When editing starts, Cairn records a SHA-256 hash of the published page. Immediately before publishing it hashes the page again. If the hashes differ, for any reason (another Cairn user, Notepad, a restored backup), **nothing is written**. The user sees both versions and chooses whether to keep editing or to publish their version anyway. Either way the other version is preserved: it stays on disk, or it goes to Earlier versions.

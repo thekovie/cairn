@@ -56,7 +56,7 @@ Documentation/
   _system/              ← Cairn's edit locks and earlier versions
 ```
 
-The folder names are only a starting point. You can add your own folders in Cairn (**New folder**), and rename or remove folders in File Explorer.
+The folder names are only a starting point. You can add your own folders in Cairn (**New folder**), and rename, move, or delete them with **Organize this folder** at the bottom of each folder. Doing it in Cairn keeps the links between pages working; renaming in File Explorer doesn't.
 
 Next time you start Cairn, it opens the same documentation automatically.
 

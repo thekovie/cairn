@@ -89,7 +89,13 @@ The information block at the top of the page has a mistake in it. Open the page 
 
 ## Links show “(missing)”
 
-The link points to a page or picture that doesn't exist, perhaps because it was renamed or moved. Edit the page and fix the link with **Link…**.
+The link points to a page or picture that doesn't exist. Common reasons:
+
+- The page was deleted. Look in **Recently deleted** and choose **Restore**.
+- The page was renamed or moved in File Explorer (Cairn updates links only when this is done in Cairn).
+- It was renamed or moved in Cairn while someone was editing this page, so this page couldn't be updated.
+
+Edit the page and fix the link with **Link…**.
 
 ## “PDFs can't be made automatically on this computer”
 

@@ -140,7 +140,7 @@ fn is_valid_date(s: &str) -> bool {
 
 // ------------------------------------------------------------------ title
 
-fn md_options() -> Options {
+pub(crate) fn md_options() -> Options {
     Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
@@ -246,6 +246,11 @@ fn classify(dest: &str) -> LinkKind {
     } else {
         LinkKind::Local
     }
+}
+
+/// Whether a link target is a relative path inside the documentation.
+pub(crate) fn is_local_link(dest: &str) -> bool {
+    matches!(classify(dest), LinkKind::Local)
 }
 
 /// Minimal percent-decoding for link targets (`%20` → space).

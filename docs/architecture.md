@@ -74,12 +74,15 @@ Text from files is always inserted as text, never as HTML. The only HTML inserte
 | `drafts.rs` | Private per-user unsaved changes. |
 | `publish.rs` | The safe publishing sequence. |
 | `history.rs` | Earlier versions. |
+| `links.rs` | Rewriting relative links when pages or folders move: finds each link's destination in the source text and changes only that. |
+| `manage.rs` | Renaming and moving pages and folders, with their pictures and earlier versions, under the edit locks of every page involved. |
+| `trash.rs` | Recently deleted: moving pages and folders into `_system/trash` and restoring them. |
 | `search.rs` | In-memory index, folder listings, search. |
 | `config.rs` | Per-user settings. |
 | `timefmt.rs` | Timezones: validation, the user's zone, "GMT+8" labels, today's date. Stored times are always UTC. |
 | `templates.rs` | Built-in and team templates, filling in `{{…}}` fields, finding deleted templates. |
 | `export/` | Choosing files and zipping them (`archive.rs`), self-contained printable HTML (`html.rs`), PDFs via headless Edge or Chrome (`pdf.rs`). |
-| `server/` | HTTP routes (`api.rs`, `api_templates.rs`, `api_export.rs`), security, idle time-outs. |
+| `server/` | HTTP routes (`api.rs`, `api_templates.rs`, `api_export.rs`, `api_manage.rs`), security, idle time-outs. |
 
 ## Files on disk
 
@@ -94,6 +97,8 @@ _templates/<template>.md                          team templates for this docume
 _system/locks/<hash>.lock                         who is editing what
 _system/locks/released/*.json                     locks released by a maintainer
 _system/history/<page path>/<UTC time>-<hash>.md  earlier versions
+_system/trash/<id>/item.json                      a deleted page or folder: where it was, who, when
+_system/trash/<id>/content/                       the deleted page (with its .assets) or folder
 ```
 
 **On each person's computer** (private, under `%LOCALAPPDATA%\Cairn`, which Windows restricts to that user by default):

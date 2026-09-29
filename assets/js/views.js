@@ -5,9 +5,10 @@ import {
   get, post, h, clear, icon, button, linkButton, banner, emptyState, breadcrumbsNav, statusChip,
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
   confirmDialog, formDialog, whileBusy, errorText, diffView, fieldError, announce, applyPrefs,
-  appendChildren, isToday, enablePictureZoom,
+  appendChildren, isToday, enablePictureZoom, ApiError,
 } from './core.js';
 import { openPageDownload, openBulkDownload } from './export.js';
+import { pageOrganizeBox, folderOrganizeSection } from './manage.js';
 import { timezoneSection } from './timezone.js';
 
 // ---------------------------------------------------------------- pieces
@@ -173,7 +174,8 @@ export async function folderView(ctx) {
           title: 'This folder has no pages yet',
           text: data.can_write ? 'Create the first page for this folder.' : 'Pages added here will appear in this list.',
           actions: data.can_write ? [newHere()] : [],
-        })));
+        })),
+    folderOrganizeSection(ctx, data, pageCount));
   return { title: data.name || 'Folder' };
 }
 
@@ -340,6 +342,7 @@ export async function pageView(ctx) {
           h('div', null, h('dt', null, 'Last changed'), h('dd', null, data.modified ? relativeTime(data.modified) : '')),
           m.tags.length ? h('div', null, h('dt', null, 'Tags'), h('dd', null, m.tags.join(', '))) : null)),
       lockBox(data),
+      pageOrganizeBox(ctx, data),
       data.toc.filter((t) => t.level > 1).length > 1
         ? h('nav', { class: 'rail-box', 'aria-labelledby': 'toc-h' },
           h('h2', { id: 'toc-h' }, 'On this page'),
@@ -375,7 +378,9 @@ export async function pageView(ctx) {
     try {
       const fresh = await get('/api/page', { path: ctx.path });
       const lockChanged = JSON.stringify(fresh.lock) !== JSON.stringify(data.lock);
-      data = { ...fresh, title: data.title, meta: data.meta, toc: data.toc, broken_links: data.broken_links };
+      // Keep what is shown (including its hash, so Delete refuses if the
+      // page changed since it was read); refresh only the editing state.
+      data = { ...fresh, title: data.title, meta: data.meta, toc: data.toc, broken_links: data.broken_links, hash: data.hash };
       if (lockChanged) renderAll();
       if (fresh.hash !== shownHash && !updateShown) {
         updateShown = true;
@@ -389,8 +394,26 @@ export async function pageView(ctx) {
           role: 'status',
         }));
       }
-    } catch { /* the next tick will try again */ }
+    } catch (err) {
+      // The page was renamed, moved, or deleted while being read.
+      if (err instanceof ApiError && err.status === 404 && !goneShown) {
+        goneShown = true;
+        clearInterval(timer);
+        clear(rail);
+        notices.prepend(banner({
+          tone: 'warn', title: 'This page is no longer here',
+          text: 'Someone renamed, moved, or deleted it while you were reading. You can still read this copy.',
+          actions: [
+            linkButton('Search for it', href.search(data.title), { icon: 'search', kind: 'primary' }),
+            linkButton('Recently deleted', href.deleted(), { icon: 'trash' }),
+          ],
+          role: 'status',
+        }));
+      }
+      /* otherwise the next tick will try again */
+    }
   }, 30000);
+  let goneShown = false;
 
   return { title: data.title, keepFocus: Boolean(section), cleanup: () => clearInterval(timer) };
 }
