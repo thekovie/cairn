@@ -25,6 +25,7 @@ const app = {
   current: null,
   currentHash: null,
   shell: null,
+  routeSeq: 0,
 };
 
 const ROUTES = {
@@ -196,6 +197,50 @@ function makeContext(main, parsed) {
   };
 }
 
+// ------------------------------------------------------------- loading
+// A shared folder on a slow network can take a while. If a screen isn't
+// ready after a moment, show a skeleton with plain words about what's
+// happening; if it's slow, say so, so nobody thinks Cairn has frozen.
+
+const SHOW_LOADER_AFTER_MS = 250;
+const SLOW_AFTER_MS = 6000;
+const LOADING_TEXT = {
+  '': 'Opening the home page…',
+  page: 'Opening the page…',
+  edit: 'Opening the editor…',
+  folder: 'Opening the folder…',
+  search: 'Searching…',
+  history: 'Opening earlier versions…',
+  new: 'Getting ready…',
+  templates: 'Opening templates…',
+  settings: 'Opening settings…',
+  print: 'Preparing the page for printing…',
+};
+
+/** Shows the loader in `main` if loading takes a moment; returns `done()`. */
+function routeLoader(main, route) {
+  let loader = null;
+  const timers = [setTimeout(() => {
+    const slow = h('p', { class: 'loading-slow', hidden: true },
+      'The shared folder is responding slowly. Cairn is still working on it, so there’s no need to click again.');
+    loader = h('div', { class: 'route-loading', role: 'status' },
+      h('p', { class: 'loading-label' },
+        h('span', { class: 'spinner', 'aria-hidden': 'true' }), LOADING_TEXT[route] || 'Loading…'),
+      h('div', { class: 'skeleton', 'aria-hidden': 'true' },
+        h('span', { class: 'sk sk-title' }), h('span', { class: 'sk' }),
+        h('span', { class: 'sk' }), h('span', { class: 'sk sk-short' })),
+      slow);
+    main.setAttribute('aria-busy', 'true');
+    Element.prototype.prepend.call(main, loader);
+    timers.push(setTimeout(() => { slow.hidden = false; }, SLOW_AFTER_MS - SHOW_LOADER_AFTER_MS));
+  }, SHOW_LOADER_AFTER_MS)];
+  return () => {
+    timers.forEach(clearTimeout);
+    if (loader) loader.remove();
+    main.removeAttribute('aria-busy');
+  };
+}
+
 async function onRoute() {
   if (app.current?.canLeave) {
     const ok = await app.current.canLeave();
@@ -218,23 +263,36 @@ async function onRoute() {
   }
   app.currentHash = location.hash || '#/';
 
-  let main;
+  let host;
   if (parsed.route === 'setup') {
     app.shell = null;
     const root = clear(document.getElementById('app'));
     root.removeAttribute('aria-busy');
-    main = h('main', { id: 'main', class: 'setup', tabindex: '-1' });
-    root.append(main);
+    host = h('main', { id: 'main', class: 'setup', tabindex: '-1' });
+    root.append(host);
   } else {
     if (!app.shell) renderShell();
     renderNav();
     refreshNav(); // page counts may have changed
-    main = clear(app.shell.main);
+    host = clear(app.shell.main);
     if (parsed.route === 'search') app.shell.searchInput.value = parsed.query.get('q') || '';
   }
 
+  // Each screen draws into its own container. If the person moves on before
+  // it has finished loading (easy on a slow drive), its container is already
+  // detached, so late content can never mix into the new screen.
+  const seq = ++app.routeSeq;
+  const isCurrent = () => seq === app.routeSeq;
+  const main = h('div', { class: 'route-view' });
+  Element.prototype.append.call(host, main);
+  const loaded = routeLoader(main, parsed.route);
+
   // Views pass optional sections as null; skip them like h() does.
-  main.append = (...children) => appendChildren(main, children);
+  main.append = (...children) => {
+    if (!isCurrent()) return;
+    loaded();
+    appendChildren(main, children);
+  };
 
   const view = ROUTES[parsed.route];
   if (!view) {
@@ -246,17 +304,25 @@ async function onRoute() {
   }
   try {
     const result = await view(makeContext(main, parsed));
+    if (!isCurrent()) {
+      // Too late: let it tidy up (an editor gives its lock back).
+      if (result?.abandon) result.abandon();
+      else if (result?.cleanup) result.cleanup();
+      return;
+    }
+    loaded();
     app.current = result || null;
     document.title = [result?.title, app.state.workspace?.name, 'Cairn'].filter(Boolean).join(' – ');
     if (!parsed.query.get('section')) window.scrollTo(0, 0);
     if (!result?.keepFocus) {
       // Move focus to the new heading so screen readers announce the page.
-      const heading = main.querySelector('h1') || main;
-      if (heading !== main) heading.tabIndex = -1;
+      const heading = main.querySelector('h1') || host;
+      if (heading !== host) heading.tabIndex = -1;
       heading.focus({ preventScroll: true });
     }
     if (result?.title) announce(`${result.title} opened`);
   } catch (err) {
+    if (!isCurrent()) return;
     main.append(banner({
       tone: 'danger', title: 'This screen could not be shown', text: errorText(err),
       actions: [button('Try again', { icon: 'refresh', onClick: () => onRoute() })],

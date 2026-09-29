@@ -150,8 +150,10 @@ main {
 /* On very wide screens keep actions near the text they belong to: the page
    is as wide as the reading column plus the page-details column. The editor
    may use more, so Write and Preview each get a comfortable width. */
-main > * { max-width: calc(var(--measure) + var(--space-7) + 17rem); }
-main:has(.editor-panes) > * { max-width: 100rem; }
+/* Each screen is drawn in its own .route-view (see app.js); it adds no box. */
+.route-view { display: contents; }
+main > :not(.route-view), .route-view > * { max-width: calc(var(--measure) + var(--space-7) + 17rem); }
+main:has(.editor-panes) .route-view > * { max-width: 100rem; }
 
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
 .page-head h1 { flex: 1 1 20rem; }
@@ -195,6 +197,25 @@ main:has(.editor-panes) > * { max-width: 100rem; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* Shown while a screen is loading (only if it takes a moment): what's
+   happening in words, and grey bars where the page will appear. */
+.route-loading { display: flex; flex-direction: column; gap: var(--space-4); max-width: 46rem; }
+.loading-label { display: flex; align-items: center; gap: var(--space-3); margin: 0; font-weight: 600; color: var(--fg-muted); }
+.skeleton { display: flex; flex-direction: column; gap: var(--space-3); }
+.sk {
+  display: block;
+  height: 1rem;
+  width: 100%;
+  border-radius: var(--radius);
+  background: var(--border);
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}
+.sk-title { height: 2.25rem; width: 60%; margin-bottom: var(--space-2); }
+.sk-short { width: 45%; }
+@keyframes sk-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.loading-slow { margin: 0; max-width: var(--measure); color: var(--fg); }
 
 /* --------------------------------------------------------------- forms */
 label, .label { display: block; font-weight: 600; margin-bottom: var(--space-2); }
@@ -450,8 +471,22 @@ html[data-toolbar="words"] .btn-icon::after { display: none; }
 .editor-panes[data-view="visual"] .pane-visual { display: flex; }
 .visual-root { flex: 1; display: flex; }
 .visual-root > * { flex: 1; min-width: 0; display: flex; } /* Milkdown's own wrapper */
-.visual-doc {
-  flex: 1;
+/* A comfortable reading width (the same as the published page), centred in
+   the pane like a page in a word processor, so the spare room is shared on
+   both sides instead of all piling up on the right. (Scoped to the pane so
+   it outranks .md-body's own max-width in markdown.css.) */
+.pane-visual { --visual-column: calc(44rem + 2 * var(--space-5)); } /* 44rem ≈ 70 characters of body text */
+.pane-visual > .pane-label {
+  width: 100%;
+  max-width: var(--visual-column);
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+}
+.pane-visual .visual-doc {
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: var(--visual-column);
+  margin-inline: auto;
   min-height: 60vh;
   padding: var(--space-4) var(--space-5);
   white-space: pre-wrap;

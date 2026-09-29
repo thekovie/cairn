@@ -2,6 +2,20 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Changed
+
+- In Visual editing, the page is centred in the editor like a page in a word processor, instead of sitting against the left edge with a large empty space on the right. Its width matches the published page.
+
+### Added
+
+- A loading indicator for slow shared folders. If a page, folder, or the editor takes more than a moment to open, Cairn shows what it's doing (for example “Opening the editor…”) with a placeholder of the page. After a few seconds it also explains that the shared folder is responding slowly and there's no need to click again. The editor's preview says “Preparing the preview…” until it's ready.
+
+### Fixed
+
+- On a slow shared folder, moving to another page before the first one finished loading could show the first page's content on the second. Late content is now discarded, and an editor that opens too late gives its edit lock back.
+
 ## 0.3.2 (2026-09-29)
 
 ### Fixed

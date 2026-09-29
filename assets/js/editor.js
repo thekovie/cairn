@@ -284,7 +284,9 @@ function mountEditor(ctx, path, start) {
   const notices = h('div');
   const ta = h('textarea', { id: 'md-text', spellcheck: 'true', 'aria-describedby': 'drop-hint' });
   ta.value = start.content;
-  const previewBody = h('div', { class: 'md-body' });
+  // Until the first preview arrives (slow on a slow shared folder), say so.
+  const previewBody = h('div', { class: 'md-body' },
+    h('p', { class: 'loading-label' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Preparing the preview…'));
   const writePane = h('div', { class: 'pane pane-write' },
     h('label', { class: 'pane-label', for: 'md-text' }, 'Write'),
     ta,
@@ -1091,6 +1093,8 @@ function mountEditor(ctx, path, start) {
     title: 'Editing',
     keepFocus: true,
     cleanup: finish,
+    // Opened too late (the person already went elsewhere): give the lock back.
+    abandon: closeEditor,
     canLeave: async () => {
       if (s.closed) return true;
       const choice = await openDialog({

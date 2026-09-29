@@ -93,7 +93,7 @@
 /* In-app print view: the page as it will print, below the instructions. */
 .print-bar { margin-bottom: var(--space-6); }
 .print-bar .banner { margin: var(--space-4) 0; }
-main > .print-doc {
+.route-view > .print-doc {
   max-width: 50rem;
   padding: var(--space-6);
   border: var(--border-width) solid var(--border);
@@ -110,5 +110,5 @@ main > .print-doc {
   .no-print { display: none !important; }
   .shell { display: block !important; }
   #main { padding: 0 !important; margin: 0 !important; }
-  main > .print-doc { max-width: none; padding: 0; border: 0; }
+  .route-view > .print-doc { max-width: none; padding: 0; border: 0; }
 }
