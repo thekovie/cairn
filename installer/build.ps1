@@ -21,6 +21,7 @@ $script = Join-Path $PSScriptRoot 'cairn.iss'
 $source = (Resolve-Path $SourceDir).Path
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $out = (Resolve-Path $OutDir).Path
-& $iscc /Qp "/DAppVersion=$Version" "/DSourceDir=$source" "/O$out" $script
+# Progress goes to the log; the script's only output is the installer's path.
+& $iscc /Qp "/DAppVersion=$Version" "/DSourceDir=$source" "/O$out" $script | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "The installer couldn't be built (ISCC exit code $LASTEXITCODE)." }
 Join-Path $out "cairn-$Version-setup.exe"
