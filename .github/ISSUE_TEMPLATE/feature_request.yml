@@ -1,0 +1,47 @@
+name: Suggest an idea
+description: Something Cairn could do, or do better.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the suggestion. The most helpful thing is to tell us **what you're trying to do** and what gets in the way. You don't need to design the solution.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task, and what makes it hard or slow today.
+      placeholder: Our team keeps a page per printer, and finding the right one takes a long time because…
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Your idea, in your own words. A sketch or screenshot is welcome.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who would use it?
+      multiple: true
+      options:
+        - People reading the documentation
+        - People writing or editing pages
+        - Whoever looks after the shared folder
+        - Everyone
+    validations:
+      required: false
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you manage today? (optional)
+      description: Any workaround you use now, or another tool that does this well.
+    validations:
+      required: false

@@ -1,0 +1,49 @@
+name: Hard to see, read, or use
+description: Text too small, a confusing word, a button that's hard to find, or trouble with a keyboard or screen reader.
+title: "[Hard to use] "
+labels: ["accessibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cairn is meant to be easy for everyone, including people who don't use computers much. If something was confusing, hard to see, or hard to reach, that's a problem with Cairn, not with you. Thank you for telling us.
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Where in Cairn?
+      description: The screen or button, for example "the editor toolbar" or "Settings → Updates".
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What was hard?
+      placeholder: I couldn't find how to add a picture, and the word "Visual" didn't mean anything to me.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: using
+    attributes:
+      label: Do you use any of these? (optional)
+      multiple: true
+      options:
+        - Larger text (in Cairn or Windows)
+        - High contrast or Dark colors
+        - Browser zoom
+        - Keyboard only
+        - A screen reader (such as Narrator or NVDA)
+        - A touch screen
+        - None of these
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (optional)
+      description: Paste or drag pictures here. Please check they don't show private documentation.
+    validations:
+      required: false

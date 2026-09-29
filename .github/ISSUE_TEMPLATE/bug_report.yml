@@ -1,0 +1,125 @@
+name: Something isn't working
+description: Cairn showed an error, lost something, or didn't do what it should.
+title: "[Problem] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this. You don't need to be technical: plain words are perfect.
+
+        **Please don't include private information.** Your team's documentation, names, and folder locations are visible to everyone here. Describe them instead (for example "a page with two pictures" or "a folder on our network drive").
+
+        If Cairn might have a security problem, please don't report it here: see [Reporting a security problem](https://github.com/thekovie/cairn/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what you saw. If Cairn showed a message, copy its exact words.
+      placeholder: When I chose Publish changes, Cairn said "…" and my page didn't change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: The page would be published and show my new text.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen again?
+      description: The steps you took, one per line. It's fine if you're not sure.
+      placeholder: |
+        1. Open a page and choose Edit this page
+        2. Paste a picture
+        3. Choose Publish changes
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Cairn version
+      description: Shown in Settings → Updates ("This computer has Cairn …"). Or run `cairn.exe --version`.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run Cairn?
+      options:
+        - Installed with the installer (cairn-…-setup.exe)
+        - Unzipped from cairn-…-windows-x64.zip on my computer
+        - From a network drive or shared folder
+        - I built it myself
+        - I'm not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: storage
+    attributes:
+      label: Where is the documentation folder?
+      options:
+        - On my own computer
+        - On a network drive or shared folder
+        - In a OneDrive, Dropbox, or Google Drive folder
+        - I'm not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Something else
+        - I'm not sure
+    validations:
+      required: false
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Web browser
+      options:
+        - Microsoft Edge
+        - Google Chrome
+        - Firefox
+        - Something else
+    validations:
+      required: false
+
+  - type: textarea
+    id: window-text
+    attributes:
+      label: Text from the Cairn window (optional)
+      description: The small black window that stays open while Cairn runs sometimes shows extra detail. Copy anything that looks like an error. Remove folder locations or names you'd rather not share.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (optional)
+      description: Paste or drag pictures here. Please check they don't show private documentation.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you send
+      options:
+        - label: I've removed private information (documentation text, names, folder locations) from this report.
+          required: true

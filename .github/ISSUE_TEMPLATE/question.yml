@@ -1,0 +1,25 @@
+name: Ask a question
+description: Not sure how to do something, or whether Cairn can do it?
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The answer may already be in [Getting started](https://github.com/thekovie/cairn/blob/main/docs/getting-started.md), [Writing pages](https://github.com/thekovie/cairn/blob/main/docs/authoring.md), or [Troubleshooting](https://github.com/thekovie/cairn/blob/main/docs/troubleshooting.md). If not, ask away.
+
+        Please don't include private information: everyone can see questions here.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried? (optional)
+    validations:
+      required: false

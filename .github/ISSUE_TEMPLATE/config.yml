@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/thekovie/cairn/blob/main/SECURITY.md
+    about: Please don't report security problems in public. This explains how to tell us privately.
+  - name: Getting started guide
+    url: https://github.com/thekovie/cairn/blob/main/docs/getting-started.md
+    about: Installing Cairn, opening documentation, and writing your first page.
+  - name: Troubleshooting guide
+    url: https://github.com/thekovie/cairn/blob/main/docs/troubleshooting.md
+    about: Answers to common problems, such as locked pages and shared-folder access.

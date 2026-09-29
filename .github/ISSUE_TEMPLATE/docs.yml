@@ -1,0 +1,21 @@
+name: Problem with the guides
+description: Something in the guides (Getting started, Troubleshooting, …) is wrong, out of date, or unclear.
+title: "[Guides] "
+labels: ["documentation"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Which guide?
+      description: Its name or link.
+      placeholder: docs/getting-started.md, step 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or unclear?
+      description: Quote the part that confused you, if you can, and say what you expected.
+    validations:
+      required: true

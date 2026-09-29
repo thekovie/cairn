@@ -87,6 +87,10 @@ The screenshots use made-up sample content.
 | [Contributing](CONTRIBUTING.md) | Running, testing, and working on the code |
 | [Changelog](CHANGELOG.md) | What changed in each release |
 
+## Feedback
+
+Found a problem, have an idea, or got stuck? [Open an issue](https://github.com/thekovie/cairn/issues/new/choose) and pick the kind that fits. Plain words are fine; please leave out anything private from your documentation. Security problems go [privately](SECURITY.md) instead.
+
 ## Limitations
 
 - **Windows first.** This release is built and tested on Windows 10/11. The code is written to be portable, but other systems are untested.
