@@ -16,6 +16,7 @@ use serde::Serialize;
 use walkdir::WalkDir;
 
 use crate::article::title_from_filename;
+use crate::editors;
 use crate::error::{CairnError, Result};
 use crate::fsutil::{can_write_dir, create_new_with, sha256_hex, write_atomic};
 use crate::history;
@@ -243,10 +244,18 @@ fn move_merge(src: &Path, dst: &Path) {
     let _ = fs::remove_dir(src);
 }
 
+/// Earlier versions and who-edited records follow a moved page or folder.
 fn move_history(root: &Root, from: &str, to: &str) {
     if let (Ok(src), Ok(dst)) = (history_path(root, from), history_path(root, to)) {
         move_merge(&src, &dst);
     }
+    if let (Some(src), Some(dst)) = (
+        editors::edited_path(root, from),
+        editors::edited_path(root, to),
+    ) {
+        move_merge(&src, &dst);
+    }
+    editors::move_record(root, from, to);
 }
 
 // ------------------------------------------------------------ other pages
@@ -479,6 +488,7 @@ fn relocate_page(
     move_history(root, from, to);
     if new_text.as_bytes() != old {
         let _ = history::save_version(root, to, old);
+        editors::rehash(root, to, new_text.as_bytes());
     }
     Ok(())
 }
@@ -564,6 +574,7 @@ pub fn move_folder(
                 undo(&written);
                 return Err(e);
             }
+            editors::rehash(root, p, text.as_bytes());
             written.push((path, old.clone()));
         }
         moved.push(Moved {

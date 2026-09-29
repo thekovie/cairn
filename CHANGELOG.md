@@ -4,6 +4,10 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Added
+
+- **See who last edited a page.** Under the title and in page lists: “Edited by Priya Shah, today at 4:44 PM”. Each earlier version says who published it. If a page was changed outside Cairn, it says so instead of naming the wrong person. The page files themselves stay unchanged.
+
 ### Changed
 
 - **A new look, like the docs sites people already know** (Notion, GitBook, Microsoft Learn):

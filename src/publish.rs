@@ -7,7 +7,8 @@
 //! 4. Save the current published article to version history.
 //! 5. Write the new Markdown to a temporary file in the same folder.
 //! 6. Replace the published file by rename (never truncate in place).
-//! 7. Read back and verify the article and its new pictures.
+//! 7. Read back and verify the article and its new pictures, then note who
+//!    published it (see [`crate::editors`]).
 //! 8. On failure, keep (or restore) the previous article and remove only the
 //!    pictures this attempt created. Pictures are never removed while an
 //!    article might refer to them.
@@ -18,6 +19,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::article::{encode_path, parse_front_matter, referenced_local_targets};
+use crate::editors;
 use crate::error::{CairnError, Result};
 use crate::fsutil::{
     can_write_dir, create_new_with, read_optional, sha256_hex, write_atomic, write_temp_beside,
@@ -341,6 +343,12 @@ pub fn publish(req: PublishRequest, opts: &PublishOptions) -> Result<PublishOutc
         ));
     }
 
+    editors::record(
+        root,
+        &rel,
+        &req.identity.display_name,
+        req.content.as_bytes(),
+    );
     let new_assets = created
         .iter()
         .map(|(_, i)| to_write[*i].0.clone())

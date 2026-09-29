@@ -7,9 +7,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+use crate::editors::{self, LastEdit};
 use crate::error::{CairnError, Result};
 use crate::fsutil::{create_new_with, sha256_hex};
 use crate::paths::{Root, split_relative};
@@ -21,6 +22,18 @@ pub struct Version {
     /// RFC 3339 UTC time the version was saved.
     pub saved_at: String,
     pub size: u64,
+    /// Who published this version, when Cairn knows.
+    pub by: Option<String>,
+}
+
+/// Beside each version, who published it: `<version>.json`.
+fn author_file(dir: &std::path::Path, id: &str) -> PathBuf {
+    dir.join(format!("{}.json", id.trim_end_matches(".md")))
+}
+
+#[derive(Serialize, Deserialize)]
+struct Author {
+    by: String,
 }
 
 fn history_dir(root: &Root, article_rel: &str) -> Result<PathBuf> {
@@ -53,6 +66,12 @@ pub fn save_version(root: &Root, article_rel: &str, bytes: &[u8]) -> Result<Stri
             format!("{base}-{attempt}.md")
         };
         if create_new_with(&dir.join(&id), bytes)? {
+            // Best effort: who published the text being kept.
+            if let LastEdit::By(rec) = editors::last_edit(root, article_rel, bytes)
+                && let Ok(note) = serde_json::to_vec(&Author { by: rec.by })
+            {
+                let _ = create_new_with(&author_file(&dir, &id), &note);
+            }
             return Ok(id);
         }
     }
@@ -105,10 +124,15 @@ pub fn list_versions(root: &Root, article_rel: &str) -> Result<Vec<Version>> {
         if !meta.is_file() {
             continue;
         }
+        let by = fs::read(author_file(&dir, &id))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Author>(&b).ok())
+            .map(|a| a.by);
         out.push(Version {
             saved_at: parse_stamp(&id).unwrap_or_default(),
             id,
             size: meta.len(),
+            by,
         });
     }
     out.sort_by(|a, b| b.id.cmp(&a.id));

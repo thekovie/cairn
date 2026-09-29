@@ -13,8 +13,9 @@ use serde::Serialize;
 use walkdir::WalkDir;
 
 use crate::article::{extract_title, parse_front_matter, plain_text, title_from_filename};
+use crate::editors::{self, LastEdit};
 use crate::error::Result;
-use crate::fsutil::is_link_like;
+use crate::fsutil::{is_link_like, sha256_hex};
 use crate::paths::{Root, SYSTEM_DIR};
 
 #[derive(Debug, Clone, Serialize)]
@@ -27,6 +28,10 @@ pub struct PageSummary {
     pub tags: Vec<String>,
     /// Unix seconds.
     pub modified: u64,
+    /// Who last published it in Cairn, if it hasn't changed since.
+    pub edited_by: Option<String>,
+    /// Changed since Cairn last published it (outside Cairn).
+    pub edited_outside: bool,
 }
 
 struct Entry {
@@ -35,6 +40,17 @@ struct Entry {
     text_lower: String,
     title_lower: String,
     size: u64,
+    hash: String,
+}
+
+fn set_last_edit(summary: &mut PageSummary, last: LastEdit) {
+    summary.edited_by = None;
+    summary.edited_outside = false;
+    match last {
+        LastEdit::By(rec) => summary.edited_by = Some(rec.by),
+        LastEdit::Outside => summary.edited_outside = true,
+        LastEdit::Unknown => {}
+    }
 }
 
 #[derive(Default)]
@@ -74,6 +90,8 @@ pub fn summarize(path: &str, text: &str, modified: u64) -> (PageSummary, String)
         last_reviewed: meta.last_reviewed,
         tags: meta.tags,
         modified,
+        edited_by: None,
+        edited_outside: false,
     };
     (summary, plain_text(body))
 }
@@ -124,22 +142,32 @@ impl SearchIndex {
                 .unwrap_or(0);
             let size = meta.len();
             seen.insert(rel.clone());
-            if let Some(existing) = self.entries.get(&rel)
+            if let Some(existing) = self.entries.get_mut(&rel)
                 && existing.summary.modified == modified
                 && existing.size == size
             {
+                // Another computer notes who published a moment after the
+                // page itself changes; look again until the note matches.
+                if existing.summary.edited_outside
+                    && let Some(rec) = editors::lookup(root, &rel)
+                    && rec.hash == existing.hash
+                {
+                    set_last_edit(&mut existing.summary, LastEdit::By(rec));
+                }
                 continue;
             }
             let Ok(bytes) = fs::read(entry.path()) else {
                 continue;
             };
-            let (summary, plain) = summarize(&rel, &String::from_utf8_lossy(&bytes), modified);
+            let (mut summary, plain) = summarize(&rel, &String::from_utf8_lossy(&bytes), modified);
+            set_last_edit(&mut summary, editors::last_edit(root, &rel, &bytes));
             let entry = Entry {
                 title_lower: summary.title.to_lowercase(),
                 text_lower: plain.to_lowercase(),
                 text: plain,
                 summary,
                 size,
+                hash: sha256_hex(&bytes),
             };
             self.entries.insert(rel, entry);
         }
@@ -493,6 +521,7 @@ mod tests {
                 text: plain,
                 summary,
                 size: 1,
+                hash: String::new(),
             },
         );
         assert_eq!(index.suggest("printr").as_deref(), Some("printer"));

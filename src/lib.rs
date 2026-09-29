@@ -7,6 +7,7 @@
 pub mod article;
 pub mod config;
 pub mod drafts;
+pub mod editors;
 pub mod error;
 pub mod export;
 pub mod fsutil;

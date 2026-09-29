@@ -21,6 +21,7 @@ use crate::article::{
 };
 use crate::config;
 use crate::drafts::{Draft, StagedImage};
+use crate::editors::{self, LastEdit};
 use crate::error::{CairnError, Result};
 use crate::fsutil::{can_write_dir, read_optional, sha256_hex};
 use crate::history;
@@ -495,7 +496,14 @@ pub async fn page(State(state): State<Arc<AppState>>, Query(q): Query<PathQuery>
         let instance = ws.instance_id();
         let key = AppState::session_key(&instance, &rel);
         let editing_here = st.edits.lock().expect("edits lock").contains_key(&key);
+        let (edited, edited_outside) = match editors::last_edit(&ws.root, &rel, &bytes) {
+            LastEdit::By(rec) => (Some(json!({ "by": rec.by, "at": rec.at })), false),
+            LastEdit::Outside => (None, true),
+            LastEdit::Unknown => (None, false),
+        };
         Ok(json!({
+            "edited": edited,
+            "edited_outside": edited_outside,
             "path": rel,
             "title": title,
             "meta": meta,

@@ -680,3 +680,36 @@ mod routes {
         );
     }
 }
+
+// ------------------------------------------------------- last edited by
+
+#[test]
+fn pages_and_versions_say_who_last_published_them() {
+    use cairn::editors::{self, LastEdit};
+    let ws = common::workspace();
+    let alex = common::identity("Alex");
+    let sam = common::identity("Sam");
+
+    locks::acquire(&ws.root, PAGE, &alex).unwrap();
+    publish_text(&ws, &alex, None, "# One\n", vec![], None).unwrap();
+    locks::release(&ws.root, PAGE, &alex).unwrap();
+    locks::acquire(&ws.root, PAGE, &sam).unwrap();
+    let base = sha256_hex(b"# One\n");
+    publish_text(&ws, &sam, Some(&base), "# Two\n", vec![], None).unwrap();
+
+    let who = |bytes: &[u8]| match editors::last_edit(&ws.root, PAGE, bytes) {
+        LastEdit::By(rec) => Some(rec.by),
+        _ => None,
+    };
+    assert_eq!(who(b"# Two\n").as_deref(), Some("Sam"));
+    // The kept earlier version remembers that Alex published it.
+    let versions = history::list_versions(&ws.root, PAGE).unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].by.as_deref(), Some("Alex"));
+    // Changed in Notepad: nobody is named.
+    fs::write(ws.root.resolve(PAGE).unwrap(), "# Three\n").unwrap();
+    assert_eq!(
+        editors::last_edit(&ws.root, PAGE, b"# Three\n"),
+        LastEdit::Outside
+    );
+}

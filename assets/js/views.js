@@ -14,12 +14,21 @@ import { timezoneSection } from './timezone.js';
 
 // ---------------------------------------------------------------- pieces
 
+/** "Edited by Priya Shah, today at 4:44 AM", or when Cairn can't say who:
+ *  "Changed today at 4:44 AM" (and "outside Cairn" if it changed elsewhere). */
+function changedLine(when, by, outside) {
+  if (!when) return '';
+  const t = relativeTime(when);
+  if (by) return `Edited by ${by}, ${t}`;
+  return outside ? `Changed ${t}, outside Cairn` : `Changed ${t}`;
+}
+
 function pageRow(page, { showFolder = false } = {}) {
   const folder = page.path.includes('/') ? page.path.slice(0, page.path.lastIndexOf('/')) : '';
   return h('li', null, h('a', { class: 'row-link', href: href.page(page.path) },
     icon('page'),
     h('span', { class: 'row-title' }, page.title),
-    h('span', { class: 'row-side' }, page.modified ? `Changed ${relativeTime(page.modified)}` : ''),
+    h('span', { class: 'row-side' }, changedLine(page.modified, page.edited_by, page.edited_outside)),
     h('span', { class: 'row-meta' },
       statusChip(page.status),
       page.owner ? h('span', null, `Owner: ${page.owner}`) : null,
@@ -339,7 +348,9 @@ function articleMeta(data) {
       ? h('span', { class: due ? 'review-due' : null },
         due ? icon('alert') : null, `${due ? 'Review due: last reviewed' : 'Reviewed'} ${formatDay(m.last_reviewed)}`)
       : null,
-    data.modified ? h('span', null, `Changed ${relativeTime(data.modified)}`) : null,
+    data.edited
+      ? h('span', null, changedLine(data.edited.at, data.edited.by))
+      : data.modified ? h('span', null, changedLine(data.modified, null, data.edited_outside)) : null,
     m.tags.length ? h('span', null, `Tags: ${m.tags.join(', ')}`) : null);
 }
 
@@ -580,7 +591,9 @@ export async function historyView(ctx) {
           icon('clock'),
           h('span', { class: 'row-title' }, formatIsoDateTime(v.saved_at)),
           button('View this version', { icon: 'eye', onClick: (e) => show(v, e.currentTarget) }),
-          h('span', { class: 'row-meta' }, formatSize(v.size))))))
+          h('span', { class: 'row-meta' },
+            v.by ? h('span', null, `Published by ${v.by}`) : null,
+            h('span', null, formatSize(v.size)))))))
       : emptyState({ title: 'No earlier versions yet', text: 'Each time this page is published, the version it replaces is kept here.' }),
     preview);
   return { title: `Earlier versions: ${data.title}` };

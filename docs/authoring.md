@@ -177,6 +177,12 @@ On any page, choose **Earlier versions** to see every version that was replaced 
 
 Earlier versions are ordinary Markdown files in `_system/history/`.
 
+## Who last edited a page
+
+Under a page's title, and in lists of pages, Cairn shows who last published it and when, for example **Edited by Priya Shah, today at 4:44 PM**. The name is the one set in **Settings → Your name**. Each earlier version also says who published it.
+
+Cairn notes this in `_system/edited/` when someone publishes, so the page files themselves don't change. If a page is changed outside Cairn (in Notepad, say), Cairn can't know who did it and says **Changed … outside Cairn** instead. Pages last published before this feature existed show only when they changed.
+
 ## Renaming, moving, and deleting
 
 Under every page's title, **More actions for this page** has:
