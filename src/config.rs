@@ -45,6 +45,9 @@ pub struct AppConfig {
     /// Show words beside the editor's toolbar icons (otherwise the name
     /// appears on hover and keyboard focus).
     pub toolbar_labels: bool,
+    /// "daily" to look for a new version of Cairn once a day, or "manual"
+    /// to look only when the person chooses Check now.
+    pub update_check: String,
 }
 
 impl Default for AppConfig {
@@ -64,6 +67,7 @@ impl Default for AppConfig {
             pdf_paper: "a4".into(),
             pdf_browser: None,
             toolbar_labels: false,
+            update_check: "daily".into(),
         }
     }
 }
@@ -101,6 +105,9 @@ impl AppConfig {
         }
         if !["a4", "letter"].contains(&self.pdf_paper.as_str()) {
             return bad("Unknown paper size.");
+        }
+        if !["daily", "manual"].contains(&self.update_check.as_str()) {
+            return bad("Unknown update setting.");
         }
         if let Some(zone) = &self.timezone {
             crate::timefmt::validate_zone(zone)?;

@@ -2,7 +2,7 @@
 
 Shared documentation in a folder you control.
 
-Cairn lets a team keep documentation as ordinary Markdown files in a folder on a computer or a shared network drive. Each person runs Cairn on their own computer; it opens the documentation in their normal web browser. There is no server to maintain, no accounts, no cloud service, and nothing is sent over the internet. If you stop using Cairn, your documentation is still just a folder of `.md` files and pictures that any text editor can open.
+Cairn lets a team keep documentation as ordinary Markdown files in a folder on a computer or a shared network drive. Each person runs Cairn on their own computer; it opens the documentation in their normal web browser. There is no server to maintain, no accounts, and no cloud service. Your documentation never leaves your folder; the only thing Cairn fetches from the internet is news of a new version of itself, once a day (you can turn that off). If you stop using Cairn, your documentation is still just a folder of `.md` files and pictures that any text editor can open.
 
 Cairn is designed to be easy for everyone on a team, including people who don't use much software:
 
@@ -22,11 +22,12 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 - **Team templates** for pages you write often, kept with each documentation folder, with fields such as the title and today's date filled in for you.
 - **Download** a page as PDF or Markdown, or a whole folder or all documentation as a .zip. PDFs are made on your own computer.
 - **Your timezone.** Times are stored in one standard form and shown in each person's timezone, marked like “2:30 PM GMT+8”.
+- **Updates itself.** Cairn tells you when a new version is out and installs it with one click, after checking it's signed by Cairn's makers. You can always go back to the version before.
 
 ## Quick start
 
-1. Download the latest `cairn-…-windows-x64.zip` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and unzip it. (Or build it yourself: see [Building cairn.exe](docs/building.md).)
-2. Double-click `cairn.exe`. A small window opens and your browser shows Cairn.
+1. Download the latest `cairn-…-setup.exe` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and run it. No administrator password is needed: Cairn is installed just for you, and can update itself. (Or download the `.zip`, unzip it, and run `cairn.exe` from there. Or build it yourself: see [Building cairn.exe](docs/building.md).)
+2. Start **Cairn** from the Start menu. A small window opens and your browser shows Cairn.
 3. Choose **Create a new documentation folder** (or **Open a documentation folder we already use**).
 4. Choose **New page**, give it a title, and start writing. Choose **Publish changes** when you're done.
 

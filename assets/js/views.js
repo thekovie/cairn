@@ -9,6 +9,7 @@ import {
 } from './core.js';
 import { openPageDownload, openBulkDownload } from './export.js';
 import { pageOrganizeBox, folderOrganizeSection } from './manage.js';
+import { updatesSection } from './update.js';
 import { timezoneSection } from './timezone.js';
 
 // ---------------------------------------------------------------- pieces
@@ -761,6 +762,7 @@ export async function settingsView(ctx) {
 
     pdfSection(ctx, cfg),
     state.workspace ? workspaceSection(ctx, state.workspace) : null,
+    updatesSection(cfg, { radioGroup, save: (body, message) => saveSettings(ctx, body, message) }),
     quitSection());
   return { title: 'Settings' };
 }

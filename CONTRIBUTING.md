@@ -91,3 +91,17 @@ Update the docs in the same change as the behavior they describe, and add a line
 ## Commits
 
 Use short, conventional messages such as `feat: …`, `fix: …`, `docs: …`, `test: …`.
+
+## Releases and updates
+
+Pushing a tag such as `v0.5.0` (matching `Cargo.toml`) runs `.github/workflows/release.yml`. It builds `cairn.exe`, the zip, and the installer (`installer/cairn.iss`, built with the free Inno Setup by `installer/build.ps1`), signs the zip and the installer, and publishes them.
+
+**Signing.** Cairn installs an update only if the zip is signed with the release key, whose public half is `PUBLIC_KEY` in `src/update.rs`. The secret half is the `MINISIGN_SECRET_KEY` repository secret; the release fails without it. The key was made with:
+
+```
+cargo run --example release_sign -- keygen <folder outside the repository>
+```
+
+Keep a backup of `cairn-release.key` somewhere safe (a password manager works). If it is lost, make a new pair, put the new public key in `src/update.rs`, and release: copies from before that release can't verify the next update, so people install it by hand once. Never commit the secret key.
+
+**Trying an update locally.** Debug builds read `CAIRN_UPDATE_API` (a `http://127.0.0.1…` address serving a release JSON like GitHub's) and `CAIRN_UPDATE_KEY` (a test public key), so the whole update can be tried with a test key and a local web server. Release builds ignore both. `tests/update.rs` does the same with a fake server.

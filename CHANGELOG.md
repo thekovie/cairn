@@ -2,6 +2,19 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **Cairn updates itself.** Once a day (or when you choose **Settings → Updates → Check now**) Cairn looks for a new version. When there is one, a notice at the top shows it, with **Update and restart**. Cairn downloads it, checks that it's signed by Cairn's makers, installs it, and restarts; the browser tab reconnects by itself. Publish or close pages you're editing first; unsaved changes are kept either way.
+- **Go back** to the version you had before, from **Settings → Updates**, if an update causes trouble.
+- **An installer** (`cairn-…-setup.exe`) that needs no administrator password: it installs Cairn just for you, adds it to the Start menu, and can be removed from **Settings → Apps**. Installed this way, Cairn can always update itself.
+- **Settings → Updates → Look for new versions**: every day, or only when you choose Check now. Checking sends nothing about you or your documentation.
+
+### Changed
+
+- A Cairn run from a network drive doesn't update itself, because that would change it for everyone using it; it shows the new version with a link to the download page instead.
+
 ## 0.4.0 (2026-09-29)
 
 ### Added

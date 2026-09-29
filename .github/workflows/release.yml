@@ -52,6 +52,12 @@ jobs:
           $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name.zip" | Out-File -Encoding ascii "dist/$name.zip.sha256"
 
+          # The installer: per person, no administrator password needed.
+          ./installer/build.ps1 -Version $env:VERSION -SourceDir "dist/$name" -OutDir dist | Out-Null
+          $setup = "cairn-$env:VERSION-setup.exe"
+          $hash = (Get-FileHash "dist/$setup" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $setup" | Out-File -Encoding ascii "dist/$setup.sha256"
+
           # Release notes: this version's section of CHANGELOG.md.
           $lines = Get-Content CHANGELOG.md
           $start = ($lines | Select-String -Pattern "^## $([regex]::Escape($env:VERSION))\b" | Select-Object -First 1).LineNumber
@@ -62,8 +68,19 @@ jobs:
             $notes = if ($end) { $rest[0..($end - 2)] } else { $rest }
           }
           $notes += ""
-          $notes += "**To install:** download ``$name.zip``, unzip it, and double-click ``cairn.exe``. Instructions are in ``docs/getting-started.md`` inside the zip."
+          $notes += "**To install:** download ``cairn-$env:VERSION-setup.exe`` and run it. No administrator password is needed; Cairn is installed just for you and can update itself. Or download ``$name.zip``, unzip it, and double-click ``cairn.exe``. Instructions are in ``docs/getting-started.md``."
           $notes | Out-File -Encoding utf8 dist/notes.md
+
+      # Cairn installs an update only if it is signed with this key, so a
+      # release can't go out unsigned.
+      - name: Sign the downloads
+        shell: pwsh
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          if (-not $env:MINISIGN_SECRET_KEY) { throw "The MINISIGN_SECRET_KEY secret is missing, so the downloads can't be signed." }
+          cargo run --release --locked --example release_sign -- sign "dist/cairn-$env:VERSION-windows-x64.zip" "dist/cairn-$env:VERSION-setup.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Signing failed." }
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
@@ -71,5 +88,9 @@ jobs:
           name: Cairn ${{ env.VERSION }}
           body_path: dist/notes.md
           files: |
+            dist/cairn-${{ env.VERSION }}-setup.exe
+            dist/cairn-${{ env.VERSION }}-setup.exe.minisig
+            dist/cairn-${{ env.VERSION }}-setup.exe.sha256
             dist/cairn-${{ env.VERSION }}-windows-x64.zip
+            dist/cairn-${{ env.VERSION }}-windows-x64.zip.minisig
             dist/cairn-${{ env.VERSION }}-windows-x64.zip.sha256

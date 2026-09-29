@@ -118,6 +118,14 @@ The zip is in the `dist` folder.
 
 Windows SmartScreen may warn the first time someone runs an exe you built, because it isn't code-signed. Choose **More info → Run anyway**.
 
+To make the installer too, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) (free) and run:
+
+```powershell
+pwsh installer\build.ps1 -Version $v -SourceDir "dist\$name" -OutDir dist
+```
+
+A Cairn you build yourself tells you when an official release is newer, and can install it, because official releases are signed with the project's key.
+
 ## Updating later
 
 To build a newer version on the same computer:

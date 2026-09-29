@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use cairn::config;
 use cairn::locks;
@@ -38,7 +39,13 @@ struct RunArgs {
     open_browser: bool,
     port: u16,
     workspace: Option<PathBuf>,
+    /// Started by the previous version after an update: take over its port
+    /// and keys (see `server::api_update`).
+    handoff: bool,
 }
+
+/// How long a restarted Cairn waits for the old one to free its port.
+const HANDOFF_BIND_WAIT: Duration = Duration::from_secs(20);
 
 fn value_after(args: &[String], flag: &str) -> Option<String> {
     args.iter()
@@ -66,6 +73,7 @@ fn main() -> ExitCode {
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(0),
             workspace: value_after(&args, "--workspace").map(PathBuf::from),
+            handoff: args.iter().any(|a| a == "--handoff"),
         }),
     }
 }
@@ -116,7 +124,18 @@ fn cmd_run(args: RunArgs) -> ExitCode {
         eprintln!("Note: {w}");
     }
     let last = cfg.last_workspace.clone();
-    let state = AppState::new(dir, cfg, warning);
+    let handoff = if args.handoff {
+        server::api_update::take_handoff(&dir)
+    } else {
+        None
+    };
+    // Without a valid hand-over the open tab can't reconnect, so open a new one.
+    let open_browser = args.open_browser || (args.handoff && handoff.is_none());
+    let port = handoff.as_ref().map_or(args.port, |h| h.port);
+    let secrets = handoff
+        .as_ref()
+        .map(|h| (h.token.clone(), h.read_key.clone()));
+    let state = AppState::with_secrets(dir, cfg, warning, secrets);
 
     // Open the requested workspace, or the one used last time.
     if let Some(path) = args.workspace.clone().or(last) {
@@ -131,16 +150,24 @@ fn cmd_run(args: RunArgs) -> ExitCode {
         Err(e) => return fail(format!("could not start: {e}")),
     };
     runtime.block_on(async move {
-        let listener = match server::bind_loopback(args.port).await {
-            Ok(l) => l,
-            Err(e) => return fail(format!("could not listen on 127.0.0.1:{}: {e}", args.port)),
+        // After an update the old program is still letting go of the port.
+        let deadline = Instant::now() + HANDOFF_BIND_WAIT;
+        let listener = loop {
+            match server::bind_loopback(port).await {
+                Ok(l) => break l,
+                Err(_) if args.handoff && Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+                Err(e) => return fail(format!("could not listen on 127.0.0.1:{port}: {e}")),
+            }
         };
-        let port = listener.local_addr().map(|a| a.port()).unwrap_or(args.port);
+        let port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
         let url = format!("http://127.0.0.1:{port}/#t={}", state.token);
+        if args.handoff {
+            println!("Cairn {} has started.", env!("CARGO_PKG_VERSION"));
+        }
         print_banner(&url);
-        if args.open_browser
-            && let Err(e) = open::that_detached(&url)
-        {
+        if open_browser && let Err(e) = open::that_detached(&url) {
             eprintln!("  (Could not open the browser automatically: {e})");
         }
         match server::run(state, listener).await {

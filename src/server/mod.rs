@@ -4,6 +4,7 @@ pub mod api;
 pub mod api_export;
 pub mod api_manage;
 pub mod api_templates;
+pub mod api_update;
 pub mod idle;
 pub mod security;
 
@@ -88,6 +89,8 @@ pub struct AppState {
     pub denied_dirs: Mutex<HashSet<String>>,
     /// Folder and whole-documentation downloads being prepared.
     pub exports: api_export::ExportJobs,
+    /// New versions of Cairn: the last check and any install in progress.
+    pub updates: api_update::Updates,
     pub shutdown: tokio::sync::Notify,
 }
 
@@ -117,11 +120,24 @@ impl AppState {
         config: AppConfig,
         config_warning: Option<String>,
     ) -> Arc<AppState> {
+        Self::with_secrets(config_dir, config, config_warning, None)
+    }
+
+    /// As [`AppState::new`], but reusing the access token and read key of
+    /// the program this one replaced (after an update), so the browser tab
+    /// that is already open keeps working.
+    pub fn with_secrets(
+        config_dir: PathBuf,
+        config: AppConfig,
+        config_warning: Option<String>,
+        secrets: Option<(String, String)>,
+    ) -> Arc<AppState> {
         let identity = Identity::current(config.display_name.as_deref());
         let drafts = draft_store_for(&config, &config_dir);
+        let (token, read_key) = secrets.unwrap_or_else(|| (random_secret(), random_secret()));
         Arc::new(AppState {
-            token: random_secret(),
-            read_key: random_secret(),
+            token,
+            read_key,
             port: AtomicU16::new(0),
             config_dir,
             config: RwLock::new(config),
@@ -132,6 +148,7 @@ impl AppState {
             drafts: RwLock::new(Arc::new(drafts)),
             denied_dirs: Mutex::new(HashSet::new()),
             exports: Default::default(),
+            updates: Default::default(),
             shutdown: tokio::sync::Notify::new(),
         })
     }
@@ -331,6 +348,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/history/version", get(api::history_version))
         .route("/api/history/restore", post(api::history_restore))
         .route("/api/settings", post(api::save_settings))
+        .route("/api/update", get(api_update::status))
+        .route("/api/update/check", post(api_update::check_now))
+        .route("/api/update/install", post(api_update::install))
+        .route("/api/update/rollback", post(api_update::rollback))
         .route("/api/quit", post(api::quit));
 
     Router::new()
@@ -359,6 +380,7 @@ pub async fn run(state: Arc<AppState>, listener: TcpListener) -> std::io::Result
 
     let bg = state.clone();
     tokio::spawn(async move {
+        let started = Instant::now();
         let mut tick: u64 = 0;
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -366,6 +388,12 @@ pub async fn run(state: Arc<AppState>, listener: TcpListener) -> std::io::Result
             let st = bg.clone();
             let heartbeat = tick.is_multiple_of(locks::HEARTBEAT_SECS / 5);
             let _ = tokio::task::spawn_blocking(move || st.sweep(Instant::now(), heartbeat)).await;
+            // The daily look for a new version runs on its own, so a slow
+            // connection never delays edit-lock heartbeats.
+            if bg.config().update_check == "daily" && bg.updates.due(started) {
+                let st = bg.clone();
+                tokio::task::spawn_blocking(move || api_update::run_check(&st));
+            }
         }
     });
 

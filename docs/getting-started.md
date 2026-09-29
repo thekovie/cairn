@@ -4,18 +4,22 @@ This guide takes you from nothing to a first published page. It takes about ten 
 
 ## 1. Get Cairn
 
-Cairn is a single program, `cairn.exe`. There is nothing to install.
+Cairn is a single program, `cairn.exe`. The easiest way to get it is the installer:
 
-- Download the latest `cairn-…-windows-x64.zip` from <https://github.com/thekovie/cairn/releases/latest>, right-click it, choose **Extract All…**, and keep the folder somewhere convenient, such as `C:\Tools\Cairn`.
-- Or, if someone gave you `cairn.exe`, copy it somewhere convenient.
-- The first time you open it, Windows may say **Windows protected your PC**, because the program isn't signed by a publisher. Choose **More info**, then **Run anyway**.
+- Download the latest `cairn-…-setup.exe` from <https://github.com/thekovie/cairn/releases/latest> and open it. It installs Cairn **just for you**, so no administrator password is needed. It adds **Cairn** to the Start menu (and, if you tick the box, to the desktop). You can remove it later from **Settings → Apps**; that never touches your documentation.
+- Windows may say **Windows protected your PC**, because the program isn't signed with a paid certificate. Choose **More info**, then **Run anyway**.
+
+Other ways:
+
+- Download `cairn-…-windows-x64.zip` instead, right-click it, choose **Extract All…**, and keep the folder somewhere convenient, such as `C:\Tools\Cairn`. Tip: right-click `cairn.exe` and choose **Send to → Desktop (create shortcut)**.
+- If someone gave you `cairn.exe`, copy it somewhere convenient.
 - To build it yourself from the source code, follow [Building cairn.exe](building.md). The result is `target\release\cairn.exe`.
 
-Tip: right-click `cairn.exe` and choose **Send to → Desktop (create shortcut)** so it's easy to find.
+Cairn keeps itself up to date: see [Updates](configuration.md#updates).
 
 ## 2. Start Cairn
 
-Double-click `cairn.exe`.
+Choose **Cairn** in the Start menu (or double-click `cairn.exe`).
 
 - A small black window opens. It says **Cairn is running** and shows an address.
 - Your web browser opens a new tab with Cairn in it. If it doesn't, copy the address from the small window into your browser.

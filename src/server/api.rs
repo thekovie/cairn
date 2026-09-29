@@ -135,6 +135,7 @@ fn state_view(state: &AppState) -> Value {
             "system_timezone": crate::timefmt::zone_name(&crate::timefmt::user_zone(None)),
             "pdf_paper": cfg.pdf_paper,
             "toolbar_labels": cfg.toolbar_labels,
+            "update_check": cfg.update_check,
             "pdf_available":
                 !crate::export::pdf::find_browsers(cfg.pdf_browser.as_deref()).is_empty(),
         },
@@ -1306,6 +1307,8 @@ pub struct SettingsBody {
     timezone: Option<String>,
     pdf_paper: Option<String>,
     toolbar_labels: Option<bool>,
+    /// "daily" or "manual".
+    update_check: Option<String>,
 }
 
 pub async fn save_settings(
@@ -1339,6 +1342,9 @@ pub async fn save_settings(
         }
         if let Some(v) = body.toolbar_labels {
             cfg.toolbar_labels = v;
+        }
+        if let Some(v) = body.update_check {
+            cfg.update_check = v;
         }
         let drafts_changed = body
             .persistent_drafts

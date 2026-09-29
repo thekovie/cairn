@@ -591,6 +591,29 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
     }
 }
 
+/// Render release notes (Markdown from GitHub) to sanitized HTML. Raw HTML
+/// is shown as text and pictures as their description, as in pages.
+pub fn render_notes(md: &str) -> String {
+    let mut in_image = false;
+    let events = Parser::new_ext(md, md_options()).filter_map(|event| match event {
+        Event::Html(raw) | Event::InlineHtml(raw) => Some(Event::Text(raw)),
+        Event::Start(Tag::Image { .. }) => {
+            in_image = true;
+            None
+        }
+        Event::End(TagEnd::Image) => {
+            in_image = false;
+            None
+        }
+        Event::Text(t) => Some(Event::Text(t)),
+        _ if in_image => None,
+        other => Some(other),
+    });
+    let mut raw_html = String::new();
+    pulldown_cmark::html::push_html(&mut raw_html, events);
+    sanitize(&raw_html)
+}
+
 fn sanitize(html: &str) -> String {
     let mut builder = ammonia::Builder::default();
     builder

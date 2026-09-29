@@ -38,3 +38,45 @@ jobs:
 
       - name: Test
         run: cargo test
+
+  installer:
+    name: Installer (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Build the installer, install, run, and uninstall
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"').Matches[0].Groups[1].Value
+          $src = "dist/cairn-$v-windows-x64"
+          New-Item -ItemType Directory -Path $src | Out-Null
+          Copy-Item target/release/cairn.exe, README.md, LICENSE, CHANGELOG.md "$src/"
+          Copy-Item docs "$src/docs" -Recurse
+          $setup = ./installer/build.ps1 -Version $v -SourceDir $src -OutDir dist
+
+          # Install silently, for this person only (no administrator rights).
+          Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait
+          $dir = "$env:LOCALAPPDATA\Programs\Cairn"
+          $out = & "$dir\cairn.exe" --version
+          if ($out -ne "cairn $v") { throw "The installed program reported '$out'." }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Cairn.lnk")) { throw "No Start menu shortcut." }
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8C1B6E0B-2F4B-4E7A-9C2D-6A1E5B3F7D10}_is1'
+          if (-not (Test-Path $key)) { throw "No per-user uninstall entry." }
+
+          # Uninstall, and make sure it's gone.
+          Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path "$dir\cairn.exe") -and (Get-Date) -lt $deadline) { Start-Sleep 1 }
+          if (Test-Path "$dir\cairn.exe") { throw "Uninstalling left cairn.exe behind." }
+          "Installer OK: cairn $v installed per user, ran, and uninstalled."

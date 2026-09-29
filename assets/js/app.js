@@ -20,6 +20,7 @@ import { editorView } from './editor.js';
 import { templatesView } from './templates.js';
 import { printView } from './export.js';
 import { deletedView } from './manage.js';
+import { watchUpdates, updateBanner } from './update.js';
 
 const app = {
   state: null,
@@ -132,6 +133,8 @@ function renderBanners() {
   if (app.state.config_warning) {
     host.append(banner({ tone: 'warn', text: app.state.config_warning }));
   }
+  const update = updateBanner();
+  if (update) host.append(update);
 }
 
 function navLink(label, target, iconName, active, count) {
@@ -361,6 +364,7 @@ async function boot() {
   window.addEventListener('hashchange', onRoute);
   window.addEventListener('cairn:nav-changed', () => refreshNav());
   await onRoute();
+  watchUpdates(() => renderBanners());
 }
 
 boot();
