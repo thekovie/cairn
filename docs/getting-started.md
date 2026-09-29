@@ -60,7 +60,7 @@ Documentation/
   _system/              ← Cairn's edit locks and earlier versions
 ```
 
-The folder names are only a starting point. You can add your own folders in Cairn (**New folder**), and rename, move, or delete them with **Organize this folder** at the bottom of each folder. Doing it in Cairn keeps the links between pages working; renaming in File Explorer doesn't.
+The folder names are only a starting point. You can add your own folders in Cairn (**New folder**), and rename, move, or delete them with **Organize this folder** at the bottom of each folder (pages have **More actions for this page** under their title). Doing it in Cairn keeps the links between pages working; renaming in File Explorer doesn't.
 
 Next time you start Cairn, it opens the same documentation automatically.
 
@@ -80,14 +80,14 @@ cairn init "\\server\shared\Documentation" --name "Team Documentation"
 4. Choose what to start from. **Step-by-step guide** gives you headings to fill in.
 5. Choose **Create page and start writing**.
 
-The editor opens with **Write** on the left and **Preview** on the right.
+The editor opens on the page as it will look.
 
-- Type in the Write box. The preview shows how the page will look.
-- Use the buttons above to format text: select some words and choose **Bold**, or put the cursor on a line and choose **Heading** or **Bullet list**.
-- To add a screenshot, choose **Insert picture…**, or paste a picture straight into the Write box.
+- Click in the page and type, as in a word processor.
+- Use the buttons above to format text: select some words and choose **Bold**, or choose **Heading** or **Bullet list** in the list of text styles.
+- To add a screenshot, choose **Insert picture…**, or paste a picture straight into the page.
 - Your work is saved on your computer every few seconds. The message at the top says **Draft saved at …**.
 
-When you're happy, choose **Publish changes**. Everyone with access to the folder can now read the page.
+When you're happy, choose **Publish changes**, check what Cairn says you changed, and choose **Publish**. Everyone with access to the folder can now read the page.
 
 ## 5. Next steps
 

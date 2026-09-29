@@ -1,11 +1,28 @@
 /* Rendered Markdown (article view and editor preview). */
 
-.md-body { max-width: var(--measure); font-size: var(--text-base); line-height: var(--leading-body); color: var(--fg); }
-.md-body > * + * { margin-top: var(--space-4); }
+/* A page reads like a handbook: a serif made for screens at a comfortable
+   size and line length, with Inter headings so the structure is easy to scan. */
+.md-body {
+  max-width: var(--measure-read);
+  font-family: var(--font-read);
+  font-size: var(--text-read);
+  font-optical-sizing: auto;
+  line-height: var(--leading-read);
+  color: var(--fg);
+  font-variant-numeric: oldstyle-nums proportional-nums;
+}
+.md-body > * + * { margin-top: 1em; }
+.md-body :is(h1, h2, h3, h4, h5, h6) { font-family: var(--font-sans); line-height: var(--leading-tight); letter-spacing: -0.01em; text-wrap: balance; }
 .md-body h1 { font-size: var(--text-2xl); margin-top: 0; }
-.md-body h2 { font-size: var(--text-xl); margin-top: var(--space-7); padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--border); }
-.md-body h3 { font-size: var(--text-lg); margin-top: var(--space-6); }
-.md-body h4, .md-body h5, .md-body h6 { font-size: var(--text-md); margin-top: var(--space-5); }
+.md-body h2 { font-size: var(--text-xl); margin-top: 2.2em; }
+.md-body h3 { font-size: var(--text-lg); margin-top: 1.8em; }
+.md-body h4, .md-body h5, .md-body h6 { font-size: var(--text-md); margin-top: 1.5em; }
+.md-body :is(table, th, td, pre, code) { font-variant-numeric: lining-nums tabular-nums; }
+.md-body a { text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+.md-body a:hover { text-decoration-thickness: 2px; }
+.md-body strong { font-weight: 650; }
+/* Release notes in Settings are part of Cairn, not a page. */
+.md-body.release-notes { font-family: var(--font-sans); font-size: var(--text-base); line-height: var(--leading-body); }
 .md-body h1 + *, .md-body h2 + *, .md-body h3 + *, .md-body h4 + * { margin-top: var(--space-3); }
 .md-body h2, .md-body h3, .md-body h4 { scroll-margin-top: 6rem; }
 
@@ -36,16 +53,18 @@
 
 .md-body img { max-width: 100%; height: auto; border-radius: var(--radius); border: var(--border-width) solid var(--border); }
 
+/* Tips and notes: a calm tinted panel in the page's own type (upright:
+   italic paragraphs are hard to read for older eyes). */
 .md-body blockquote {
   margin-left: 0; margin-right: 0;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--border);
+  padding: var(--space-4) var(--space-5);
   background: var(--accent-soft);
-  border-radius: var(--radius);
-  font-style: italic;
+  border-radius: calc(var(--radius) * 1.5);
+  font-size: 0.95em;
 }
+[data-theme="contrast"] .md-body blockquote { border: var(--border-width) solid var(--border); }
 
-.md-body code { font-family: var(--font-mono); font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 4px; border: var(--border-width) solid var(--border); }
+.md-body code { font-family: var(--font-mono); font-size: 0.85em; background: var(--surface-2); padding: 0.12em 0.4em; border-radius: 4px; border: var(--border-width) solid var(--border); word-break: break-word; }
 .md-body pre { background: var(--surface-2); border: var(--border-width) solid var(--border); border-radius: var(--radius); padding: var(--space-4); overflow-x: auto; line-height: 1.5; }
 .md-body pre code { background: none; border: 0; padding: 0; font-size: var(--text-sm); }
 

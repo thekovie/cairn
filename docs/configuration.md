@@ -12,7 +12,7 @@ Most people only need **Settings** in Cairn:
 | Ask “Are you still editing?” after | Minutes without editing activity | 15 |
 | Unlock the page after | Minutes without editing activity; must be later than the question | 20 |
 | Keep my unsaved changes on this computer | Save drafts to disk so they survive closing Cairn | On |
-| Editor toolbar | Icons only (names on hover and keyboard focus) or Icons and words | Icons only |
+| Editor toolbar | Icons and words, or Icons only (names on hover and keyboard focus) | Icons and words |
 | Time and timezone | Automatic (this computer's timezone) or a chosen region and city. All times shown are converted to it. | Automatic |
 | PDF downloads: Paper size | A4 or US Letter | A4 |
 | Name of this documentation | The workspace display name, shown to everyone | set at creation |

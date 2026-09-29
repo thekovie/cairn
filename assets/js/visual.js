@@ -103,6 +103,38 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
   known = editor.action(m.getMarkdown());
 
   const view = () => editor.ctx.get(m.editorViewCtx);
+
+  // Checklists: the ticked state is kept on each list item, and the box is
+  // drawn in front of it (see .visual-doc li[data-item-type="task"]).
+  // Clicking the box, or Ctrl+Enter in the item, ticks or unticks it; the
+  // change reaches the Markdown like any other edit.
+  const toggleTask = (pos) => {
+    const v = view();
+    const $pos = v.state.doc.resolve(pos);
+    for (let depth = $pos.depth; depth > 0; depth--) {
+      const node = $pos.node(depth);
+      if (node.type.name !== 'list_item') continue;
+      if (node.attrs.checked == null) return false;
+      v.dispatch(v.state.tr.setNodeMarkup($pos.before(depth), undefined,
+        { ...node.attrs, checked: !node.attrs.checked }));
+      return true;
+    }
+    return false;
+  };
+  root.addEventListener('mousedown', (e) => {
+    const item = e.target.closest?.('li[data-item-type="task"]');
+    if (!item || !root.contains(item)) return;
+    // Only the box itself, which sits in the item's left padding.
+    const box = item.getBoundingClientRect();
+    const padding = parseFloat(getComputedStyle(item).paddingLeft) || 0;
+    if (e.clientX > box.left + padding) return;
+    e.preventDefault();
+    toggleTask(view().posAtDOM(item, 0));
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+    if (toggleTask(view().state.selection.from)) e.preventDefault();
+  });
   const commands = {
     bold: m.toggleStrongCommand,
     italic: m.toggleEmphasisCommand,

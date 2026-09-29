@@ -2,6 +2,30 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Changed
+
+- **Editing starts on the page as it will look.** The editor now opens in visual editing for everyone. Seeing the formatting codes is a choice (**Show formatting codes** or **Codes only**), remembered once made.
+- **Checklists work in visual editing**: each item shows its box, and clicking it (or Ctrl+Enter) ticks or unticks it.
+- **Publishing shows what you changed first** (“You changed 2 lines”), and that the page as it was is kept in Earlier versions. Closing the editor now says honestly whether anything changed, and that unpublished changes are seen only by you.
+- **Earlier versions and conflicts are shown side by side**: the older version on the left, the newer on the right, each different line labelled Changed, Added, or Removed.
+- **The editor toolbar shows words** beside its icons by default, and **Insert picture…** always does. (Choose Icons only in Settings for the compact toolbar.)
+- **Pages read like a handbook**: text in Source Serif 4, a reading typeface made for screens, at a comfortable size and line length. The page details are one quiet line under the title; Rename, Move, and Delete sit under **More actions for this page**; only “On this page” sits beside the text (folded above it on narrow windows). The editing note appears only when someone is editing, and says who and what happens next.
+- Pages due for review (last reviewed over a year ago) are marked **Review due**.
+- **One search box per screen**, and a misspelled search suggests what you might have meant (“Did you mean printer?”) and lists the folders to browse.
+- **A short welcome** on your first visit, which also offers to set the name others see.
+- **Settings**: a list of sections at the top, and the editing times and unsaved-changes choice now save straight away. The editing times are chosen from a list.
+- The new-version notice appears only on Home and Settings.
+- Templates: “Copy and customize” is now **Make a team copy**, with one **New template** button.
+- Tips in pages are no longer italic, status labels no longer look like buttons, and Templates and Recently deleted sit at the foot of the sidebar. The documentation folder's location moved from the sidebar to a quiet line on the Home screen (and is still in Settings).
+
+### Fixed
+
+- Screen readers: the page title is the first heading, toolbar buttons are no longer read twice, the writing box has a proper name, and a locked **Edit this page** button can still be reached with the keyboard and says why it's locked.
+- Breadcrumb and “On this page” links are big enough to tap easily.
+- On phones, the rows in Recently deleted no longer squeeze their text into a narrow column.
+
 ## 0.5.0 (2026-09-29)
 
 ### Added

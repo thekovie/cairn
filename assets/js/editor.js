@@ -7,7 +7,7 @@
 import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
-  iconButton, toolbarKeys, formatSize,
+  iconButton, toolbarKeys, formatSize, diffSummary, lineDiff,
 } from './core.js';
 import { createVisualEditor } from './visual.js';
 import { lockSentence } from './views.js';
@@ -300,21 +300,20 @@ function mountEditor(ctx, path, start) {
   const previewBody = h('div', { class: 'md-body' },
     h('p', { class: 'loading-label' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Preparing the preview…'));
   const writePane = h('div', { class: 'pane pane-write' },
-    h('label', { class: 'pane-label', for: 'md-text' }, 'Write'),
+    h('label', { class: 'pane-label', for: 'md-text' }, 'Page text with formatting codes'),
     ta,
-    h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder.'));
+    h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder. “Formatting help” below lists the codes.'));
   // Visual editing: type on the page as it will look (see visual.js).
   const visualRoot = h('div', { class: 'visual-root' });
   const visualPane = h('section', { class: 'pane pane-visual', 'aria-labelledby': 'visual-h' },
-    h('h2', { class: 'pane-label', id: 'visual-h' }, 'Visual: edit the page as it will look'),
+    h('h2', { class: 'pane-label', id: 'visual-h' }, 'The page as it will look: click anywhere to write'),
     visualRoot,
-    h('p', { class: 'drop-hint' }, 'Tip: type # and a space for a heading, - and a space for a bullet list, or **words** for bold. You can paste or drag in pictures too.'));
-  // The way of editing is remembered in this browser. Otherwise: side by
-  // side when there's room, and Markdown only on narrow windows.
+    h('p', { class: 'drop-hint' }, 'Tip: use the buttons above to format text. You can paste or drag in pictures, and click a checkbox to tick it.'));
+  // Everyone starts on the page as it will look. Showing the formatting
+  // codes is a choice, remembered in this browser once someone makes it.
   let savedView = null;
   try { savedView = localStorage.getItem(VIEW_KEY); } catch { savedView = null; }
-  const startView = VIEWS.includes(savedView) ? savedView
-    : window.matchMedia('(max-width: 1000px)').matches ? 'write' : 'both';
+  const startView = VIEWS.includes(savedView) ? savedView : 'visual';
   const panes = h('div', { class: 'editor-panes', 'data-view': startView },
     visualPane,
     writePane,
@@ -386,7 +385,7 @@ function mountEditor(ctx, path, start) {
         },
       });
     } catch {
-      toast('Visual editing could not start. You can keep writing in Markdown.', { error: true });
+      toast('Visual editing could not start, so the page is shown with its formatting codes. You can keep writing.', { error: true });
       return null;
     }
     return visual;
@@ -401,7 +400,13 @@ function mountEditor(ctx, path, start) {
     { icon: 'publish', kind: 'primary', large: true, 'aria-describedby': 'publish-note' });
   const readyNote = isTemplate
     ? 'Everyone can use this version for new pages.'
-    : 'Everyone will see this version.';
+    : 'You’ll see what changed before anything is published.';
+  // What is published now, to tell "nothing changed" from real changes.
+  const publishedText = start.published_content ?? '';
+  const hasChanges = () => {
+    if (visual) visual.flush();
+    return s.isNew || fullText() !== publishedText;
+  };
   const publishNote = h('span', { class: 'publish-note', id: 'publish-note' }, readyNote);
 
   // ---------------------------------------------------------- statuses
@@ -709,11 +714,13 @@ function mountEditor(ctx, path, start) {
   };
   const insertText = (text) => either((v) => v.insert(text, true), () => replaceSelection(text));
 
-  const viewSwitch = h('div', { class: 'view-switch', role: 'group', 'aria-label': 'How to edit' });
-  async function setView(view) {
+  const viewSwitch = h('div', { class: 'view-switch', role: 'group', 'aria-label': 'How to see the page while editing' });
+  async function setView(view, { remember = false } = {}) {
     panes.dataset.view = view;
     for (const b of viewSwitch.children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
-    try { localStorage.setItem(VIEW_KEY, view); } catch { /* remembered for this visit only */ }
+    if (remember) {
+      try { localStorage.setItem(VIEW_KEY, view); } catch { /* remembered for this visit only */ }
+    }
     if (view === 'visual') {
       const vis = await ensureVisual();
       if (vis) vis.focus();
@@ -725,12 +732,12 @@ function mountEditor(ctx, path, start) {
   const viewBtn = (label, view) => button(label, {
     class: 'btn btn-view', dataset: { view },
     'aria-pressed': view === startView ? 'true' : 'false',
-    onClick: () => setView(view),
+    onClick: () => setView(view, { remember: true }),
   });
   viewSwitch.append(
-    viewBtn('Visual', 'visual'),
-    viewBtn('Markdown and preview', 'both'),
-    viewBtn('Markdown only', 'write'));
+    viewBtn('As it will look', 'visual'),
+    viewBtn('Show formatting codes', 'both'),
+    viewBtn('Codes only', 'write'));
 
   const styleSelect = h('select', { id: 'tb-style', class: 'toolbar-select', 'aria-label': 'Text style' },
     h('option', { value: 'p' }, 'Normal text'),
@@ -763,7 +770,8 @@ function mountEditor(ctx, path, start) {
     tool('Numbered list', 'listNumbered', either((v) => v.run('ordered'), () => prefixLines('ol'))),
     sep(),
     tool('Link…', 'link', insertLink),
-    tool('Insert picture…', 'image', () => fileInput.click()),
+    // Adding a picture is common enough to always show its name.
+    iconButton('Insert picture…', { icon: 'image', class: 'btn btn-icon has-words', onClick: run(() => fileInput.click()) }),
     tool('Table…', 'table', insertTable),
     tool('Code', 'code', code),
     viewSwitch));
@@ -900,7 +908,7 @@ function mountEditor(ctx, path, start) {
   const helpPanel = h('details', { class: 'details-panel' },
     h('summary', null, 'Formatting help'),
     h('div', { class: 'details-body' },
-      h('p', { class: 'help', style: 'margin: 0 0 var(--space-3)' }, 'The buttons above do all of this for you. This is only for anyone who prefers typing.'),
+      h('p', { class: 'help', style: 'margin: 0 0 var(--space-3)' }, 'The buttons above do all of this for you; you never need to type these codes. They are for anyone who prefers typing, with “Show formatting codes” turned on. To tick a checklist item, click its box.'),
       helpTable(),
       h('p', { class: 'help' }, 'Keyboard shortcuts (optional): Ctrl+B bold, Ctrl+I italic, Ctrl+S save now.')));
 
@@ -1037,8 +1045,8 @@ function mountEditor(ctx, path, start) {
         h('p', null, h('strong', null, 'Your version has not been published, and your text is safe.')),
         res.deleted
           ? h('p', null, 'The page has been deleted or moved by someone else since you started.')
-          : h('p', null, 'Below, lines marked − are only in the version that is published now. Lines marked + are only in yours. You can copy anything you need from their version into yours before publishing.'),
-        diffView(res.diff, { oldLabel: 'Only in the version published now', newLabel: 'Only in your version' }),
+          : h('p', null, 'Below, their version (published now) is on the left and yours is on the right. You can copy anything you need from theirs into yours before publishing.'),
+        diffView(res.diff, { oldLabel: 'Published now (their version)', newLabel: 'Your version' }),
       ],
       actions: [
         { label: 'Publish my version anyway', value: 'mine', kind: 'danger' },
@@ -1057,7 +1065,43 @@ function mountEditor(ctx, path, start) {
     if (sure) await doPublish(res.current_hash, res.deleted);
   }
 
-  publishBtn.addEventListener('click', () => doPublish(null, false));
+  // Publishing is the moment that matters most, so it gets a short check:
+  // what changed, who will see it, and that the old version is kept.
+  async function confirmPublish() {
+    if (!hasChanges()) {
+      const choice = await openDialog({
+        title: 'Nothing to publish yet', iconName: 'info', tone: 'info',
+        body: [h('p', null, 'You haven’t changed anything on this page. Make your changes first, or close the editor.')],
+        actions: [
+          { label: 'Close editor', value: 'close' },
+          { label: 'Keep editing', value: 'keep', kind: 'primary', autofocus: true },
+        ],
+      });
+      if (choice === 'close') closeBtn.click();
+      return;
+    }
+    const summary = s.isNew ? null : diffSummary(lineDiff(publishedText, fullText()));
+    const noun = isTemplate ? 'template' : 'page';
+    const choice = await openDialog({
+      title: s.isNew ? `Publish this new ${noun}?` : 'Publish your changes?',
+      iconName: 'publish', tone: 'info',
+      body: [
+        summary ? h('p', null, h('strong', null, summary)) : null,
+        h('p', null, isTemplate
+          ? 'Everyone can use it for new pages straight away.'
+          : 'Everyone who uses this documentation will see it straight away.'),
+        s.isNew ? null : h('p', null, `The ${noun} as it was before is kept in Earlier versions, so it can be brought back.`),
+      ],
+      actions: [
+        { label: 'Keep editing', value: 'keep' },
+        { label: isTemplate ? 'Publish template' : 'Publish', value: 'publish', kind: 'primary', autofocus: true },
+      ],
+    });
+    if (choice === 'publish') await doPublish(null, false);
+    else ta.focus();
+  }
+
+  publishBtn.addEventListener('click', confirmPublish);
 
   // ------------------------------------------------------ leave / discard
   async function closeEditor() {
@@ -1089,10 +1133,15 @@ function mountEditor(ctx, path, start) {
   const closeBtn = button('Close editor', {
     icon: 'exit',
     onClick: async (e) => {
+      const edited = hasChanges();
       await whileBusy(e.currentTarget, 'Closing…', closeEditor);
-      toast(s.isNew && !isTemplate
-        ? 'Your new page isn’t published yet. It’s kept on this computer: find it under “Your unsaved changes” on the Home screen.'
-        : 'Your changes are kept on this computer. You can continue later.');
+      if (s.isNew && !isTemplate) {
+        toast('Your new page isn’t published yet. Only you can see it, on this computer: find it under “Your unsaved changes” on the Home screen.');
+      } else if (edited) {
+        toast('Not published yet: only you can see these changes, on this computer. Carry on any time from “Your unsaved changes” on the Home screen.');
+      } else {
+        toast('Closed. Nothing on the page was changed.');
+      }
       ctx.navigate(leaveTo());
     },
   });

@@ -240,6 +240,86 @@ impl SearchIndex {
     }
 }
 
+/// Longest word a spelling suggestion is looked for.
+const SUGGEST_MAX_LEN: usize = 30;
+
+/// How many letters a suggestion may differ by: fewer for short words,
+/// where one letter matters more.
+fn allowed_typos(len: usize) -> usize {
+    if len <= 4 { 1 } else { 2 }
+}
+
+/// Edit distance between two short words, giving up past `limit`.
+fn edit_distance(a: &[char], b: &[char], limit: usize) -> Option<usize> {
+    if a.len().abs_diff(b.len()) > limit {
+        return None;
+    }
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.iter().enumerate() {
+        let mut row = vec![i + 1; b.len() + 1];
+        for (j, cb) in b.iter().enumerate() {
+            let cost = usize::from(ca != cb);
+            row[j + 1] = (prev[j] + cost).min(prev[j + 1] + 1).min(row[j] + 1);
+        }
+        if row.iter().min().is_some_and(|m| *m > limit) {
+            return None;
+        }
+        prev = row;
+    }
+    (prev[b.len()] <= limit).then_some(prev[b.len()])
+}
+
+impl SearchIndex {
+    /// A likely intended search when `query` finds nothing: each word that
+    /// appears nowhere is swapped for the closest word that does (the most
+    /// common wins a tie), if that finds something.
+    pub fn suggest(&self, query: &str) -> Option<String> {
+        let terms: Vec<String> = query
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .take(8)
+            .collect();
+        let mut counts: HashMap<&str, usize> = HashMap::new();
+        for e in self.entries.values() {
+            let words = e
+                .title_lower
+                .split(|c: char| !c.is_alphanumeric())
+                .chain(e.text_lower.split(|c: char| !c.is_alphanumeric()));
+            for w in words {
+                if w.chars().count() >= 3 && w.len() <= SUGGEST_MAX_LEN {
+                    *counts.entry(w).or_default() += 1;
+                }
+            }
+        }
+        let mut changed = false;
+        let mut out = Vec::with_capacity(terms.len());
+        for term in &terms {
+            if counts.keys().any(|w| w.contains(term.as_str())) {
+                out.push(term.clone());
+                continue;
+            }
+            let chars: Vec<char> = term.chars().collect();
+            let limit = allowed_typos(chars.len());
+            let best = counts
+                .iter()
+                .filter_map(|(w, n)| {
+                    let wc: Vec<char> = w.chars().collect();
+                    edit_distance(&chars, &wc, limit).map(|d| (d, std::cmp::Reverse(*n), *w))
+                })
+                .min();
+            match best {
+                Some((_, _, word)) => {
+                    out.push(word.to_string());
+                    changed = true;
+                }
+                None => out.push(term.clone()),
+            }
+        }
+        let suggestion = out.join(" ");
+        (changed && !self.search(&suggestion, 1).is_empty()).then_some(suggestion)
+    }
+}
+
 pub fn parent_of(rel: &str) -> &str {
     rel.rsplit_once('/').map(|(p, _)| p).unwrap_or("")
 }
@@ -399,6 +479,31 @@ pub fn list_folder(root: &Root, index: &SearchIndex, folder_rel: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn misspelled_searches_get_a_suggestion() {
+        let mut index = SearchIndex::default();
+        let (summary, plain) =
+            summarize("Guides/p.md", "# Printer setup\n\nConnect the printer.", 1);
+        index.entries.insert(
+            "Guides/p.md".into(),
+            Entry {
+                title_lower: summary.title.to_lowercase(),
+                text_lower: plain.to_lowercase(),
+                text: plain,
+                summary,
+                size: 1,
+            },
+        );
+        assert_eq!(index.suggest("printr").as_deref(), Some("printer"));
+        assert_eq!(
+            index.suggest("connect printr").as_deref(),
+            Some("connect printer")
+        );
+        assert_eq!(index.suggest("printer"), None, "already found");
+        assert_eq!(index.suggest("zebra"), None, "nothing close");
+        assert_eq!(edit_distance(&['a'], &['a', 'b', 'c', 'd'], 1), None);
+    }
 
     #[test]
     fn excerpt_highlights_terms() {

@@ -96,7 +96,7 @@ async function movePage(ctx, data, btn) {
 async function deletePage(ctx, data, btn) {
   const ok = await confirmDialog({
     title: `Delete “${data.title}”?`,
-    message: 'The page and its pictures go to Recently deleted, where anyone can bring them back. Until then, links to it from other pages show as missing.',
+    message: 'The page and its pictures go to Recently deleted, where anyone can bring them back. While it is deleted, links to it from other pages show as missing.',
     confirmLabel: 'Delete page',
     cancelLabel: 'Keep the page',
     danger: true,
@@ -110,23 +110,19 @@ async function deletePage(ctx, data, btn) {
   ctx.navigate(href.folder(data.folder));
 }
 
-/** The "Organize" box beside a page. */
-export function pageOrganizeBox(ctx, data) {
-  if (data.cannot_edit_reason) return null;
-  const heading = h('h2', { id: 'organize-h' }, 'Organize');
-  const lock = data.lock;
-  let body;
-  if (lock && !lock.is_mine) {
-    body = h('p', { class: 'help' }, `You can rename, move, or delete this page when ${lock.display_name} has finished editing it.`);
-  } else if (data.editing_here) {
-    body = h('p', { class: 'help' }, 'Close the editor first to rename, move, or delete this page.');
-  } else {
-    body = h('div', { class: 'rail-actions' },
-      button('Rename', { icon: 'edit', onClick: (e) => renamePage(ctx, data, e.currentTarget) }),
-      button('Move', { icon: 'folder', onClick: (e) => movePage(ctx, data, e.currentTarget) }),
-      button('Delete', { icon: 'trash', kind: 'danger', onClick: (e) => deletePage(ctx, data, e.currentTarget) }));
-  }
-  return h('section', { class: 'rail-box', 'aria-labelledby': 'organize-h' }, heading, body);
+/** "More actions for this page": rename, move, and delete, out of the way
+ *  of reading until someone asks for them. */
+export function pageMoreActions(ctx, data) {
+  if (data.cannot_edit_reason || (data.lock && !data.lock.is_mine)) return null;
+  const body = data.editing_here
+    ? h('p', { class: 'help' }, 'Close the editor first to rename, move, or delete this page.')
+    : h('div', { class: 'more-actions-list' },
+      button('Rename this page', { icon: 'edit', onClick: (e) => renamePage(ctx, data, e.currentTarget) }),
+      button('Move to another folder', { icon: 'folder', onClick: (e) => movePage(ctx, data, e.currentTarget) }),
+      button('Delete this page', { icon: 'trash', kind: 'danger', onClick: (e) => deletePage(ctx, data, e.currentTarget) }));
+  return h('details', { class: 'more-actions' },
+    h('summary', { class: 'btn' }, icon('settings'), h('span', null, 'More actions for this page')),
+    body);
 }
 
 // ---------------------------------------------------------------- folders

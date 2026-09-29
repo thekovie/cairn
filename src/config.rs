@@ -66,7 +66,9 @@ impl Default for AppConfig {
             timezone: None,
             pdf_paper: "a4".into(),
             pdf_browser: None,
-            toolbar_labels: false,
+            // Words beside the icons unless someone chooses icons only:
+            // every button should say what it does.
+            toolbar_labels: true,
             update_check: "daily".into(),
         }
     }

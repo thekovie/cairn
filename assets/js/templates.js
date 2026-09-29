@@ -100,7 +100,7 @@ async function deleteTemplate(ctx, t, btn) {
 function templateRow(ctx, t, canWrite, templates) {
   const actions = [linkButton('Use for a new page', newPageFrom(t.id), { icon: 'pagePlus' })];
   if (canWrite && t.builtin) {
-    actions.push(button('Copy and customize', { icon: 'copy', onClick: () => newTemplateDialog(ctx, templates, t.id) }));
+    actions.push(button('Make a team copy', { icon: 'copy', onClick: () => newTemplateDialog(ctx, templates, t.id) }));
   }
   if (canWrite && !t.builtin) {
     actions.push(linkButton('Edit', href.edit(t.id), { icon: 'edit' }));
@@ -164,15 +164,14 @@ export async function templatesView(ctx) {
         ? h('ul', { class: 'list' }, team.map((t) => templateRow(ctx, t, canWrite, templates)))
         : emptyState({
           title: 'Your team hasn’t made any templates yet',
-          text: 'Templates save time for pages you write often, like meeting notes or incident reports.',
-          actions: canWrite
-            ? [newBtn(), button('Copy a built-in template', { icon: 'copy', onClick: () => newTemplateDialog(ctx, templates, builtin[1]?.id || '') })]
-            : [],
+          text: canWrite
+            ? 'Templates save time for pages you write often, like meeting notes or incident reports. Choose “New template” above, or “Make a team copy” beside a built-in one below.'
+            : 'Templates save time for pages you write often, like meeting notes or incident reports.',
         })),
 
     h('section', { class: 'section', 'aria-labelledby': 'tpl-builtin-h' },
       h('h2', { id: 'tpl-builtin-h' }, 'Built in'),
-      h('p', { class: 'help' }, 'These come with Cairn. Copy one to make your own version.'),
+      h('p', { class: 'help' }, 'These come with Cairn. “Make a team copy” gives your team its own version to change.'),
       h('ul', { class: 'list' }, builtin.map((t) => templateRow(ctx, t, canWrite, templates)))),
 
     deletedSection(ctx, deleted, canWrite));

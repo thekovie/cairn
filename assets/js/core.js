@@ -623,39 +623,116 @@ export function statusChip(status) {
   return h('span', { class: `chip chip-${status}` }, icon(iconName), label);
 }
 
-/** Line diff with words and symbols, never color alone. */
-export function diffView(lines, { oldLabel = 'Only in the published page', newLabel = 'Only in your version' } = {}) {
-  const legend = h('div', { class: 'diff-legend' },
-    h('span', null, h('span', { class: 'diff-swatch removed', 'aria-hidden': 'true' }, '−'), oldLabel),
-    h('span', null, h('span', { class: 'diff-swatch added', 'aria-hidden': 'true' }, '+'), newLabel));
-  const box = h('div', { class: 'diff', role: 'region', 'aria-label': 'Differences', tabindex: '0' });
-  const CONTEXT = 3;
-  for (let i = 0; i < lines.length; i++) {
+const DIFF_CONTEXT = 3;
+
+/** Pair a line diff into side-by-side rows: [kind, old text, new text].
+ *  A run of removed lines followed by added lines becomes "changed" rows. */
+function diffRows(lines) {
+  const rows = [];
+  for (let i = 0; i < lines.length;) {
     if (lines[i].kind === 'same') {
+      rows.push(['same', lines[i].text, lines[i].text]);
+      i += 1;
+      continue;
+    }
+    const removed = [];
+    const added = [];
+    while (i < lines.length && lines[i].kind === 'removed') removed.push(lines[i++].text);
+    while (i < lines.length && lines[i].kind === 'added') added.push(lines[i++].text);
+    for (let k = 0; k < Math.max(removed.length, added.length); k++) {
+      const [was, now] = [removed[k], added[k]];
+      const kind = was !== undefined && now !== undefined ? 'changed' : was !== undefined ? 'removed' : 'added';
+      rows.push([kind, was, now]);
+    }
+  }
+  return rows;
+}
+
+const DIFF_WORD = { same: '', changed: 'Changed', removed: 'Removed', added: 'Added' };
+
+function diffRow([kind, was, now]) {
+  const cell = (text, present) => h('div', { class: `diff-cell${present ? '' : ' is-absent'}`, role: 'cell' },
+    present ? (text || ' ') : h('span', { class: 'diff-absent' }, 'Not in this version'));
+  return h('div', { class: `diff-row diff-${kind}`, role: 'row' },
+    h('div', { class: 'diff-kind', role: 'cell' }, DIFF_WORD[kind]),
+    cell(was, was !== undefined),
+    cell(now, now !== undefined));
+}
+
+/**
+ * Two versions side by side: the older on the left, the newer on the right.
+ * Each changed row says what happened in words, never by color alone, and
+ * long unchanged stretches are folded away.
+ */
+export function diffView(lines, { oldLabel = 'The published page', newLabel = 'Your version' } = {}) {
+  const rows = diffRows(lines);
+  if (!rows.some(([kind]) => kind !== 'same')) return h('p', null, 'There are no differences.');
+  const table = h('div', { class: 'diff', role: 'table', 'aria-label': `${oldLabel} compared with ${newLabel}`, tabindex: '0' },
+    h('div', { class: 'diff-row diff-head', role: 'row' },
+      h('div', { class: 'diff-kind', role: 'columnheader' }, h('span', { class: 'visually-hidden' }, 'What changed')),
+      h('div', { role: 'columnheader' }, oldLabel),
+      h('div', { role: 'columnheader' }, newLabel)));
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === 'same') {
       let j = i;
-      while (j < lines.length && lines[j].kind === 'same') j++;
-      const run = j - i;
-      const head = i === 0 ? 0 : CONTEXT;
-      const tail = j === lines.length ? 0 : CONTEXT;
-      if (run > head + tail + 1) {
-        for (let k = i; k < i + head; k++) box.append(diffRow(lines[k]));
-        box.append(h('div', { class: 'diff-line' }, h('span', { class: 'sign', 'aria-hidden': 'true' }, '…'),
-          h('span', null, `${run - head - tail} unchanged lines`)));
-        for (let k = j - tail; k < j; k++) box.append(diffRow(lines[k]));
+      while (j < rows.length && rows[j][0] === 'same') j++;
+      const head = i === 0 ? 0 : DIFF_CONTEXT;
+      const tail = j === rows.length ? 0 : DIFF_CONTEXT;
+      if (j - i > head + tail + 1) {
+        for (let k = i; k < i + head; k++) table.append(diffRow(rows[k]));
+        table.append(h('div', { class: 'diff-row diff-fold', role: 'row' },
+          h('div', { class: 'diff-fold-text', role: 'cell' }, `${j - i - head - tail} lines that are the same in both`)));
+        for (let k = j - tail; k < j; k++) table.append(diffRow(rows[k]));
         i = j - 1;
         continue;
       }
     }
-    box.append(diffRow(lines[i]));
+    table.append(diffRow(rows[i]));
   }
-  const changed = lines.some((l) => l.kind !== 'same');
-  return h('div', null, legend, changed ? box : h('p', null, 'There are no differences.'));
+  return table;
 }
 
-function diffRow(line) {
-  const sign = { same: ' ', added: '+', removed: '−' }[line.kind];
-  const label = { same: '', added: 'Added: ', removed: 'Removed: ' }[line.kind];
-  return h('div', { class: `diff-line diff-${line.kind}` },
-    h('span', { class: 'sign', 'aria-hidden': 'true' }, sign),
-    h('span', null, label ? h('span', { class: 'visually-hidden' }, label) : null, line.text || ' '));
+/** "You changed 2 lines and added 3 lines." for a line diff; null when identical. */
+export function diffSummary(lines) {
+  const rows = diffRows(lines);
+  const count = (kind) => rows.filter(([k]) => k === kind).length;
+  const lineWord = (n) => (n === 1 ? '1 line' : `${n} lines`);
+  const parts = [
+    count('changed') ? `changed ${lineWord(count('changed'))}` : null,
+    count('added') ? `added ${lineWord(count('added'))}` : null,
+    count('removed') ? `removed ${lineWord(count('removed'))}` : null,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const last = parts.pop();
+  return `You ${parts.length ? `${parts.join(', ')} and ${last}` : last}.`;
+}
+
+/** A line diff of two texts, in the same shape the server sends. */
+export function lineDiff(oldText, newText) {
+  const a = oldText.split('\n');
+  const b = newText.split('\n');
+  // Longest common subsequence, filled from the end so the walk is forward.
+  const lcs = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      out.push({ kind: 'same', text: a[i] });
+      i += 1;
+      j += 1;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      out.push({ kind: 'removed', text: a[i++] });
+    } else {
+      out.push({ kind: 'added', text: b[j++] });
+    }
+  }
+  while (i < a.length) out.push({ kind: 'removed', text: a[i++] });
+  while (j < b.length) out.push({ kind: 'added', text: b[j++] });
+  return out;
 }

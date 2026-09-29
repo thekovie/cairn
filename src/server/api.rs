@@ -443,8 +443,14 @@ pub async fn search(
         let ws = st.workspace()?;
         let query = q.get("q").map(|s| s.trim().to_string()).unwrap_or_default();
         ws.refresh_index(false);
-        let hits = ws.index.lock().expect("index lock").search(&query, 50);
-        Ok(json!({ "query": query, "results": hits }))
+        let index = ws.index.lock().expect("index lock");
+        let hits = index.search(&query, 50);
+        let suggestion = if hits.is_empty() {
+            index.suggest(&query)
+        } else {
+            None
+        };
+        Ok(json!({ "query": query, "results": hits, "suggestion": suggestion }))
     })
     .await
 }

@@ -133,7 +133,9 @@ function renderBanners() {
   if (app.state.config_warning) {
     host.append(banner({ tone: 'warn', text: app.state.config_warning }));
   }
-  const update = updateBanner();
+  // A new version is news, not a task: only where people look for it.
+  const { route } = parseHash();
+  const update = route === '' || route === 'settings' ? updateBanner() : null;
   if (update) host.append(update);
 }
 
@@ -150,18 +152,16 @@ function renderNav() {
   const top = (path.split('/')[0] || '').toLowerCase();
   const inFolder = ['folder', 'page', 'edit', 'history'].includes(route);
   clear(nav);
+  // The folder list is labelled but isn't a heading, so the page's own
+  // title stays the first heading screen readers meet.
   nav.append(
     h('div', { class: 'sidenav-section' },
       h('ul', { class: 'navlist' },
-        navLink('Home', href.home(), 'home', route === ''),
-        navLink('Search', href.search(''), 'search', route === 'search'),
-        navLink('Templates', href.templates(), 'template',
-          route === 'templates' || (route === 'edit' && top === '_templates')),
-        navLink('Recently deleted', href.deleted(), 'trash', route === 'deleted'))),
+        navLink('Home', href.home(), 'home', route === ''))),
     h('div', { class: 'sidenav-section' },
-      h('h2', null, 'Folders'),
+      h('p', { class: 'nav-label', id: 'nav-folders' }, 'Folders'),
       app.nav.length
-        ? h('ul', { class: 'navlist' }, app.nav.map((f) =>
+        ? h('ul', { class: 'navlist', 'aria-labelledby': 'nav-folders' }, app.nav.map((f) =>
           navLink(f.name, href.folder(f.path), 'folder', inFolder && top === f.path.toLowerCase(), f.page_count)))
         : h('p', { class: 'help' }, 'No folders yet.')),
     app.state.workspace?.read_only
@@ -169,8 +169,11 @@ function renderNav() {
       : h('div', { class: 'sidenav-section' },
         h('a', { class: 'btn btn-primary', href: href.newPage(route === 'folder' ? path : '') },
           icon('pagePlus'), h('span', null, 'New page'))),
-    h('div', { class: 'sidenav-foot' },
-      h('span', null, 'Folder location:'), h('br'), app.state.workspace.root));
+    h('div', { class: 'sidenav-section sidenav-more' },
+      h('ul', { class: 'navlist', 'aria-label': 'More' },
+        navLink('Templates', href.templates(), 'template',
+          route === 'templates' || (route === 'edit' && top === '_templates')),
+        navLink('Recently deleted', href.deleted(), 'trash', route === 'deleted'))));
 }
 
 function renderFatal(title, message, actions = []) {
@@ -281,10 +284,12 @@ async function onRoute() {
   } else {
     if (!app.shell) renderShell();
     renderNav();
+    renderBanners();
     refreshNav(); // page counts may have changed
     host = clear(app.shell.main);
-    // Only the search results screen keeps the words in the header box.
-    app.shell.searchInput.value = parsed.route === 'search' ? parsed.query.get('q') || '' : '';
+    // Home and Search have their own big search box; one per screen.
+    app.shell.searchInput.value = '';
+    app.shell.root.classList.toggle('has-own-search', parsed.route === '' || parsed.route === 'search');
   }
 
   // Each screen draws into its own container. If the person moves on before

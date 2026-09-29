@@ -180,11 +180,20 @@ pub fn title_from_filename(rel: &str) -> String {
     }
 }
 
-/// Plain text of the body for search indexing.
+/// Plain text of the body for search indexing. A heading ends like a
+/// sentence, so search excerpts don't run it into the text after it.
 pub fn plain_text(body: &str) -> String {
     let mut out = String::with_capacity(body.len());
     for event in Parser::new_ext(body, md_options()) {
         match event {
+            Event::End(TagEnd::Heading(_)) => {
+                let kept = out.trim_end().len();
+                out.truncate(kept);
+                if kept > 0 && !out.ends_with(['.', ':', '?', '!']) {
+                    out.push('.');
+                }
+                out.push(' ');
+            }
             Event::Text(t) | Event::Code(t) => {
                 out.push_str(&t);
                 out.push(' ');

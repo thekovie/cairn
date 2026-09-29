@@ -5,24 +5,25 @@
 On any page, choose **Edit this page**. While you edit:
 
 - The page is **locked for you**. Others can still read it, and they see “Being edited by *your name* since *time*”.
-- If someone else is already editing, the button is greyed out and the reason is shown underneath. You can keep reading; editing opens up when they finish.
+- If someone else is already editing, the button is greyed out and a note under it says who, since when, and that the page opens for editing when they finish (or by itself if they stop typing for a while). You can keep reading.
 
 Your name comes from **Settings → Your name**. If you leave it empty, your Windows user name is used.
 
 ## The editor
 
+The editor opens on the page **as it will look**: click anywhere and type, like in a word processor.
+
 | Part | What it's for |
 | --- | --- |
-| **Write** (left) | The text of the page. |
-| **Preview** (right) | How the page will look. It updates as you type. |
-| Toolbar | Buttons that format text for you. |
-| **Visual / Markdown and preview / Markdown only** | Choose how to edit (see below). Your choice is remembered. |
+| Toolbar | Buttons that format text for you, each with its name. |
+| **As it will look / Show formatting codes / Codes only** | How to see the page while you edit. Most people never need anything but the first; Cairn remembers what you choose. |
 | **Page details** | Owner, status, last reviewed date, and tags. |
-| **Formatting help** | A short table of formatting, for anyone who prefers typing it. |
+| **Formatting help** | The formatting codes, for anyone who prefers typing them. |
+| **Publish changes** | Shows what you changed, then publishes. |
 
-### Visual editing
+### Editing the page as it will look
 
-Choose **Visual** to write directly on the page as it will look, like in a word processor. You can use the toolbar, or type these shortcuts and the formatting appears as you type:
+You can use the toolbar, or type these shortcuts and the formatting appears as you type. To tick an item in a checklist, click its box (or press **Ctrl+Enter** in it).
 
 | Type | To get |
 | --- | --- |
@@ -35,13 +36,15 @@ Choose **Visual** to write directly on the page as it will look, like in a word 
 | `_words_` | _Italic_ |
 | `` `words` `` | Code |
 
-Pictures can be pasted or dragged in, just like in Markdown mode. The page details block (owner, status, and so on) isn't shown in Visual mode; edit it with **Page details** below the editor.
+Pictures can be pasted or dragged in. The page details block (owner, status, and so on) is edited with **Page details** below the editor.
 
-The page is still saved as Markdown. Visual editing writes it in a standard, tidy form, so after your first change there, some lines may be written slightly differently (for example `-` for every bullet). The page looks the same.
+The page is still saved as Markdown. This view writes it in a standard, tidy form, so after your first change there, some lines may be written slightly differently (for example `-` for every bullet). The page looks the same.
+
+**Show formatting codes** puts the page's text with its codes on one side and a preview on the other; **Codes only** shows just the text. Pictures can be pasted or dragged in there too.
 
 ### Formatting with the toolbar
 
-The toolbar is a single row of icons. To see what a button does, point at it with the mouse, or move to it with **Tab** (then the arrow keys move along the toolbar): its name appears just below it. If you'd rather always see the names, choose **Settings → Appearance → Editor toolbar → Icons and words**. On touch screens the names are always shown.
+Every toolbar button shows its name. For a more compact toolbar, choose **Settings → Appearance → Editor toolbar → Icons only**: then a button's name appears when you point at it or move to it with **Tab** (the arrow keys move along the toolbar). **Insert picture…** always shows its name, and on touch screens all names are shown.
 
 | Control | What it does |
 | --- | --- |
@@ -133,7 +136,9 @@ When you go back to a page that was already published, Cairn offers **Continue w
 
 ## Publishing
 
-Choose **Publish changes**. Before anything is written, Cairn checks that:
+Choose **Publish changes**. Cairn first shows what you changed (for example “You changed 2 lines and added 1 line”) and reminds you that the page as it was is kept under **Earlier versions**. Choose **Publish** to go ahead, or **Keep editing**. If you haven't changed anything, it says so instead.
+
+Before anything is written, Cairn checks that:
 
 1. You still have the page locked.
 2. You're allowed to change files in that folder.
@@ -143,10 +148,7 @@ Then it saves the new pictures, keeps a copy of the old page under **Earlier ver
 
 ### When someone else changed the page
 
-If the page changed while you were writing, nothing is published. Cairn shows **Someone else changed this page while you were writing**, with the differences:
-
-- lines marked **−** are only in the version that's published now;
-- lines marked **+** are only in yours.
+If the page changed while you were writing, nothing is published. Cairn shows **Someone else changed this page while you were writing**, with the two versions side by side: theirs (published now) on the left and yours on the right. Each line that differs is marked **Changed**, **Added**, or **Removed**.
 
 Choose **Keep editing** to copy anything you need into your version first. If you're sure, choose **Publish my version anyway**. The other version is still kept under **Earlier versions**.
 
@@ -177,7 +179,7 @@ Earlier versions are ordinary Markdown files in `_system/history/`.
 
 ## Renaming, moving, and deleting
 
-Beside every page, the **Organize** box has:
+Under every page's title, **More actions for this page** has:
 
 - **Rename**: give the page a new title. Its file gets a matching name.
 - **Move**: put the page in another folder (or at the top level).

@@ -8,7 +8,7 @@ import {
   appendChildren, isToday, enablePictureZoom, ApiError,
 } from './core.js';
 import { openPageDownload, openBulkDownload } from './export.js';
-import { pageOrganizeBox, folderOrganizeSection } from './manage.js';
+import { pageMoreActions, folderOrganizeSection } from './manage.js';
 import { updatesSection } from './update.js';
 import { timezoneSection } from './timezone.js';
 
@@ -23,7 +23,11 @@ function pageRow(page, { showFolder = false } = {}) {
     h('span', { class: 'row-meta' },
       statusChip(page.status),
       page.owner ? h('span', null, `Owner: ${page.owner}`) : null,
-      page.last_reviewed ? h('span', null, `Reviewed ${formatDay(page.last_reviewed)}`) : null,
+      page.last_reviewed
+        ? (reviewDue(page.last_reviewed)
+          ? h('span', { class: 'review-due' }, icon('alert'), 'Review due')
+          : h('span', null, `Reviewed ${formatDay(page.last_reviewed)}`))
+        : null,
       showFolder && folder ? h('span', null, icon('folder'), ' ', folder.replaceAll('/', ' › ')) : null)));
 }
 
@@ -86,6 +90,36 @@ export function lockSentence(lock) {
 
 // ------------------------------------------------------------------ home
 
+const WELCOMED_KEY = 'cairn.welcomed';
+
+/** First visit: the three things worth knowing, and who you'll appear as. */
+function welcomePanel(ctx) {
+  let seen = false;
+  try { seen = localStorage.getItem(WELCOMED_KEY) === '1'; } catch { seen = false; }
+  if (seen) return null;
+  const { user, config } = ctx.app.state;
+  const panel = h('section', { class: 'welcome', 'aria-labelledby': 'welcome-h' },
+    h('h2', { id: 'welcome-h' }, 'Welcome to Cairn'),
+    h('ul', { class: 'welcome-points' },
+      h('li', null, h('strong', null, 'Reading: '), 'choose a folder on the left, or search for any word.'),
+      h('li', null, h('strong', null, 'Changing a page: '), 'choose “Edit this page”, write as you would in a letter, then “Publish”. Nobody else sees your changes until you publish.'),
+      h('li', null, h('strong', null, 'Nothing is lost: '), 'every page keeps its earlier versions, and deleted pages wait in “Recently deleted”.')),
+    config.display_name
+      ? null
+      : h('p', null, `While you edit, others see you as “${user.os_user}”. `,
+        h('a', { href: href.settings() }, 'Set the name they see')),
+    h('div', { class: 'actions' },
+      button('Got it', {
+        icon: 'check', kind: 'primary',
+        onClick: () => {
+          try { localStorage.setItem(WELCOMED_KEY, '1'); } catch { /* shown again next time */ }
+          panel.remove();
+          document.getElementById('home-search')?.focus();
+        },
+      })));
+  return panel;
+}
+
 export async function homeView(ctx) {
   const [data, drafts] = await Promise.all([get('/api/home'), loadDrafts()]);
   const readOnly = Boolean(ctx.app.state.workspace?.read_only);
@@ -95,7 +129,9 @@ export async function homeView(ctx) {
   ctx.main.append(
     h('div', { class: 'page-head' },
       h('h1', null, data.name),
-      h('p', { class: 'lede' }, `${count} of shared documentation. Choose a folder, or search for what you need.`)),
+      h('p', { class: 'lede' }, `${count} of shared documentation. Choose a folder, or search for what you need.`),
+      h('p', { class: 'ws-location' }, 'Stored in ', h('span', { class: 'path' }, ctx.app.state.workspace.root))),
+    welcomePanel(ctx),
     h('form', {
       role: 'search',
       onsubmit: (e) => { e.preventDefault(); ctx.navigate(href.search(searchInput.value.trim())); },
@@ -201,7 +237,18 @@ export async function searchView(ctx) {
   const results = h('section', { class: 'section', 'aria-labelledby': 'results-h' },
     h('h2', { id: 'results-h' }, n === 0 ? 'No pages found' : n === 1 ? '1 page found' : `${n} pages found`));
   if (n === 0) {
-    results.append(h('p', { class: 'help' }, `Nothing matches “${q}”. Try fewer words, or different words with the same meaning.`));
+    // Never a dead end: a likely spelling, then the folders to browse.
+    const folders = ctx.app.nav || [];
+    appendChildren(results, [
+      data.suggestion
+        ? h('p', { class: 'suggestion' }, 'Did you mean ',
+          h('a', { href: href.search(data.suggestion) }, `“${data.suggestion}”`), '?')
+        : null,
+      h('p', { class: 'help' }, `Nothing matches “${q}”. Check the spelling, try fewer words, or look through a folder:`),
+      folders.length
+        ? h('div', { class: 'folder-grid' }, folders.map(folderCard))
+        : null,
+    ]);
   } else {
     results.append(h('ul', { class: 'list' }, data.results.map((r) => {
       const row = pageRow(r.page, { showFolder: true });
@@ -217,16 +264,32 @@ export async function searchView(ctx) {
 
 // --------------------------------------------------------------- article
 
+/** An unavailable Edit button that can still be reached with the keyboard
+ *  and says why, instead of a silent disabled button. */
+function lockedEditButton(reasonId) {
+  return button('Edit this page', {
+    icon: 'lock', 'aria-disabled': 'true', 'aria-describedby': reasonId,
+    onClick: () => {
+      const reason = document.getElementById(reasonId);
+      if (reason) announce(reason.textContent);
+    },
+  });
+}
+
+/** The page's buttons, and a note when someone is editing it. */
 function editArea(ctx, data) {
   const lock = data.lock;
   const reasonId = 'edit-reason';
-  const versionsLink = [
+  const secondary = [
     linkButton('Earlier versions', href.history(data.path), { icon: 'history' }),
     button('Download', { icon: 'download', onClick: () => openPageDownload(ctx, data) }),
   ];
+  const note = (iconName, text, extra) => h('div', { class: 'edit-note', id: reasonId },
+    icon(iconName), h('p', null, text, extra ? h('span', { class: 'help' }, ` ${extra}`) : null));
+
   if (lock && !lock.is_mine) {
     if (lock.reclaimable_by_me) {
-      return h('div', { class: 'actions' },
+      return [h('div', { class: 'actions' },
         button('Continue where you left off', {
           icon: 'edit', kind: 'primary', large: true,
           onClick: async (e) => {
@@ -236,43 +299,47 @@ function editArea(ctx, data) {
             } catch (err) { toast(errorText(err), { error: true }); }
           },
         }),
-        versionsLink,
-        h('p', { class: 'help', style: 'flex-basis: 100%' },
-          'You left this page open for editing on this computer earlier. You can pick up where you stopped.'));
+        secondary),
+      note('edit', 'You left this page open for editing on this computer earlier. You can pick up where you stopped.')];
     }
-    return h('div', { class: 'actions' },
-      button('Edit this page', { icon: 'lock', disabled: true, 'aria-describedby': reasonId }),
-      versionsLink,
-      h('p', { id: reasonId, class: 'help', style: 'flex-basis: 100%' },
-        `${lockSentence(lock)}. You can keep reading. Editing opens up when they finish.`));
+    const extra = lock.possibly_abandoned
+      ? 'They haven’t been active for a while, so it may have been left open by accident. A maintainer can release it (see “Abandoned edit locks” in the Troubleshooting guide).'
+      : `You can keep reading. It opens for editing when they finish, or by itself if they stop typing for a while. You can also ask ${lock.display_name}.`;
+    return [h('div', { class: 'actions' }, lockedEditButton(reasonId), secondary),
+      note('lock', `${lockSentence(lock)}.`, extra)];
   }
   if (data.cannot_edit_reason) {
-    return h('div', { class: 'actions' },
-      button('Edit this page', { icon: 'lock', disabled: true, 'aria-describedby': reasonId }),
-      versionsLink,
-      h('p', { id: reasonId, class: 'help', style: 'flex-basis: 100%' }, data.cannot_edit_reason));
+    return [h('div', { class: 'actions' }, lockedEditButton(reasonId), secondary),
+      note('lock', data.cannot_edit_reason)];
   }
   const label = data.editing_here || data.has_draft ? 'Continue editing' : 'Edit this page';
-  return h('div', { class: 'actions' },
-    linkButton(label, href.edit(data.path), { icon: 'edit', kind: 'primary', large: true }), versionsLink);
+  return [h('div', { class: 'actions' },
+    linkButton(label, href.edit(data.path), { icon: 'edit', kind: 'primary', large: true }),
+    secondary,
+    pageMoreActions(ctx, data))];
 }
 
-function lockBox(data) {
-  const lock = data.lock;
-  let body;
-  if (!lock) {
-    body = h('p', { class: 'lock-state is-free' }, icon('unlock'), h('span', null, 'Nobody is editing this page right now.'));
-  } else if (lock.is_mine) {
-    body = h('p', { class: 'lock-state is-locked' }, icon('edit'), h('span', null, 'You have this page open for editing.'));
-  } else if (lock.possibly_abandoned) {
-    body = h('div', null,
-      h('p', { class: 'lock-state is-locked' }, icon('alert'),
-        h('span', null, `${lockSentence(lock)}, but they haven't been active for a while.`)),
-      h('p', { class: 'help' }, 'The page may have been left open by accident. A maintainer can release it by following “Abandoned edit locks” in the Troubleshooting guide.'));
-  } else {
-    body = h('p', { class: 'lock-state is-locked' }, icon('lock'), h('span', null, `${lockSentence(lock)}.`));
-  }
-  return h('section', { class: 'rail-box', 'aria-labelledby': 'lock-h' }, h('h2', { id: 'lock-h' }, 'Editing'), body);
+const REVIEW_DUE_DAYS = 365;
+
+/** Whether a "last reviewed" date (YYYY-MM-DD) is more than a year ago. */
+export function reviewDue(ymd) {
+  const reviewed = Date.parse(`${ymd}T00:00:00`);
+  return Number.isFinite(reviewed) && Date.now() - reviewed > REVIEW_DUE_DAYS * 86400000;
+}
+
+/** One quiet line under the title: status, owner, review, last change. */
+function articleMeta(data) {
+  const m = data.meta;
+  const due = m.last_reviewed && reviewDue(m.last_reviewed);
+  return h('p', { class: 'article-meta' },
+    statusChip(m.status),
+    m.owner ? h('span', null, `Owner: ${m.owner}`) : null,
+    m.last_reviewed
+      ? h('span', { class: due ? 'review-due' : null },
+        due ? icon('alert') : null, `${due ? 'Review due: last reviewed' : 'Reviewed'} ${formatDay(m.last_reviewed)}`)
+      : null,
+    data.modified ? h('span', null, `Changed ${relativeTime(data.modified)}`) : null,
+    m.tags.length ? h('span', null, `Tags: ${m.tags.join(', ')}`) : null);
 }
 
 function scrollToSection(id) {
@@ -299,11 +366,24 @@ function wireArticleLinks(article, path) {
   });
 }
 
+/** "On this page": beside the article on wide screens, above it on narrow
+ *  ones (folded away until opened, so the article comes first). */
+function tocNav(data) {
+  const entries = data.toc.filter((t) => t.level > 1);
+  if (entries.length < 2) return null;
+  const narrow = window.matchMedia('(max-width: 1100px)').matches;
+  return h('nav', { class: 'toc-nav', 'aria-labelledby': 'toc-h' },
+    h('details', { class: 'toc-box', open: !narrow },
+      h('summary', { id: 'toc-h' }, 'On this page'),
+      h('ul', { class: 'toc' }, entries.map((t) =>
+        h('li', { class: `lvl-${t.level}` }, h('a', { href: `#${t.id}` }, t.text))))));
+}
+
 export async function pageView(ctx) {
   let data = await get('/api/page', { path: ctx.path });
   const notices = h('div');
-  const rail = h('aside', { class: 'article-rail', 'aria-label': 'About this page' });
-  const head = h('div', { class: 'page-head' });
+  const rail = h('div', { class: 'article-rail' });
+  const head = h('header', { class: 'article-head' });
 
   function renderAll() {
     clear(notices);
@@ -330,26 +410,8 @@ export async function pageView(ctx) {
         text: 'They point to pages or pictures that don’t exist. They are marked with a dashed underline and the word “missing”.',
       }));
     }
-    head.append(h('h1', null, data.title), editArea(ctx, data));
-
-    const m = data.meta;
-    appendChildren(rail, [
-      h('section', { class: 'rail-box', 'aria-labelledby': 'about-h' },
-        h('h2', { id: 'about-h' }, 'About this page'),
-        h('dl', { class: 'meta-list' },
-          h('div', null, h('dt', null, 'Owner'), h('dd', null, m.owner || 'Not set')),
-          h('div', null, h('dt', null, 'Status'), h('dd', null, statusChip(m.status) || 'Not set')),
-          h('div', null, h('dt', null, 'Last reviewed'), h('dd', null, m.last_reviewed ? formatDay(m.last_reviewed) : 'Not set')),
-          h('div', null, h('dt', null, 'Last changed'), h('dd', null, data.modified ? relativeTime(data.modified) : '')),
-          m.tags.length ? h('div', null, h('dt', null, 'Tags'), h('dd', null, m.tags.join(', '))) : null)),
-      lockBox(data),
-      pageOrganizeBox(ctx, data),
-      data.toc.filter((t) => t.level > 1).length > 1
-        ? h('nav', { class: 'rail-box', 'aria-labelledby': 'toc-h' },
-          h('h2', { id: 'toc-h' }, 'On this page'),
-          h('ul', { class: 'toc' }, data.toc.filter((t) => t.level > 1).map((t) =>
-            h('li', { class: `lvl-${t.level}` }, h('a', { href: `#${t.id}` }, t.text)))))
-        : null]);
+    appendChildren(head, [h('h1', null, data.title), articleMeta(data), ...editArea(ctx, data)]);
+    appendChildren(rail, [tocNav(data)]);
   }
 
   const article = h('article', { class: 'md-body', trustedHtml: data.html });
@@ -368,7 +430,7 @@ export async function pageView(ctx) {
   });
   renderAll();
   ctx.main.append(breadcrumbsNav(data.breadcrumbs), notices, head,
-    h('div', { class: 'article-layout' }, article, rail));
+    h('div', { class: 'article-layout' }, rail, article));
   const section = ctx.query.get('section');
   if (section) setTimeout(() => scrollToSection(section), 0);
 
@@ -687,13 +749,48 @@ export async function settingsView(ctx) {
   const cfg = state.config;
 
   const nameInput = h('input', { type: 'text', id: 's-name', value: cfg.display_name || '', 'aria-describedby': 's-name-help' });
-  const warnInput = h('input', { type: 'number', id: 's-warn', min: '1', max: '1440', value: String(cfg.idle_warning_minutes) });
-  const releaseInput = h('input', { type: 'number', id: 's-release', min: '2', max: '1440', value: String(cfg.idle_release_minutes) });
+  // Minutes as choices rather than a bare number box; any other value
+  // already in the settings file is kept as one more choice.
+  const minuteChoices = (selectId, current, choices) => h('select', { id: selectId },
+    [...new Set([...choices, current])].sort((a, b) => a - b).map((n) =>
+      h('option', { value: String(n), selected: n === current }, n === 60 ? '1 hour' : n > 60 ? `${n / 60} hours` : `${n} minutes`)));
+  const warnInput = minuteChoices('s-warn', cfg.idle_warning_minutes, [5, 10, 15, 20, 30, 45, 60]);
+  const releaseInput = minuteChoices('s-release', cfg.idle_release_minutes, [10, 15, 20, 30, 45, 60, 90, 120]);
   const draftsCheck = h('input', { type: 'checkbox', id: 's-drafts', checked: cfg.persistent_drafts });
   const timeError = h('div');
+  const saveTimes = async () => {
+    clear(timeError);
+    const warn = Number(warnInput.value);
+    const release = Number(releaseInput.value);
+    if (release <= warn) {
+      timeError.append(fieldError('The page has to unlock later than the question is asked. Choose a longer unlock time.'));
+      return;
+    }
+    await saveSettings(ctx, { idle_warning_minutes: warn, idle_release_minutes: release }, 'Editing times saved.');
+  };
+  warnInput.addEventListener('change', saveTimes);
+  releaseInput.addEventListener('change', saveTimes);
+  draftsCheck.addEventListener('change', () => saveSettings(ctx, { persistent_drafts: draftsCheck.checked },
+    draftsCheck.checked ? 'Unsaved changes will be kept on this computer.' : 'Unsaved changes will be kept only while Cairn is open.'));
+
+  const jump = [['set-you', 'Your name'], ['set-look', 'Appearance'], ['set-time', 'Time'],
+    ['set-edit', 'Stepping away'], ['set-drafts', 'Unsaved changes'], ['set-pdf', 'PDFs'],
+    ['set-ws', 'Documentation folder'], ['set-updates', 'Updates'], ['set-quit', 'Close Cairn']];
 
   ctx.main.append(
     h('div', { class: 'page-head' }, h('h1', null, 'Settings')),
+    h('nav', {
+      class: 'settings-jump', 'aria-label': 'Settings sections',
+      // Addresses in Cairn use the # part, so jump by scrolling instead.
+      onclick: (e) => {
+        const a = e.target.closest('a');
+        if (!a) return;
+        e.preventDefault();
+        scrollToSection(a.dataset.target);
+      },
+    },
+    h('ul', null, jump.map(([id, label]) =>
+      h('li', null, h('a', { href: href.settings(), dataset: { target: id } }, label))))),
 
     h('section', { class: 'settings-section', 'aria-labelledby': 'set-you' },
       h('h2', { id: 'set-you' }, 'Your name'),
@@ -734,31 +831,15 @@ export async function settingsView(ctx) {
     h('section', { class: 'settings-section', 'aria-labelledby': 'set-edit' },
       h('h2', { id: 'set-edit' }, 'When you step away while editing'),
       h('p', { class: 'help' }, 'Only one person can edit a page at a time. If you stop typing for a while, Cairn asks whether you are still there, and later unlocks the page so others can edit it. Your text is always kept.'),
-      h('form', {
-        onsubmit: async (e) => {
-          e.preventDefault();
-          clear(timeError);
-          const warn = Number(warnInput.value);
-          const release = Number(releaseInput.value);
-          if (!Number.isInteger(warn) || !Number.isInteger(release) || warn < 1 || release <= warn) {
-            timeError.append(fieldError('Use whole minutes, and make the unlock time later than the question.'));
-            return;
-          }
-          await saveSettings(ctx, { idle_warning_minutes: warn, idle_release_minutes: release }, 'Editing times saved.');
-        },
-      },
-      h('div', { class: 'field' }, h('label', { for: 's-warn' }, 'Ask “Are you still editing?” after this many minutes'), warnInput),
-      h('div', { class: 'field' }, h('label', { for: 's-release' }, 'Unlock the page after this many minutes'), releaseInput),
-      timeError,
-      button('Save editing times', { type: 'submit', kind: 'primary' }))),
+      h('div', { class: 'field' }, h('label', { for: 's-warn' }, 'Ask “Are you still editing?” after'), warnInput),
+      h('div', { class: 'field' }, h('label', { for: 's-release' }, 'Unlock the page after'), releaseInput),
+      timeError),
 
     h('section', { class: 'settings-section', 'aria-labelledby': 'set-drafts' },
       h('h2', { id: 'set-drafts' }, 'Unsaved changes'),
       h('label', { class: 'check', for: 's-drafts' }, draftsCheck,
         h('span', null, h('strong', null, 'Keep my unsaved changes on this computer'),
-          h('span', { class: 'help', style: 'display:block' }, 'Your changes are saved privately on this computer every few seconds, so they survive closing Cairn or a crash. If this is off, changes are kept only while Cairn is open.'))),
-      h('div', { class: 'actions', style: 'margin-top: var(--space-4)' },
-        button('Save', { kind: 'primary', onClick: () => saveSettings(ctx, { persistent_drafts: draftsCheck.checked }, 'Saved.') }))),
+          h('span', { class: 'help', style: 'display:block' }, 'Your changes are saved privately on this computer every few seconds, so they survive closing Cairn or a crash. If this is off, changes are kept only while Cairn is open.')))),
 
     pdfSection(ctx, cfg),
     state.workspace ? workspaceSection(ctx, state.workspace) : null,
