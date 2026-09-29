@@ -37,21 +37,21 @@ The full walkthrough is in [docs/getting-started.md](docs/getting-started.md).
 
 ## Screenshots
 
-The home screen: folders, search, and recently changed pages.
+The home screen: the page tree, search, folders, and recently changed pages with who edited them.
 
-![Cairn home screen showing folders and recently changed pages](docs/screenshots/home.png)
+![Cairn home screen with the page tree, folders, and recently changed pages](docs/screenshots/home.png)
 
-A page, with its owner, status, review date, and editing state beside it.
+A page: its place in the tree, its owner, status, and who last edited it, with "On this page" beside it.
 
-![A page in Cairn with its details panel](docs/screenshots/page.png)
+![A page in Cairn with the page tree on the left and "On this page" on the right](docs/screenshots/page.png)
 
 Visual editing: write on the page as it will look. Markdown shortcuts such as `## ` and `- ` format as you type.
 
 ![Visual editing in Cairn, with the page editable as it will look](docs/screenshots/visual.png)
 
-Or write Markdown with a live preview beside it. Point at a toolbar icon to see its name.
+Or show the formatting codes, with a live preview beside them.
 
-![The Cairn editor in Markdown mode with the icon toolbar and live preview](docs/screenshots/editor.png)
+![The Cairn editor showing formatting codes with a live preview](docs/screenshots/editor.png)
 
 <details>
 <summary>More screenshots: templates, downloads, and timezones</summary>
