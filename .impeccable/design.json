@@ -1,0 +1,610 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T21:51:28+00:00",
+  "title": "Design System: Cairn",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Fluent Blue",
+        "canonical": "#0f6cbd",
+        "dark": "#6cb0f0",
+        "contrast": "#0000cc",
+        "tonalRamp": [
+          "#00072f",
+          "#002455",
+          "#00427e",
+          "#1763a9",
+          "#3f85cf",
+          "#6ba9ed",
+          "#97ceff",
+          "#c3f3ff"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Pressed Blue",
+        "canonical": "#115ea3",
+        "dark": "#93c5f5",
+        "contrast": "#000099",
+        "tonalRamp": [
+          "#00082c",
+          "#002452",
+          "#01437a",
+          "#1f63a5",
+          "#4486ca",
+          "#6fa9e8",
+          "#9aceff",
+          "#c6f3ff"
+        ]
+      },
+      "accent-fg": {
+        "role": "primary",
+        "displayName": "On-Blue Text",
+        "canonical": "#ffffff",
+        "dark": "#111111",
+        "contrast": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Blue Wash",
+        "canonical": "#ebf3fc",
+        "dark": "#1b2a3a",
+        "contrast": "#e0e7ff",
+        "tonalRamp": [
+          "#080b0f",
+          "#21262a",
+          "#3d4349",
+          "#5c6269",
+          "#7c838b",
+          "#9fa6ad",
+          "#c4cad0",
+          "#eaeff5"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Page White",
+        "canonical": "#ffffff",
+        "dark": "#191919",
+        "contrast": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Page White (surface)",
+        "canonical": "#ffffff",
+        "dark": "#191919",
+        "contrast": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f7f7f5",
+        "dark": "#202020",
+        "contrast": "#f3f4f6",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#a5a5a3",
+          "#c9c9c8",
+          "#eeeeed"
+        ]
+      },
+      "surface-hover": {
+        "role": "neutral",
+        "displayName": "Warm Hover Grey",
+        "canonical": "#efefed",
+        "dark": "#2c2c2c",
+        "contrast": "#e5e7eb",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#a5a5a3",
+          "#c9c9c8",
+          "#eeeeed"
+        ]
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "#37352f",
+        "dark": "#e9e9e7",
+        "contrast": "#000000",
+        "tonalRamp": [
+          "#0c0b08",
+          "#262521",
+          "#44423d",
+          "#63615b",
+          "#84827c",
+          "#a7a59f",
+          "#cbc9c3",
+          "#f0eee9"
+        ]
+      },
+      "fg-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#6b6a66",
+        "dark": "#a3a29e",
+        "contrast": "#1f2937",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262523",
+          "#43423f",
+          "#62615d",
+          "#83827e",
+          "#a6a5a1",
+          "#cac9c6",
+          "#efeeeb"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e9e9e7",
+        "dark": "#2f2f2f",
+        "contrast": "#000000",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#a5a5a3",
+          "#c9c9c8",
+          "#eeeeed"
+        ]
+      },
+      "border-control": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "#d9d8d4",
+        "dark": "#3d3d3b",
+        "contrast": "#000000",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262523",
+          "#43423f",
+          "#62615e",
+          "#83827f",
+          "#a6a5a2",
+          "#cac9c6",
+          "#efeeec"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "#8f8e8a",
+        "dark": "#7c7b77",
+        "contrast": "#000000",
+        "tonalRamp": [
+          "#0c0b09",
+          "#262523",
+          "#43423f",
+          "#62615e",
+          "#83827f",
+          "#a6a5a1",
+          "#cac9c6",
+          "#efeeec"
+        ]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Danger Red",
+        "canonical": "#b3261e",
+        "dark": "#f19a92",
+        "contrast": "#8b0000",
+        "tonalRamp": [
+          "#260000",
+          "#4c0302",
+          "#742019",
+          "#9f3d33",
+          "#c55f53",
+          "#e6877a",
+          "#ffafa3",
+          "#ffd8cc"
+        ]
+      },
+      "danger-soft": {
+        "role": "status",
+        "displayName": "Danger Wash",
+        "canonical": "#fdf0ef",
+        "dark": "#2e1a18",
+        "contrast": "#fff1f1",
+        "tonalRamp": [
+          "#0f0a09",
+          "#2a2323",
+          "#48403f",
+          "#695e5e",
+          "#8a7f7f",
+          "#aca2a1",
+          "#d0c7c6",
+          "#f5ecec"
+        ]
+      },
+      "warn": {
+        "role": "status",
+        "displayName": "Amber Text",
+        "canonical": "#8a4600",
+        "dark": "#e8c170",
+        "contrast": "#5c3300",
+        "tonalRamp": [
+          "#200000",
+          "#421500",
+          "#683100",
+          "#8f4e16",
+          "#b4703c",
+          "#d49568",
+          "#f5bb93",
+          "#ffe3bf"
+        ]
+      },
+      "warn-soft": {
+        "role": "status",
+        "displayName": "Amber Wash",
+        "canonical": "#fbf3db",
+        "dark": "#2b2412",
+        "contrast": "#fff8e1",
+        "tonalRamp": [
+          "#0e0b03",
+          "#292517",
+          "#474231",
+          "#68614d",
+          "#89826e",
+          "#aba592",
+          "#cfc9b8",
+          "#f3eedf"
+        ]
+      },
+      "ok": {
+        "role": "status",
+        "displayName": "Green Text",
+        "canonical": "#1d6b3a",
+        "dark": "#7fce9c",
+        "contrast": "#004d00",
+        "tonalRamp": [
+          "#001200",
+          "#002f0f",
+          "#0e4f28",
+          "#2b7143",
+          "#4f9463",
+          "#79b688",
+          "#a2d9af",
+          "#cdfdd8"
+        ]
+      },
+      "ok-soft": {
+        "role": "status",
+        "displayName": "Green Wash",
+        "canonical": "#edf7f0",
+        "dark": "#16271c",
+        "contrast": "#eeffee",
+        "tonalRamp": [
+          "#080c0a",
+          "#212723",
+          "#3d443f",
+          "#5c645e",
+          "#7c857f",
+          "#9fa7a2",
+          "#c4cbc6",
+          "#eaf0ec"
+        ]
+      },
+      "mark": {
+        "role": "status",
+        "displayName": "Highlighter",
+        "canonical": "#fdecc8",
+        "dark": "#5c4a1a",
+        "contrast": "#ffff00",
+        "tonalRamp": [
+          "#110a00",
+          "#2d240e",
+          "#4c4027",
+          "#6d6042",
+          "#8f8162",
+          "#b1a487",
+          "#d4c8ae",
+          "#f8edd7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles (h1)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "h2 inside pages, with a hairline under; editor title."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "App section headings; h3 inside pages."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Page text, 72ch measure."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "App text, 70ch measure."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, tree and nav items, meta, help, chips."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Code and file paths."
+      }
+    },
+    "textSizes": [
+      {
+        "name": "normal",
+        "value": "100% (16px)"
+      },
+      {
+        "name": "large",
+        "value": "112.5% (18px)"
+      },
+      {
+        "name": "larger",
+        "value": "125% (20px)"
+      }
+    ],
+    "shadows": [
+      {
+        "name": "shadow-sm",
+        "value": "0 1px 2px rgba(15, 15, 15, 0.06)",
+        "purpose": "Control lift on neutral buttons only. Dark: 0 1px 2px rgba(0, 0, 0, 0.4). Contrast: none."
+      },
+      {
+        "name": "shadow-overlay",
+        "value": "0 12px 32px rgba(15, 15, 15, 0.12), 0 2px 6px rgba(15, 15, 15, 0.06)",
+        "purpose": "Menus, dialogs, toasts, the tree drawer. Contrast: 0 0 0 3px #000000."
+      },
+      {
+        "name": "scrim",
+        "value": "rgba(15, 15, 15, 0.4)",
+        "purpose": "Behind dialogs and the drawer (rgba(0, 0, 0, 0.6) in dark and contrast)."
+      }
+    ],
+    "focus": {
+      "value": "outline: 3px solid var(--focus); outline-offset: 2px",
+      "purpose": "One focus style for every interactive element; fields use offset 0 plus a blue border."
+    },
+    "motion": [
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Hover fills, chevron rotation, tooltips."
+      },
+      {
+        "name": "duration",
+        "value": "220ms",
+        "purpose": "Dialog and toast entrance, drawer slide."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Entrances and the drawer."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0ms",
+        "purpose": "Both durations drop to 0ms; the skeleton pulse stops; the spinner slows to 2.4s."
+      }
+    ],
+    "layout": {
+      "topbar-h": "3.25rem",
+      "nav-width": "clamp(15rem, 17vw, 17.5rem)",
+      "measure-read": "72ch",
+      "measure": "70ch",
+      "rail": "minmax(12rem, 15rem)",
+      "border-width": "1px (2px in contrast)"
+    },
+    "breakpoints": [
+      {
+        "name": "rail-folds",
+        "value": "1180px"
+      },
+      {
+        "name": "editor-stacks",
+        "value": "1000px"
+      },
+      {
+        "name": "tree-drawer",
+        "value": "800px"
+      },
+      {
+        "name": "phone",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Neutral worded button: the default for any action that is not the one primary action.",
+      "html": "<button class=\"ds-btn\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M12 5v14M5 12h14\"/></svg>New folder</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:.5rem;min-height:2.25rem;padding:.25rem .75rem;font:550 .875rem/1.2 \"Inter\", \"Segoe UI\", system-ui, sans-serif;color:var(--fg,#37352f);background:var(--surface,#fff);border:1px solid var(--border-control,#d9d8d4);border-radius:6px;box-shadow:0 1px 2px rgba(15,15,15,.06);cursor:pointer;transition:background-color 150ms ease,transform 150ms ease}.ds-btn:hover{background:var(--surface-hover,#efefed)}.ds-btn:active{transform:translateY(1px)}.ds-btn:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;stroke:var(--fg-muted,#6b6a66)}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled button in a group; Edit on a reading page.",
+      "html": "<button class=\"ds-btn-primary\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M4 20h4L19 9l-4-4L4 16v4z\"/></svg>Edit</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:.5rem;min-height:2.25rem;padding:.25rem .75rem;font:550 .875rem/1.2 \"Inter\", \"Segoe UI\", system-ui, sans-serif;color:var(--accent-fg,#fff);background:var(--accent,#0f6cbd);border:1px solid var(--accent,#0f6cbd);border-radius:6px;box-shadow:0 1px 2px rgba(15,15,15,.06);cursor:pointer;transition:background-color 150ms ease,transform 150ms ease}.ds-btn-primary:hover{background:var(--accent-hover,#115ea3);border-color:var(--accent-hover,#115ea3)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;stroke:currentColor}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Secondary page actions beside Edit and the More summary: no border, fill or shadow until hover.",
+      "html": "<button class=\"ds-btn-quiet\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z\"/></svg>Print or save as PDF</button>",
+      "css": ".ds-btn-quiet{display:inline-flex;align-items:center;gap:.5rem;min-height:2.25rem;padding:.25rem .75rem;font:550 .875rem/1.2 \"Inter\", \"Segoe UI\", system-ui, sans-serif;color:var(--fg,#37352f);background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;transition:background-color 150ms ease}.ds-btn-quiet:hover{background:var(--surface-hover,#efefed)}.ds-btn-quiet:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;stroke:var(--fg-muted,#6b6a66)}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions; sits at the left of a dialog footer.",
+      "html": "<button class=\"ds-btn-danger\">Delete page</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;min-height:2.25rem;padding:.25rem .75rem;font:550 .875rem/1.2 \"Inter\", \"Segoe UI\", system-ui, sans-serif;color:var(--danger,#b3261e);background:var(--surface,#fff);border:1px solid var(--danger,#b3261e);border-radius:6px;cursor:pointer;transition:background-color 150ms ease}.ds-btn-danger:hover{background:var(--danger-soft,#fdf0ef)}.ds-btn-danger:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled text input with help text below.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-q\">Page title</label><input id=\"ds-q\" class=\"ds-input\" type=\"text\" value=\"Printing to the office copier\"><p class=\"ds-help\">Shown at the top of the page and in the page tree.</p></div>",
+      "css": ".ds-field{max-width:24rem;font-family:\"Inter\", \"Segoe UI\", system-ui, sans-serif}.ds-label{display:block;font-weight:600;margin-bottom:.5rem;color:var(--fg,#37352f)}.ds-input{width:100%;min-height:2.25rem;padding:.5rem .75rem;font:400 1rem/1.6 \"Inter\", \"Segoe UI\", system-ui, sans-serif;color:var(--fg,#37352f);background:var(--surface,#fff);border:1px solid var(--border-strong,#8f8e8a);border-radius:6px}.ds-input:hover{border-color:var(--fg-muted,#6b6a66)}.ds-input:focus-visible{border-color:var(--focus,#0f6cbd);outline:3px solid var(--focus,#0f6cbd);outline-offset:0}.ds-help{margin:.5rem 0 0;font-size:.875rem;color:var(--fg-muted,#6b6a66)}"
+    },
+    {
+      "name": "Page Tree",
+      "kind": "nav",
+      "refersTo": "tree-row",
+      "description": "The left panel: single-line rows with ellipsis, folders with chevrons and counts, one \"you are here\" style.",
+      "html": "<nav class=\"ds-tree\"><ul><li><div class=\"ds-row\"><span class=\"ds-chev\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M9 6l6 6-6 6\"/></svg></span><a href=\"#\" class=\"ds-link ds-folder\"><span class=\"ds-name\">Guides</span><span class=\"ds-count\">4</span></a></div><ul class=\"ds-sub\"><li><div class=\"ds-row ds-current\"><a href=\"#\" class=\"ds-link\" aria-current=\"page\" title=\"Printing to the office copier from a laptop\"><span class=\"ds-name\">Printing to the office copier from a laptop</span></a></div></li><li><div class=\"ds-row\"><a href=\"#\" class=\"ds-link\"><span class=\"ds-name\">Booking a meeting room</span></a></div></li></ul></li></ul></nav>",
+      "css": ".ds-tree{width:16rem;padding:1rem .75rem;background:var(--surface-2,#f7f7f5);font-family:\"Inter\", \"Segoe UI\", system-ui, sans-serif}.ds-tree ul{list-style:none;margin:0;padding:0}.ds-tree .ds-sub{margin-left:1rem;padding-left:.5rem;border-left:1px solid var(--border-control,#d9d8d4)}.ds-row{display:flex;align-items:stretch;border-radius:6px}.ds-row:hover{background:var(--surface-hover,#efefed)}.ds-row.ds-current{background:var(--accent-soft,#ebf3fc)}.ds-chev{display:flex;align-items:center;justify-content:center;width:1.5rem;color:var(--fg-muted,#6b6a66)}.ds-chev .ds-icon{transform:rotate(90deg)}.ds-link{flex:1;min-width:0;display:flex;align-items:center;min-height:2rem;padding:0 .5rem;font-size:.875rem;line-height:1.35;color:var(--fg,#37352f);text-decoration:none;border-radius:6px}.ds-link:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-folder{font-weight:550}.ds-link[aria-current=page]{color:var(--accent,#0f6cbd);font-weight:650}.ds-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-count{padding-left:.5rem;font-size:.875rem;font-weight:400;color:var(--fg-muted,#6b6a66)}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;stroke:currentColor}"
+    },
+    {
+      "name": "On This Page",
+      "kind": "nav",
+      "description": "Right rail: muted links on a thin rule; the section being read turns blue with a 2px segment on the rule.",
+      "html": "<nav class=\"ds-toc\"><a href=\"#\">Before you start</a><a href=\"#\" class=\"ds-cur\">Connect to the copier</a><a href=\"#\" class=\"ds-l3\">On a Mac</a><a href=\"#\">If it will not print</a></nav>",
+      "css": ".ds-toc{display:flex;flex-direction:column;width:15rem;font:400 .875rem/1.35 \"Inter\", \"Segoe UI\", system-ui, sans-serif;border-left:1px solid var(--border-control,#d9d8d4)}.ds-toc a{display:flex;align-items:center;min-height:2.25rem;padding:.25rem .75rem;margin-left:-1px;border-left:2px solid transparent;color:var(--fg-muted,#6b6a66);text-decoration:none}.ds-toc a:hover{color:var(--fg,#37352f);border-left-color:var(--border-strong,#8f8e8a)}.ds-toc a:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-toc a.ds-cur{color:var(--accent,#0f6cbd);font-weight:600;border-left-color:var(--accent,#0f6cbd)}.ds-toc a.ds-l3{padding-left:1.5rem}"
+    },
+    {
+      "name": "Hairline List Row",
+      "kind": "card",
+      "refersTo": "list-row",
+      "description": "Folders, pages and search results: plain rows between hairlines, never cards.",
+      "html": "<ul class=\"ds-list\"><li><a class=\"ds-rowlink\" href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span class=\"ds-title\">Troubleshooting</span><span class=\"ds-side\">6 pages</span></a></li><li><a class=\"ds-rowlink\" href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span class=\"ds-title\">Guides</span><span class=\"ds-side\">4 pages</span></a></li></ul>",
+      "css": ".ds-list{list-style:none;margin:0;padding:0;max-width:40rem;border-top:1px solid var(--border,#e9e9e7);font-family:\"Inter\", \"Segoe UI\", system-ui, sans-serif}.ds-list li{border-bottom:1px solid var(--border,#e9e9e7)}.ds-rowlink{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.5rem 1rem;align-items:center;min-height:3rem;padding:.75rem;color:var(--fg,#37352f);text-decoration:none}.ds-rowlink:hover{background:var(--surface-2,#f7f7f5)}.ds-rowlink:hover .ds-title{color:var(--accent,#0f6cbd);text-decoration:underline;text-underline-offset:.18em}.ds-rowlink:focus-visible{outline:3px solid var(--focus,#0f6cbd);outline-offset:2px}.ds-title{font-weight:600}.ds-side{font-size:.875rem;color:var(--fg-muted,#6b6a66)}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;width:1.25em;height:1.25em;stroke:var(--fg-muted,#6b6a66)}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-draft",
+      "description": "A label, not a button: a tinted word with an icon.",
+      "html": "<span class=\"ds-chip ds-draft\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><path d=\"M4 20h4L19 9l-4-4L4 16v4z\"/></svg>Draft</span> <span class=\"ds-chip ds-active\">Published</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.05rem .5rem;border-radius:4px;font:600 .875rem/1.6 \"Inter\", \"Segoe UI\", system-ui, sans-serif;white-space:nowrap;background:var(--surface-2,#f7f7f5)}.ds-draft{color:var(--warn,#8a4600);background:var(--warn-soft,#fbf3db)}.ds-active{color:var(--ok,#1d6b3a);background:var(--ok-soft,#edf7f0)}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;stroke:currentColor}"
+    },
+    {
+      "name": "Info Banner",
+      "kind": "card",
+      "refersTo": "banner-info",
+      "description": "Notices above the page: status wash, status border, icon, bold line and plain help.",
+      "html": "<div class=\"ds-banner\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5M12 8h.01\"/></svg><div><strong>Anna is editing this page.</strong><p>You can still read it. Her changes appear when she publishes.</p></div></div>",
+      "css": ".ds-banner{display:flex;gap:.75rem;align-items:flex-start;max-width:40rem;padding:1rem 1.5rem;border:1px solid var(--accent,#0f6cbd);border-radius:6px;background:var(--accent-soft,#ebf3fc);color:var(--fg,#37352f);font:400 1rem/1.6 \"Inter\", \"Segoe UI\", system-ui, sans-serif}.ds-banner strong{font-size:1.0625rem}.ds-banner p{margin:.5rem 0 0}.ds-icon{width:1.15em;height:1.15em;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;width:1.4em;height:1.4em;stroke:var(--accent,#0f6cbd)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Plain Handbook",
+    "overview": "Cairn is the docs-site standard played straight. The shell is the one people already know from Notion, GitBook and Microsoft Learn: a full-width top bar with search in the middle, a fixed page tree on a soft warm-grey panel at the left, the page in a centred column, and \"On this page\" riding on a thin rule at the right. Nothing is reinvented; the craft is in doing the convention cleanly, with obvious states and plain words.\n\nDensity is normal-website density, not a scaled-up accessibility look. Controls are 36px (2.25rem) at the normal text size, body and reading text are 16px, headings stay modest and step down fluidly on narrow windows. Every size is in rem, so the whole interface grows with the Text size setting (16 / 18 / 20px base), browser zoom and Windows text scaling. Three themes remap the same roles: light (default), dark (warm charcoal, not inverted) and high contrast (black on white, 2px borders, no soft shadows).\n\nThe surface is flat, white and quiet. Structure comes from hairline dividers and one tinted panel; blue is spent only on links, the primary action and \"you are here\".",
+    "keyCharacteristics": [
+      "Three-column docs layout: tree, centred article (72ch), \"On this page\" rail.",
+      "Inter for everything; no second display face.",
+      "One blue for links, the primary action and the current location.",
+      "Hairline dividers and 6px corners; shadows only where something floats.",
+      "36px controls that scale with the text-size setting; worded buttons with icons beside the words.",
+      "Colour is never the only signal: states pair colour with an icon, a word or weight."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "Blue means \"you can go here\", \"do this\" or \"you are here\". It is never decoration, and no second accent hue exists.",
+        "section": "colors"
+      },
+      {
+        "name": "The Checked Contrast Rule",
+        "body": "Every text/background pair is tested in all three themes: body text at 7:1 or better, secondary and state text at 4.5:1. A new colour ships only with its test.",
+        "section": "colors"
+      },
+      {
+        "name": "The Inter Only Rule",
+        "body": "Inter is the only face. Hierarchy comes from weight (400 / 500 / 550 / 600 / 650 / 700) and the fluid size steps, never from a second family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Upright Text Rule",
+        "body": "Tips, notes and reading text stay upright; italics are kept to tiny fallback labels (such as an absent diff cell), never paragraphs.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Search Rule",
+        "body": "One search box per screen: Home and Search show their own large box, so the top-bar search hides there.",
+        "section": "layout"
+      },
+      {
+        "name": "The Scale With Text Rule",
+        "body": "Sizes are in rem (or clamp of rem) so the 16 / 18 / 20px text setting scales controls, panel width and spacing together.",
+        "section": "layout"
+      },
+      {
+        "name": "The Float Only Rule",
+        "body": "A surface gets the overlay shadow only if it sits above the page. Cards, panels, banners and lists stay flat with a hairline.",
+        "section": "elevation & depth"
+      }
+    ],
+    "dos": [
+      "Do keep controls at the 2.25rem target and set every size in rem so the text-size setting scales the whole interface.",
+      "Do put exactly one filled (primary) button in a group; on the reading page that button is Edit.",
+      "Do mark the current location in navigation with Blue Wash fill and Fluent Blue text, and nothing else.",
+      "Do show folders and pages as hairline rows with an icon, a title and a muted meta line.",
+      "Do keep tree names on one line with an ellipsis and the full name on hover.",
+      "Do pair every status colour with an icon or a word.",
+      "Do use the global focus ring: 3px Fluent Blue outline, 2px offset.",
+      "Do honour reduced motion: durations drop to 0ms and skeleton pulses stop."
+    ],
+    "donts": [
+      "Don't add a second typeface; Source Serif was removed on purpose.",
+      "Don't ship icon-only buttons outside the editor toolbar and the tree's expand chevrons (whose folder name sits beside them), and never one without a name for screen readers.",
+      "Don't fill secondary buttons in the page header; they stay quiet.",
+      "Don't put the overlay shadow on anything that does not float above the page; the only resting shadow is the 1px control lift on neutral buttons.",
+      "Don't introduce a second accent hue or use blue as decoration.",
+      "Don't use italic paragraphs for notes or tips."
+    ]
+  }
+}

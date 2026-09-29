@@ -55,11 +55,12 @@ function draftsSection(drafts, { id, title, text }) {
 
 const loadDrafts = () => get('/api/drafts').then((r) => r.drafts).catch(() => []);
 
-function folderCard(folder) {
+function folderRow(folder) {
   const n = folder.page_count;
-  return h('a', { class: 'folder-card', href: href.folder(folder.path) },
+  return h('li', null, h('a', { class: 'row-link', href: href.folder(folder.path) },
     icon('folder'),
-    h('span', null, h('strong', null, folder.name), h('span', null, n === 1 ? '1 page' : `${n} pages`)));
+    h('span', { class: 'row-title' }, folder.name),
+    h('span', { class: 'row-side' }, n === 1 ? '1 page' : `${n} pages`)));
 }
 
 async function createFolder(ctx, parent) {
@@ -151,7 +152,7 @@ export async function homeView(ctx) {
         h('h2', { id: 'folders-h' }, 'Folders'),
         readOnly ? null : button('New folder', { icon: 'folderPlus', onClick: () => createFolder(ctx, '') })),
       data.categories.length
-        ? h('div', { class: 'folder-grid' }, data.categories.map(folderCard))
+        ? h('ul', { class: 'list' }, data.categories.map(folderRow))
         : emptyState({ title: 'No folders yet', text: 'Folders keep related pages together, such as “Guides” or “Troubleshooting”.' })),
 
     h('section', { class: 'section', 'aria-labelledby': 'recent-h' },
@@ -196,7 +197,7 @@ export async function folderView(ctx) {
     data.folders.length
       ? h('section', { class: 'section', style: 'margin-top: 0', 'aria-labelledby': 'sub-h' },
         h('h2', { id: 'sub-h' }, 'Folders inside'),
-        h('div', { class: 'folder-grid' }, data.folders.map(folderCard)))
+        h('ul', { class: 'list' }, data.folders.map(folderRow)))
       : null,
     draftsSection(newHereDrafts, {
       id: 'new-drafts-h',
@@ -246,7 +247,7 @@ export async function searchView(ctx) {
         : null,
       h('p', { class: 'help' }, `Nothing matches “${q}”. Check the spelling, try fewer words, or look through a folder:`),
       folders.length
-        ? h('div', { class: 'folder-grid' }, folders.map(folderCard))
+        ? h('ul', { class: 'list' }, folders.map(folderRow))
         : null,
     ]);
   } else {
@@ -291,7 +292,7 @@ function editArea(ctx, data) {
     if (lock.reclaimable_by_me) {
       return [h('div', { class: 'actions' },
         button('Continue where you left off', {
-          icon: 'edit', kind: 'primary', large: true,
+          icon: 'edit', kind: 'primary',
           onClick: async (e) => {
             try {
               await whileBusy(e.currentTarget, 'Opening…', () => post('/api/edit/reclaim', { path: data.path }));
@@ -314,7 +315,7 @@ function editArea(ctx, data) {
   }
   const label = data.editing_here || data.has_draft ? 'Continue editing' : 'Edit this page';
   return [h('div', { class: 'actions' },
-    linkButton(label, href.edit(data.path), { icon: 'edit', kind: 'primary', large: true }),
+    linkButton(label, href.edit(data.path), { icon: 'edit', kind: 'primary' }),
     secondary,
     pageMoreActions(ctx, data))];
 }
@@ -371,17 +372,50 @@ function wireArticleLinks(article, path) {
 function tocNav(data) {
   const entries = data.toc.filter((t) => t.level > 1);
   if (entries.length < 2) return null;
-  const narrow = window.matchMedia('(max-width: 1100px)').matches;
-  return h('nav', { class: 'toc-nav', 'aria-labelledby': 'toc-h' },
-    h('details', { class: 'toc-box', open: !narrow },
-      h('summary', { id: 'toc-h' }, 'On this page'),
-      h('ul', { class: 'toc' }, entries.map((t) =>
-        h('li', { class: `lvl-${t.level}` }, h('a', { href: `#${t.id}` }, t.text))))));
+  const narrow = window.matchMedia('(max-width: 1180px)');
+  const box = h('details', { class: 'toc-box', open: !narrow.matches },
+    h('summary', { id: 'toc-h' }, icon('chevron'), h('span', null, 'On this page')),
+    h('ul', { class: 'toc' }, entries.map((t) =>
+      h('li', { class: `lvl-${t.level}` }, h('a', { href: `#${t.id}` }, t.text)))));
+  // Beside the text it's always open; above it, folded, so the text comes first.
+  narrow.addEventListener('change', (e) => { if (box.isConnected) box.open = !e.matches; });
+  return h('nav', { class: 'toc-nav', 'aria-labelledby': 'toc-h' }, box);
+}
+
+/** Marks the section being read in "On this page" as the page scrolls.
+ *  Returns a function that stops following. */
+function followSections(article, rail) {
+  const headings = [...article.querySelectorAll('h2[id], h3[id], h4[id], h5[id], h6[id]')];
+  if (headings.length < 2) return () => {};
+  let queued = false;
+  const update = () => {
+    queued = false;
+    // The last heading that has scrolled up past the top bar.
+    const line = (document.querySelector('.topbar')?.offsetHeight || 0) + 96;
+    let current = null;
+    for (const hd of headings) {
+      if (hd.getBoundingClientRect().top > line) break;
+      current = hd;
+    }
+    for (const a of rail.querySelectorAll('.toc a')) {
+      const on = current !== null && a.getAttribute('href') === `#${current.id}`;
+      a.classList.toggle('is-current', on);
+      if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+    }
+  };
+  const onScroll = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(update);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  update();
+  return () => window.removeEventListener('scroll', onScroll);
 }
 
 export async function pageView(ctx) {
   let data = await get('/api/page', { path: ctx.path });
-  const notices = h('div');
+  const notices = h('div', { class: 'article-notices' });
   const rail = h('div', { class: 'article-rail' });
   const head = h('header', { class: 'article-head' });
 
@@ -429,10 +463,11 @@ export async function pageView(ctx) {
     scrollToSection(id);
   });
   renderAll();
-  ctx.main.append(breadcrumbsNav(data.breadcrumbs), notices, head,
-    h('div', { class: 'article-layout' }, rail, article));
+  ctx.main.append(h('div', { class: 'article-page' },
+    breadcrumbsNav(data.breadcrumbs), notices, head, rail, article));
   const section = ctx.query.get('section');
   if (section) setTimeout(() => scrollToSection(section), 0);
+  const stopFollowing = followSections(article, rail);
 
   // Keep the lock state fresh and notice when someone publishes a change.
   const shownHash = data.hash;
@@ -478,7 +513,11 @@ export async function pageView(ctx) {
   }, 30000);
   let goneShown = false;
 
-  return { title: data.title, keepFocus: Boolean(section), cleanup: () => clearInterval(timer) };
+  return {
+    title: data.title,
+    keepFocus: Boolean(section),
+    cleanup: () => { clearInterval(timer); stopFollowing(); },
+  };
 }
 
 // --------------------------------------------------------------- history

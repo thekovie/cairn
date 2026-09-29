@@ -160,18 +160,15 @@ pub fn printable_html(input: &PrintInput) -> String {
 
     // Every font the stylesheet names goes inside the file, so a saved
     // page looks the same anywhere.
-    let tokens = [
-        "InterVariable-latin.woff2",
-        "SourceSerif4Variable-latin.woff2",
-        "SourceSerif4Variable-Italic-latin.woff2",
-    ]
-    .iter()
-    .fold(asset_text("css/tokens.css"), |css, file| {
-        let data = crate::server::embedded_asset(&format!("fonts/{file}"))
-            .map(|b| format!("data:font/woff2;base64,{}", base64(&b)))
-            .unwrap_or_default();
-        css.replace(&format!("/static/fonts/{file}"), &data)
-    });
+    let tokens =
+        ["InterVariable-latin.woff2"]
+            .iter()
+            .fold(asset_text("css/tokens.css"), |css, file| {
+                let data = crate::server::embedded_asset(&format!("fonts/{file}"))
+                    .map(|b| format!("data:font/woff2;base64,{}", base64(&b)))
+                    .unwrap_or_default();
+                css.replace(&format!("/static/fonts/{file}"), &data)
+            });
     let markdown = asset_text("css/markdown.css");
     let print = asset_text("css/print.css");
     let size = if input.paper == "letter" {

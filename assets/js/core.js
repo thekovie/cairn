@@ -156,6 +156,8 @@ const ICONS = {
   template: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h8M8 11h8M8 15h4" stroke-dasharray="2 2"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  chevron: '<path d="m9.5 6 6 6-6 6"/>',
+  menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
 };
 
 export function icon(name) {

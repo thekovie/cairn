@@ -11,7 +11,7 @@
 //   #/print/<path>      a page laid out for printing (PDF fallback)
 
 import {
-  bootstrapToken, hasToken, get, h, clear, icon, button, banner, href, announce, errorText, applyPrefs,
+  bootstrapToken, hasToken, get, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
   appendChildren,
 } from './core.js';
 import * as views from './views.js';
@@ -25,6 +25,9 @@ import { watchUpdates, updateBanner } from './update.js';
 const app = {
   state: null,
   nav: [],
+  tree: null,
+  // Folders open in the page tree (lower-case paths).
+  open: new Set(),
   current: null,
   currentHash: null,
   shell: null,
@@ -62,16 +65,48 @@ async function refreshState() {
   return app.state;
 }
 
+/** Folders and pages as one tree, sorted by name, each folder counting
+ *  the pages inside it (subfolders included). */
+function buildTree(folderPaths, pages) {
+  const root = { name: '', path: '', folders: [], pages: [], count: 0 };
+  const byPath = new Map([['', root]]);
+  const node = (path) => {
+    const key = path.toLowerCase();
+    if (byPath.has(key)) return byPath.get(key);
+    const cut = path.lastIndexOf('/');
+    const n = { name: path.slice(cut + 1), path, folders: [], pages: [], count: 0 };
+    byPath.set(key, n);
+    node(cut === -1 ? '' : path.slice(0, cut)).folders.push(n);
+    return n;
+  };
+  folderPaths.forEach(node);
+  for (const p of pages) node(parentOf(p.path)).pages.push(p);
+  const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+  const finish = (n) => {
+    n.folders.sort((a, b) => byName(a.name, b.name));
+    n.pages.sort((a, b) => byName(a.title, b.title));
+    n.count = n.pages.length + n.folders.reduce((sum, f) => sum + finish(f), 0);
+    return n.count;
+  };
+  finish(root);
+  return root;
+}
+
+const parentOf = (path) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
+
 async function refreshNav() {
   if (!app.state?.workspace) {
     app.nav = [];
+    app.tree = null;
     return;
   }
   try {
-    const home = await get('/api/home');
-    app.nav = home.categories;
+    const [{ pages }, { folders }] = await Promise.all([get('/api/pages'), get('/api/folders')]);
+    app.tree = buildTree(folders, pages);
+    app.nav = app.tree.folders.map((f) => ({ name: f.name, path: f.path, page_count: f.count }));
   } catch {
     app.nav = [];
+    app.tree = null;
   }
   renderNav();
 }
@@ -92,7 +127,13 @@ function renderShell() {
     },
   }, searchInput, button('Search', { icon: 'search', type: 'submit' }));
 
+  const navToggle = button('Pages', {
+    icon: 'menu', class: 'btn btn-quiet nav-toggle',
+    'aria-expanded': 'false', 'aria-controls': 'sidenav',
+    onClick: () => (app.shell.root.classList.contains('nav-open') ? closeNav(true) : openNav()),
+  });
   const topbar = h('header', { class: 'topbar' },
+    navToggle,
     h('a', { class: 'brand', href: href.home() },
       h('img', { class: 'brand-mark', src: '/static/favicon.svg', alt: '' }),
       h('span', { class: 'brand-text' },
@@ -103,16 +144,35 @@ function renderShell() {
       h('a', { class: 'btn btn-quiet', href: href.settings() }, icon('settings'), h('span', null, 'Settings'))));
 
   const banners = h('div', { class: 'banners', id: 'banners' });
-  const nav = h('nav', { class: 'sidenav', 'aria-label': 'Main' });
+  const nav = h('nav', { class: 'sidenav', id: 'sidenav', 'aria-label': 'Main' });
+  const scrim = h('div', { class: 'nav-scrim', hidden: true, onclick: () => closeNav(true) });
   const main = h('main', { id: 'main', tabindex: '-1' });
-  const shell = h('div', { class: 'shell' }, topbar, banners, nav, main);
+  const shell = h('div', { class: 'shell' }, topbar, banners, nav, scrim, main);
 
   const root = clear(document.getElementById('app'));
   root.append(shell);
   root.removeAttribute('aria-busy');
-  app.shell = { root: shell, main, nav, banners, searchInput };
+  app.shell = { root: shell, main, nav, scrim, navToggle, banners, searchInput };
   renderBanners();
   renderNav();
+}
+
+// On narrow windows the page tree is a drawer.
+function openNav() {
+  const { root, scrim, navToggle, nav } = app.shell;
+  root.classList.add('nav-open');
+  scrim.hidden = false;
+  navToggle.setAttribute('aria-expanded', 'true');
+  (nav.querySelector('[aria-current="page"]') || nav.querySelector('a, button'))?.focus();
+}
+
+function closeNav(returnFocus = false) {
+  if (!app.shell?.root.classList.contains('nav-open')) return;
+  const { root, scrim, navToggle } = app.shell;
+  root.classList.remove('nav-open');
+  scrim.hidden = true;
+  navToggle.setAttribute('aria-expanded', 'false');
+  if (returnFocus) navToggle.focus();
 }
 
 function renderBanners() {
@@ -139,10 +199,66 @@ function renderBanners() {
   if (update) host.append(update);
 }
 
-function navLink(label, target, iconName, active, count) {
+function navLink(label, target, iconName, active) {
   return h('li', null, h('a', { class: 'navlink', href: target, 'aria-current': active ? 'page' : null },
-    icon(iconName), h('span', null, label),
-    count !== undefined ? h('span', { class: 'count' }, String(count), h('span', { class: 'visually-hidden' }, count === 1 ? ' page' : ' pages')) : null));
+    icon(iconName), h('span', null, label)));
+}
+
+/** The page and folder being shown, if any. */
+function currentLocation() {
+  const { route, path } = parseHash();
+  if (['page', 'edit', 'history'].includes(route)) return { page: path.toLowerCase(), folder: parentOf(path).toLowerCase() };
+  if (route === 'folder') return { page: null, folder: path.toLowerCase() };
+  return { page: null, folder: null };
+}
+
+/** Open the folders that lead to what's on screen, so it's visible in the tree. */
+function revealCurrent() {
+  const { folder } = currentLocation();
+  if (!folder) return;
+  const parts = folder.split('/');
+  parts.forEach((_, i) => app.open.add(parts.slice(0, i + 1).join('/')));
+}
+
+function treeCount(n) {
+  return h('span', { class: 'tree-count' }, String(n), h('span', { class: 'visually-hidden' }, n === 1 ? ' page' : ' pages'));
+}
+
+function treeFolder(folder, loc) {
+  const key = folder.path.toLowerCase();
+  const isOpen = app.open.has(key);
+  const hasItems = folder.folders.length + folder.pages.length > 0;
+  let toggle = h('span', { class: 'tree-spacer' });
+  if (hasItems) {
+    toggle = iconButton(`${isOpen ? 'Hide' : 'Show'} what’s in ${folder.name}`, {
+      icon: 'chevron', class: 'btn btn-icon tree-toggle', 'aria-expanded': String(isOpen),
+      onClick: () => {
+        if (isOpen) app.open.delete(key); else app.open.add(key);
+        renderNav();
+        app.shell.nav.querySelector(`[data-folder="${CSS.escape(key)}"]`)?.focus();
+      },
+    });
+    toggle.dataset.folder = key;
+  }
+  return h('li', { class: 'tree-folder' },
+    h('div', { class: 'tree-row' },
+      toggle,
+      h('a', {
+        class: 'tree-link', href: href.folder(folder.path), title: folder.name,
+        'aria-current': !loc.page && loc.folder === key ? 'page' : null,
+      }, h('span', { class: 'tree-name' }, folder.name), treeCount(folder.count))),
+    isOpen && hasItems ? treeList(folder, loc) : null);
+}
+
+function treeList(node, loc, labelledBy = null) {
+  return h('ul', { class: 'tree', 'aria-labelledby': labelledBy },
+    node.folders.map((f) => treeFolder(f, loc)),
+    node.pages.map((p) => h('li', null, h('div', { class: 'tree-row' },
+      h('span', { class: 'tree-spacer' }),
+      h('a', {
+        class: 'tree-link', href: href.page(p.path), title: p.title,
+        'aria-current': loc.page === p.path.toLowerCase() ? 'page' : null,
+      }, h('span', { class: 'tree-name' }, p.title))))));
 }
 
 function renderNav() {
@@ -150,26 +266,24 @@ function renderNav() {
   if (!nav) return;
   const { route, path } = parseHash();
   const top = (path.split('/')[0] || '').toLowerCase();
-  const inFolder = ['folder', 'page', 'edit', 'history'].includes(route);
+  const tree = app.tree;
   clear(nav);
-  // The folder list is labelled but isn't a heading, so the page's own
-  // title stays the first heading screen readers meet.
+  // The tree is labelled but isn't a heading, so the page's own title
+  // stays the first heading screen readers meet.
   nav.append(
-    h('div', { class: 'sidenav-section' },
-      h('ul', { class: 'navlist' },
-        navLink('Home', href.home(), 'home', route === ''))),
-    h('div', { class: 'sidenav-section' },
-      h('p', { class: 'nav-label', id: 'nav-folders' }, 'Folders'),
-      app.nav.length
-        ? h('ul', { class: 'navlist', 'aria-labelledby': 'nav-folders' }, app.nav.map((f) =>
-          navLink(f.name, href.folder(f.path), 'folder', inFolder && top === f.path.toLowerCase(), f.page_count)))
-        : h('p', { class: 'help' }, 'No folders yet.')),
+    button('Close', { icon: 'x', class: 'btn btn-quiet sidenav-close', onClick: () => closeNav(true) }),
     app.state.workspace?.read_only
       ? null
-      : h('div', { class: 'sidenav-section' },
-        h('a', { class: 'btn btn-primary', href: href.newPage(route === 'folder' ? path : '') },
-          icon('pagePlus'), h('span', null, 'New page'))),
-    h('div', { class: 'sidenav-section sidenav-more' },
+      : h('a', { class: 'btn btn-new', href: href.newPage(route === 'folder' ? path : '') },
+        icon('pagePlus'), h('span', null, 'New page')),
+    h('ul', { class: 'navlist' }, navLink('Home', href.home(), 'home', route === '')),
+    h('div', { class: 'sidenav-tree' },
+      h('p', { class: 'nav-label', id: 'nav-pages' }, 'Pages'),
+      tree && tree.count + tree.folders.length === 0
+        ? h('p', { class: 'help tree-empty' }, 'No pages yet.')
+        : null,
+      tree ? treeList(tree, currentLocation(), 'nav-pages') : null),
+    h('div', { class: 'sidenav-more' },
       h('ul', { class: 'navlist', 'aria-label': 'More' },
         navLink('Templates', href.templates(), 'template',
           route === 'templates' || (route === 'edit' && top === '_templates')),
@@ -283,6 +397,8 @@ async function onRoute() {
     root.append(host);
   } else {
     if (!app.shell) renderShell();
+    closeNav();
+    revealCurrent();
     renderNav();
     renderBanners();
     refreshNav(); // page counts may have changed
@@ -353,6 +469,9 @@ async function boot() {
       e.preventDefault();
       document.getElementById('main')?.focus();
     }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && app.shell?.root.classList.contains('nav-open')) closeNav(true);
   });
   if (!hasToken()) {
     renderFatal('Please open Cairn from its program window',

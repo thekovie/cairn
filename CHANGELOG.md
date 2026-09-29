@@ -2,6 +2,18 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Changed
+
+- **A new look, like the docs sites people already know** (Notion, GitBook, Microsoft Learn):
+  - A page tree on the left: folders open to show their pages. The page you're on is highlighted and its folders are open. Long titles stay on one line and show in full when you point at them.
+  - The page sits in a calm centred column. "On this page" on the right marks the section you're reading as you scroll.
+  - On a phone or a narrow window, the tree slides in from the left with the **Pages** button.
+- **Normal website sizing.** Text, buttons and spacing are the size you'd expect on any website. **Settings → Text size** still makes everything bigger.
+- **One typeface.** Pages are read in Inter, like the rest of Cairn. Source Serif is no longer used.
+- **Quieter pages.** **Edit this page** is the one filled button; the others are plain. Folders on Home are a simple list.
+
 ## 0.6.0 (2026-09-30)
 
 ### Changed
