@@ -7,7 +7,7 @@
 import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
-  iconButton, toolbarKeys,
+  iconButton, toolbarKeys, formatSize,
 } from './core.js';
 import { createVisualEditor } from './visual.js';
 import { lockSentence } from './views.js';
@@ -82,6 +82,8 @@ export function writeMeta(text, fields) {
 // ------------------------------------------------------------ visual mode
 
 const VIEW_KEY = 'cairn.editView';
+const HEIGHT_KEY = 'cairn.editorHeight';
+const EDITOR_MIN_HEIGHT = 224;
 const VIEWS = ['visual', 'both', 'write'];
 
 /** Split the page details block off the top, so visual editing never touches it. */
@@ -283,7 +285,17 @@ function mountEditor(ctx, path, start) {
   const saveStatus = h('span', { class: 'status-item', role: 'status' });
   const notices = h('div');
   const ta = h('textarea', { id: 'md-text', spellcheck: 'true', 'aria-describedby': 'drop-hint' });
-  ta.value = start.content;
+  // The page details block (owner, status, …) is kept out of the text box:
+  // it looks technical and is edited with "Page details". What is saved,
+  // previewed, and published is always the whole page: details + text.
+  let front = '';
+  const fullText = () => front + ta.value;
+  const setFullText = (text) => {
+    const parts = splitFront(text);
+    front = parts.front;
+    ta.value = parts.body;
+  };
+  setFullText(start.content);
   // Until the first preview arrives (slow on a slow shared folder), say so.
   const previewBody = h('div', { class: 'md-body' },
     h('p', { class: 'loading-label' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Preparing the preview…'));
@@ -309,12 +321,57 @@ function mountEditor(ctx, path, start) {
     h('section', { class: 'pane pane-preview', 'aria-labelledby': 'preview-h' },
       h('h2', { class: 'pane-label', id: 'preview-h' }, 'Preview: how the page will look'),
       previewBody));
+
+  // The editor is a box with its own scrolling, so the page around it stays
+  // put and "Publish" is always just below it. Drag the bar under the box
+  // (or use the arrow keys on it) to make it taller or shorter; the height
+  // is remembered in this browser.
+  const resizer = h('div', {
+    class: 'editor-resize', role: 'separator', tabindex: '0',
+    'aria-orientation': 'horizontal', 'aria-label': 'Editor height: drag, or use the up and down arrow keys',
+    'aria-valuemin': String(EDITOR_MIN_HEIGHT), 'aria-valuemax': '4000', title: 'Drag to make the editor taller or shorter',
+  });
+  const setEditorHeight = (px, remember) => {
+    const height = Math.max(EDITOR_MIN_HEIGHT, Math.round(px));
+    panes.style.setProperty('--editor-height', `${height}px`);
+    resizer.setAttribute('aria-valuenow', String(height));
+    if (remember) {
+      try { localStorage.setItem(HEIGHT_KEY, String(height)); } catch { /* this visit only */ }
+    }
+  };
+  {
+    let saved = 0;
+    try { saved = Number(localStorage.getItem(HEIGHT_KEY)) || 0; } catch { saved = 0; }
+    if (saved) setEditorHeight(saved, false);
+  }
+  resizer.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { resizer.setPointerCapture(e.pointerId); } catch { /* drag still works without capture */ }
+    const startY = e.clientY;
+    const startHeight = panes.getBoundingClientRect().height;
+    const move = (ev) => setEditorHeight(startHeight + ev.clientY - startY, false);
+    const up = () => {
+      resizer.removeEventListener('pointermove', move);
+      resizer.removeEventListener('pointerup', up);
+      setEditorHeight(panes.getBoundingClientRect().height, true);
+    };
+    resizer.addEventListener('pointermove', move);
+    resizer.addEventListener('pointerup', up);
+  });
+  resizer.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 160 : 40;
+    const now = panes.getBoundingClientRect().height;
+    const next = { ArrowDown: now + step, ArrowUp: now - step, Home: EDITOR_MIN_HEIGHT }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    setEditorHeight(next, true);
+  });
   // The visual editor is created the first time it's shown. The Markdown in
   // the text box stays the source of truth; visual edits are written back.
   let visual = null;
   const inVisual = () => (panes.dataset.view === 'visual' ? visual : null);
   async function ensureVisual() {
-    const { body } = splitFront(ta.value);
+    const body = ta.value;
     if (visual) {
       visual.setMarkdown(body);
       return visual;
@@ -324,7 +381,7 @@ function mountEditor(ctx, path, start) {
         root: visualRoot, markdown: body, pagePath: path,
         readKey: start.read_key, staged: start.staged || [],
         onChange: (md) => {
-          ta.value = splitFront(ta.value).front + md;
+          ta.value = md;
           changed();
         },
       });
@@ -378,11 +435,11 @@ function mountEditor(ctx, path, start) {
     if (visual) visual.flush();
     clearTimeout(s.saveTimer);
     if (!s.dirty || s.closed) return true;
-    const text = ta.value;
+    const text = fullText();
     setSave(null, 'Saving…');
     try {
       const res = await post('/api/draft/save', { path, content: text });
-      s.dirty = ta.value !== text;
+      s.dirty = fullText() !== text;
       if (!s.dirty) s.firstDirtyAt = 0;
       const at = formatTime(res.saved_at);
       if (res.persisted) setSave('ok', `Draft saved at ${at}`);
@@ -407,11 +464,11 @@ function mountEditor(ctx, path, start) {
   // --------------------------------------------------------- preview
   async function refreshPreview() {
     try {
-      const content = isTemplate ? withExampleValues(ta.value, author) : ta.value;
+      const content = isTemplate ? withExampleValues(fullText(), author) : fullText();
       const res = await post('/api/preview', { path, content });
       previewBody.innerHTML = res.html; // sanitized by the server
       const heading = isTemplate
-        ? `Editing template: ${readTemplateMeta(ta.value).template_name || 'Untitled template'}`
+        ? `Editing template: ${readTemplateMeta(fullText()).template_name || 'Untitled template'}`
         : `Editing: ${res.title}`;
       titleEl.textContent = heading;
       document.title = `${heading} – Cairn`;
@@ -570,12 +627,19 @@ function mountEditor(ctx, path, start) {
     const guess = file.name && !/^image\.(png|jpe?g|gif|webp)$/i.test(file.name)
       ? file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')
       : 'Screenshot';
+    // Show the picture itself, so people can check it's the right one.
+    const previewUrl = URL.createObjectURL(file);
+    const media = h('figure', { class: 'pic-preview' },
+      h('img', { src: previewUrl, alt: '' }),
+      h('figcaption', null, `${file.name || 'Pasted picture'}, ${formatSize(file.size)}`));
     const values = await formDialog({
       title: 'Describe this picture', iconName: 'image',
       intro: 'A short description helps people who can’t see the picture, and is shown if the picture can’t be loaded.',
+      media,
       fields: [{ name: 'alt', label: 'Description', value: guess }],
       submitLabel: 'Insert picture',
     });
+    URL.revokeObjectURL(previewUrl);
     const vis = inVisual();
     if (vis) vis.focus();
     else {
@@ -763,16 +827,16 @@ function mountEditor(ctx, path, start) {
     tags: h('input', { type: 'text', id: 'pd-tags', autocomplete: 'off', 'aria-describedby': 'pd-tags-help' }),
   };
   syncDetailsFromText = () => {
-    const { fields } = readMeta(ta.value);
+    const { fields } = readMeta(fullText());
     for (const key of META_KEYS) {
       if (document.activeElement !== detailInputs[key]) detailInputs[key].value = fields[key] || '';
     }
   };
   function applyDetails() {
     const fields = Object.fromEntries(META_KEYS.map((k) => [k, detailInputs[k].value]));
-    const next = writeMeta(ta.value, fields);
-    if (next !== ta.value) {
-      ta.value = next;
+    const next = writeMeta(fullText(), fields);
+    if (next !== fullText()) {
+      setFullText(next);
       changed();
     }
   }
@@ -799,7 +863,7 @@ function mountEditor(ctx, path, start) {
     const descInput = h('textarea', { id: 'td-desc', rows: '2', maxlength: '300', 'aria-describedby': 'td-desc-help' });
     const nameError = h('div', { class: 'error-slot' });
     const syncTemplateFromText = () => {
-      const fields = readTemplateMeta(ta.value);
+      const fields = readTemplateMeta(fullText());
       if (document.activeElement !== nameInput) nameInput.value = fields.template_name;
       if (document.activeElement !== descInput) descInput.value = fields.template_description;
     };
@@ -812,10 +876,10 @@ function mountEditor(ctx, path, start) {
         nameInput.setAttribute('aria-invalid', 'true');
         return;
       }
-      const next = writeTemplateMeta(ta.value,
+      const next = writeTemplateMeta(fullText(),
         { template_name: nameInput.value, template_description: descInput.value });
-      if (next !== ta.value) {
-        ta.value = next;
+      if (next !== fullText()) {
+        setFullText(next);
         changed();
       }
     };
@@ -940,7 +1004,7 @@ function mountEditor(ctx, path, start) {
     let res;
     try {
       res = await whileBusy(publishBtn, 'Publishing…', () => post('/api/publish', {
-        path, content: ta.value, accept_current_hash: acceptHash || null, accept_missing: Boolean(acceptMissing),
+        path, content: fullText(), accept_current_hash: acceptHash || null, accept_missing: Boolean(acceptMissing),
       }));
     } catch (err) {
       publishError.append(banner({ tone: 'danger', title: 'The page was not published', text: errorText(err) }));
@@ -1043,13 +1107,13 @@ function mountEditor(ctx, path, start) {
   window.addEventListener('pagehide', () => {
     if (visual && !s.closed) visual.flush();
     if (s.dirty && !s.closed) {
-      api('POST', '/api/draft/save', { path, content: ta.value }, { keepalive: true }).catch(() => {});
+      api('POST', '/api/draft/save', { path, content: fullText() }, { keepalive: true }).catch(() => {});
     }
   }, { once: true });
 
   // ------------------------------------------------------------ render
   if (isTemplate) {
-    const name = readTemplateMeta(ta.value).template_name || 'this template';
+    const name = readTemplateMeta(fullText()).template_name || 'this template';
     notices.append(banner({
       tone: 'info', title: `You’re editing the template “${name}” for the whole team`,
       text: 'Changes apply to pages created from now on; pages already made from it don’t change. Use the “Insert” buttons to add fields that are filled in for each new page; the preview shows example values for them.',
@@ -1077,6 +1141,7 @@ function mountEditor(ctx, path, start) {
     toolbar,
     fillInBar,
     panes,
+    resizer,
     fileInput,
     h('div', { class: 'editor-foot' },
       h('div', { class: 'actions' }, closeBtn, discardBtn),
@@ -1086,8 +1151,16 @@ function mountEditor(ctx, path, start) {
     helpPanel);
 
   refreshPreview();
+  requestAnimationFrame(() => resizer.setAttribute('aria-valuenow', String(Math.round(panes.getBoundingClientRect().height))));
   if (startView === 'visual') setView('visual');
-  else setTimeout(() => ta.focus(), 0);
+  else {
+    setTimeout(() => {
+      // Start at the top of the page, not scrolled to its end.
+      ta.setSelectionRange(0, 0);
+      ta.focus({ preventScroll: true });
+      ta.scrollTop = 0;
+    }, 0);
+  }
 
   return {
     title: 'Editing',

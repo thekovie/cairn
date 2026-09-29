@@ -16,6 +16,7 @@ export {
   wrapInOrderedListCommand,
   insertImageCommand,
   toggleLinkCommand,
+  linkSchema,
 } from '@milkdown/kit/preset/commonmark';
 export { gfm, insertTableCommand } from '@milkdown/kit/preset/gfm';
 export { history } from '@milkdown/kit/plugin/history';

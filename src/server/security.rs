@@ -22,7 +22,9 @@ use super::AppState;
 
 pub const TOKEN_HEADER: &str = "x-cairn-token";
 
-const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; \
+// `blob:` lets the editor preview a picture the person has just chosen or
+// pasted, before it is uploaded; such URLs only ever point at local files.
+const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; \
                    font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; \
                    frame-ancestors 'none'";
 

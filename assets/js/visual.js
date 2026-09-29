@@ -90,6 +90,9 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
       });
     })
     .use(m.commonmark)
+    // Typing right after a link continues as normal text (as in a word
+    // processor), instead of making the link longer.
+    .use(m.linkSchema.extendSchema((prev) => (ctx) => ({ ...prev(ctx), inclusive: false })))
     .use(m.gfm)
     .use(m.history)
     .use(m.listener)

@@ -5,7 +5,7 @@ import {
   get, post, h, clear, icon, button, linkButton, banner, emptyState, breadcrumbsNav, statusChip,
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
   confirmDialog, formDialog, whileBusy, errorText, diffView, fieldError, announce, applyPrefs,
-  appendChildren, isToday,
+  appendChildren, isToday, enablePictureZoom,
 } from './core.js';
 import { openPageDownload, openBulkDownload } from './export.js';
 import { timezoneSection } from './timezone.js';
@@ -353,6 +353,7 @@ export async function pageView(ctx) {
   const firstH1 = article.firstElementChild;
   if (firstH1?.tagName === 'H1' && firstH1.textContent.trim() === data.title) firstH1.remove();
   wireArticleLinks(article, data.path);
+  enablePictureZoom(article);
   rail.addEventListener('click', (e) => {
     const a = e.target.closest('.toc a');
     if (!a) return;
@@ -435,6 +436,7 @@ export async function historyView(ctx) {
             diffView(v.diff, { oldLabel: 'Only in the current page', newLabel: 'Only in this earlier version' }))),
         h('div', { class: 'rail-box', style: 'margin-top: var(--space-5)' },
           h('div', { class: 'md-body', trustedHtml: v.html })));
+      enablePictureZoom(preview.querySelector('.md-body'));
       preview.querySelector('#ver-h').focus();
     } catch (err) {
       toast(errorText(err), { error: true });

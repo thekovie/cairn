@@ -313,6 +313,65 @@ export function openDialog({ title, iconName = 'info', tone = 'info', body = [],
   });
 }
 
+// --------------------------------------------------------- picture viewer
+
+const PICTURE_MAX_ENLARGE = 3;
+
+/** Show a picture large, over a dimmed page. Esc, "Close", or a click on
+ *  the dimmed area closes it. Small pictures are enlarged (up to 3×) and
+ *  big ones are fitted to the window. */
+export function openPicture(src, alt) {
+  const img = h('img', { src, alt: alt || '' });
+  const close = button('Close', { icon: 'x', kind: 'quiet' });
+  close.classList.add('lightbox-close');
+  const dlg = h('dialog', { class: 'lightbox', 'aria-label': alt ? `Picture: ${alt}` : 'Picture' },
+    close,
+    h('figure', null, img, alt ? h('figcaption', null, alt) : null));
+  const fit = () => {
+    if (!img.naturalWidth) return;
+    const room = Math.min(
+      (window.innerWidth * 0.92) / img.naturalWidth,
+      (window.innerHeight * 0.8) / img.naturalHeight);
+    const scale = Math.min(room, PICTURE_MAX_ENLARGE);
+    img.style.width = `${Math.round(img.naturalWidth * scale)}px`;
+  };
+  img.addEventListener('load', fit);
+  window.addEventListener('resize', fit);
+  close.addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener('close', () => {
+    window.removeEventListener('resize', fit);
+    dlg.remove();
+  });
+  document.body.append(dlg);
+  dlg.showModal();
+  if (img.complete) fit();
+  close.focus();
+}
+
+/** Make every picture in `container` open large when clicked (or with
+ *  Enter/Space when reached with Tab). */
+export function enablePictureZoom(container) {
+  for (const img of container.querySelectorAll('img')) {
+    img.classList.add('zoomable');
+    img.tabIndex = 0;
+    img.setAttribute('role', 'button');
+    img.setAttribute('aria-label', `Show larger: ${img.alt || 'picture'}`);
+  }
+  const open = (img) => openPicture(img.currentSrc || img.src, img.alt);
+  container.addEventListener('click', (e) => {
+    const img = e.target.closest('img.zoomable');
+    if (img) open(img);
+  });
+  container.addEventListener('keydown', (e) => {
+    const img = e.target.closest('img.zoomable');
+    if (img && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      open(img);
+    }
+  });
+}
+
 export async function confirmDialog({ title, message, details, confirmLabel, cancelLabel, danger = false, iconName }) {
   const value = await openDialog({
     title,
@@ -331,7 +390,7 @@ export async function confirmDialog({ title, message, details, confirmLabel, can
  * A small form in a dialog. fields: [{ name, label, type, value, help,
  * options, required, min, max }]. Resolves with values or null.
  */
-export async function formDialog({ title, intro, fields, submitLabel, cancelLabel = 'Go back', iconName = 'edit' }) {
+export async function formDialog({ title, intro, media, fields, submitLabel, cancelLabel = 'Go back', iconName = 'edit' }) {
   const inputs = {};
   const rows = fields.map((f) => {
     const fid = `fd-${++dialogSeq}`;
@@ -356,7 +415,7 @@ export async function formDialog({ title, intro, fields, submitLabel, cancelLabe
   let result = null;
   const value = await openDialog({
     title, iconName, tone: 'info',
-    body: [intro ? h('p', null, intro) : null, ...rows],
+    body: [intro ? h('p', null, intro) : null, media || null, ...rows],
     actions: [
       { label: cancelLabel, value: 'cancel' },
       { label: submitLabel, value: 'ok', kind: 'primary', submit: true },

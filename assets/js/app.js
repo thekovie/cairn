@@ -275,7 +275,8 @@ async function onRoute() {
     renderNav();
     refreshNav(); // page counts may have changed
     host = clear(app.shell.main);
-    if (parsed.route === 'search') app.shell.searchInput.value = parsed.query.get('q') || '';
+    // Only the search results screen keeps the words in the header box.
+    app.shell.searchInput.value = parsed.route === 'search' ? parsed.query.get('q') || '' : '';
   }
 
   // Each screen draws into its own container. If the person moves on before

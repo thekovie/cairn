@@ -2,6 +2,26 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- When you add a picture, the **Describe this picture** window shows the picture itself (with its file name and size), so you can check it's the right one before inserting it.
+- Click a picture on a page (or in **Earlier versions**) to see it larger. Small pictures are enlarged, big ones fit the window, and the picture's description is shown under it. Close it with **Close**, Esc, or by clicking outside it. The keyboard works too: move to the picture and press Enter.
+
+### Changed
+
+- On wide screens, the folder list and the page sit together in the middle of the window, with equal space on both sides (like X or Reddit), instead of everything hugging the left edge. The top bar lines up with them. On laptop-size windows and smaller, nothing changes.
+
+- The editor is now a box of its own height: the text, the preview, and the Visual page scroll inside it, and the page around it stays put, so **Publish changes** is always just below. Drag the bar under the box (or select it and use the arrow keys) to make it taller or shorter; Cairn remembers the height.
+- The writing box no longer starts with the technical page-details block (`---`, `owner: …`). Those details are still saved with the page and are edited with **Page details** as before.
+
+### Fixed
+
+- At the Larger text size, the folder list on the left no longer cuts off page counts; it grows with the text.
+- The search box at the top no longer keeps your last search after you leave the results.
+- In Visual editing, typing right after a link no longer makes the link longer. The words you type after it are ordinary text, as in a word processor.
+
 ## 0.3.3 (2026-09-29)
 
 ### Changed
