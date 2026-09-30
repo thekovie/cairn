@@ -52,6 +52,45 @@ pub struct UpdateSource {
     pub public_key: String,
     /// Allow plain `http://` addresses (only for tests on this computer).
     pub allow_http: bool,
+    /// Proxy chosen in Settings (`host:port`). `None` uses Windows' proxy
+    /// settings.
+    pub proxy: Option<String>,
+}
+
+impl UpdateSource {
+    pub fn with_proxy(proxy: Option<String>) -> Self {
+        UpdateSource {
+            proxy,
+            ..UpdateSource::default()
+        }
+    }
+}
+
+/// A proxy typed in Settings, tidied to `host:port`. `http://` in front and
+/// a `/` at the end are accepted, since that's how proxies are often written.
+pub fn normalize_proxy(input: &str) -> Result<String> {
+    let bad = || {
+        CairnError::BadRequest(
+            "Type the proxy as address:port, for example proxy.office.local:8080.".into(),
+        )
+    };
+    let s = input.trim();
+    let s = match s.get(..7) {
+        Some(scheme) if scheme.eq_ignore_ascii_case("http://") => &s[7..],
+        _ => s,
+    };
+    let s = s.trim_end_matches('/');
+    let (host, port) = s.rsplit_once(':').ok_or_else(bad)?;
+    let port: u16 = port.parse().ok().filter(|p| *p != 0).ok_or_else(bad)?;
+    let host_ok = !host.is_empty()
+        && host.len() <= 253
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+    if !host_ok {
+        return Err(bad());
+    }
+    Ok(format!("{host}:{port}"))
 }
 
 impl Default for UpdateSource {
@@ -62,6 +101,7 @@ impl Default for UpdateSource {
             api_url: RELEASES_API.into(),
             public_key: PUBLIC_KEY.into(),
             allow_http: false,
+            proxy: None,
         };
         if cfg!(debug_assertions) {
             if let Ok(url) = std::env::var("CAIRN_UPDATE_API") {
@@ -164,14 +204,18 @@ pub fn parse_release(json: &[u8], current: &Version) -> Result<Option<Release>> 
     }))
 }
 
-fn agent(timeout: Duration) -> ureq::Agent {
+fn agent(timeout: Duration, proxy: Option<&str>) -> ureq::Agent {
     use ureq::tls::{RootCerts, TlsConfig};
+    // The proxy chosen in Settings, or else Windows' proxy settings; and the
+    // Windows certificate store, so offices with their own certificates work.
+    let proxy = match proxy {
+        Some(p) => ureq::Proxy::new(&format!("http://{p}")).ok(),
+        None => ureq::Proxy::try_from_env(),
+    };
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
         .user_agent(format!("Cairn/{}", env!("CARGO_PKG_VERSION")))
-        // The Windows proxy settings and certificate store, so offices with
-        // a proxy or their own certificates work.
-        .proxy(ureq::Proxy::try_from_env())
+        .proxy(proxy)
         .tls_config(
             TlsConfig::builder()
                 .root_certs(RootCerts::PlatformVerifier)
@@ -187,7 +231,8 @@ fn fetch(source: &UpdateSource, url: &str, limit: u64, timeout: Duration) -> Res
             "The update address isn't secure (https), so it wasn't used.".into(),
         ));
     }
-    let response = agent(timeout)
+    let proxy = source.proxy.as_deref();
+    let response = agent(timeout, proxy)
         .get(url)
         .header(
             "Accept",
@@ -196,6 +241,20 @@ fn fetch(source: &UpdateSource, url: &str, limit: u64, timeout: Duration) -> Res
         .call();
     let mut response = match response {
         Ok(r) => r,
+        Err(ureq::Error::StatusCode(407)) => {
+            return Err(CairnError::Io(
+                "The proxy asked for a login, which Cairn can't give. Ask your IT team for a \
+                 proxy that GitHub can be reached through without one."
+                    .into(),
+            ));
+        }
+        Err(e) if proxy.is_some() && !matches!(e, ureq::Error::StatusCode(_)) => {
+            return Err(CairnError::Io(format!(
+                "Cairn couldn't reach GitHub through the proxy {} ({e}). Check the proxy \
+                 address in Settings → Updates.",
+                proxy.unwrap_or_default()
+            )));
+        }
         Err(ureq::Error::StatusCode(404)) => {
             return Err(CairnError::NotFound(
                 "No released version of Cairn was found.".into(),
@@ -504,6 +563,30 @@ mod tests {
         // Newer, but the signature isn't uploaded yet.
         assert!(parse_release(&release_json("v0.5.0", &files[..1]), &current).is_err());
         assert!(parse_release(b"not json", &current).is_err());
+    }
+
+    #[test]
+    fn proxies_are_tidied_to_host_and_port() {
+        assert_eq!(
+            normalize_proxy(" proxy.office.local:8080 ").unwrap(),
+            "proxy.office.local:8080"
+        );
+        assert_eq!(
+            normalize_proxy("HTTP://10.0.0.5:3128/").unwrap(),
+            "10.0.0.5:3128"
+        );
+        for bad in [
+            "",
+            "proxy.office.local",
+            "proxy:0",
+            "proxy:99999",
+            ":8080",
+            "https://proxy:8080",
+            "user@proxy:8080",
+            "a b:80",
+        ] {
+            assert!(normalize_proxy(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

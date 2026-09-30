@@ -2,6 +2,12 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **Proxy server setting** (**Settings → Updates**). Offices that reach the internet through a proxy can type its address and port, such as `proxy.office.local:8080`, so Cairn can check for and download updates. Leave it empty to keep using Windows' proxy settings.
+
 ## 0.7.0 (2026-09-30)
 
 ### Added

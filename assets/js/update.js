@@ -188,11 +188,35 @@ export function updatesSection(cfg, { radioGroup, save }) {
   listeners.add(render);
   render(status);
   refresh();
+
+  // Offices that reach the internet through a proxy server type it here.
+  const proxyInput = h('input', {
+    type: 'text', id: 's-proxy', value: cfg.update_proxy || '', autocomplete: 'off',
+    spellcheck: 'false', 'aria-describedby': 's-proxy-help',
+  });
+  const proxyForm = h('form', {
+    class: 'inline-form',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      const value = proxyInput.value.trim();
+      const saved = await save({ update_proxy: value },
+        value ? 'Proxy saved. Choose Check now to try it.' : 'Proxy removed. Cairn uses Windows’ proxy settings.');
+      if (saved && value) proxyInput.value = value.replace(/^http:\/\//i, '').replace(/\/+$/, '');
+    },
+  },
+  h('div', { class: 'field' },
+    h('label', { for: 's-proxy' }, 'Proxy server (optional)'),
+    proxyInput,
+    h('p', { class: 'help', id: 's-proxy-help' },
+      'Only if your office reaches the internet through a proxy. Type its address and port, for example proxy.office.local:8080. Leave it empty to use Windows’ proxy settings.')),
+  button('Save proxy', { type: 'submit' }));
+
   return h('section', { class: 'settings-section', 'aria-labelledby': 'set-updates' },
     h('h2', { id: 'set-updates' }, 'Updates'),
     body,
     radioGroup('update_check', 'Look for new versions', [
       { value: 'daily', label: 'Every day', text: 'Cairn asks GitHub once a day whether a new version is out, and tells you. Nothing about you or your documentation is sent.' },
       { value: 'manual', label: 'Only when I choose Check now', text: 'Cairn never goes online on its own.' },
-    ], cfg.update_check, (v) => save({ update_check: v }, 'Update setting saved.')));
+    ], cfg.update_check, (v) => save({ update_check: v }, 'Update setting saved.')),
+    proxyForm);
 }

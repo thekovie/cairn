@@ -137,6 +137,7 @@ fn state_view(state: &AppState) -> Value {
             "pdf_paper": cfg.pdf_paper,
             "toolbar_labels": cfg.toolbar_labels,
             "update_check": cfg.update_check,
+            "update_proxy": cfg.update_proxy,
             "pdf_available":
                 !crate::export::pdf::find_browsers(cfg.pdf_browser.as_deref()).is_empty(),
         },
@@ -1323,6 +1324,8 @@ pub struct SettingsBody {
     toolbar_labels: Option<bool>,
     /// "daily" or "manual".
     update_check: Option<String>,
+    /// "host:port", or "" to use Windows' proxy settings.
+    update_proxy: Option<String>,
 }
 
 pub async fn save_settings(
@@ -1359,6 +1362,13 @@ pub async fn save_settings(
         }
         if let Some(v) = body.update_check {
             cfg.update_check = v;
+        }
+        if let Some(v) = body.update_proxy {
+            cfg.update_proxy = if v.trim().is_empty() {
+                None
+            } else {
+                Some(crate::update::normalize_proxy(&v)?)
+            };
         }
         let drafts_changed = body
             .persistent_drafts

@@ -79,7 +79,8 @@ pub fn run_check(st: &AppState) {
         }
         s.checking = true;
     }
-    let result = update::check(&UpdateSource::default(), &update::current_version());
+    let source = UpdateSource::with_proxy(st.config().update_proxy);
+    let result = update::check(&source, &update::current_version());
     let mut s = st.updates.lock();
     s.checking = false;
     s.last_attempt = Some(Instant::now());
@@ -169,11 +170,11 @@ fn begin_install(st: &AppState) -> Result<()> {
     Ok(())
 }
 
-fn install_release(exe: &Path, release: &Release) -> Result<()> {
+fn install_release(exe: &Path, release: &Release, source: &UpdateSource) -> Result<()> {
     let dir = exe
         .parent()
         .ok_or_else(|| CairnError::Io("Cairn's folder couldn't be found.".into()))?;
-    let new_exe = update::download(&UpdateSource::default(), release, dir)?;
+    let new_exe = update::download(source, release, dir)?;
     let runs = update::program_version(&new_exe).and_then(|v| {
         if v.to_string() == release.version {
             Ok(())
@@ -224,7 +225,11 @@ pub async fn install(State(state): State<Arc<AppState>>) -> ApiResult {
                 "There is no new version to install. Choose Check now first.".into(),
             )
         })?;
-        install_release(exe, &release)?;
+        install_release(
+            exe,
+            &release,
+            &UpdateSource::with_proxy(st.config().update_proxy),
+        )?;
         Ok(release.version)
     })
     .await

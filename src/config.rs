@@ -48,6 +48,9 @@ pub struct AppConfig {
     /// "daily" to look for a new version of Cairn once a day, or "manual"
     /// to look only when the person chooses Check now.
     pub update_check: String,
+    /// Proxy for reaching GitHub, as `host:port`. `None` uses Windows'
+    /// proxy settings.
+    pub update_proxy: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -70,6 +73,7 @@ impl Default for AppConfig {
             // every button should say what it does.
             toolbar_labels: true,
             update_check: "daily".into(),
+            update_proxy: None,
         }
     }
 }
@@ -110,6 +114,11 @@ impl AppConfig {
         }
         if !["daily", "manual"].contains(&self.update_check.as_str()) {
             return bad("Unknown update setting.");
+        }
+        if let Some(proxy) = &self.update_proxy
+            && crate::update::normalize_proxy(proxy)? != *proxy
+        {
+            return bad("Type the proxy as address:port, for example proxy.office.local:8080.");
         }
         if let Some(zone) = &self.timezone {
             crate::timefmt::validate_zone(zone)?;

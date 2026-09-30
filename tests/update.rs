@@ -86,8 +86,86 @@ impl FakeGitHub {
             api_url: format!("http://{}/latest", self.addr),
             public_key: pair.pk.to_base64(),
             allow_http: true,
+            proxy: None,
         }
     }
+}
+
+/// A minimal office-style proxy: answers `CONNECT` and tunnels every
+/// connection to `target`, whatever name was asked for. Counts tunnels.
+fn connect_proxy(target: SocketAddr) -> (SocketAddr, Arc<std::sync::atomic::AtomicUsize>) {
+    use std::io::{BufRead, BufReader};
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let tunnels = Arc::new(AtomicUsize::new(0));
+    let count = tunnels.clone();
+    std::thread::spawn(move || {
+        for client in listener.incoming().flatten() {
+            let count = count.clone();
+            std::thread::spawn(move || {
+                let mut reader = BufReader::new(client.try_clone().unwrap());
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if !line.starts_with("CONNECT ") {
+                    return;
+                }
+                while line != "\r\n" {
+                    line.clear();
+                    if reader.read_line(&mut line).unwrap() == 0 {
+                        return;
+                    }
+                }
+                count.fetch_add(1, Ordering::SeqCst);
+                let upstream = TcpStream::connect(target).unwrap();
+                let mut client_w = client;
+                client_w
+                    .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                    .unwrap();
+                let (mut up_r, mut up_w) = (upstream.try_clone().unwrap(), upstream);
+                let mut down_w = client_w.try_clone().unwrap();
+                std::thread::spawn(move || {
+                    let _ = std::io::copy(&mut reader, &mut up_w);
+                });
+                let _ = std::io::copy(&mut up_r, &mut down_w);
+            });
+        }
+    });
+    (addr, tunnels)
+}
+
+#[test]
+fn updates_go_through_the_proxy_set_in_settings() {
+    let pair = KeyPair::generate_unencrypted_keypair().unwrap();
+    let zip = release_zip(NEW_EXE);
+    let sig = sign(&pair, &zip, ZIP_NAME);
+    let github = FakeGitHub::start("v0.9.0", zip, sig);
+    let (proxy, tunnels) = connect_proxy(github.addr);
+    // A name that doesn't exist: only the proxy can reach it.
+    let source = UpdateSource {
+        api_url: "http://updates.cairn.invalid/latest".into(),
+        public_key: pair.pk.to_base64(),
+        allow_http: true,
+        proxy: Some(proxy.to_string()),
+    };
+    let found = update::check(&source, &v("0.5.0")).unwrap().unwrap();
+    assert_eq!(found.version, "0.9.0");
+    assert!(tunnels.load(std::sync::atomic::Ordering::SeqCst) >= 1);
+
+    // A proxy that isn't there says so.
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let dead = closed.local_addr().unwrap().to_string();
+    drop(closed);
+    let err = update::check(
+        &UpdateSource {
+            proxy: Some(dead.clone()),
+            ..source
+        },
+        &v("0.5.0"),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains(&dead), "{err}");
 }
 
 fn v(s: &str) -> Version {
