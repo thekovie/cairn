@@ -161,6 +161,13 @@ const ICONS = {
   checklist: '<rect x="3" y="4" width="6" height="6" rx="1"/><path d="m4.6 7 1.1 1.1L7.6 6"/><rect x="3" y="14" width="6" height="6" rx="1"/><path d="M12 7h9M12 17h9"/>',
   quote: '<path d="M4.5 5v14"/><path d="M9 8h11M9 12h11M9 16h7"/>',
   divider: '<path d="M3 12h18"/><path d="M7 6.5h10M7 17.5h10" stroke-dasharray="2 2.5"/>',
+  rowAbove: '<rect x="3" y="12" width="18" height="8" rx="1"/><path d="M12 3v6M9 6h6"/>',
+  rowBelow: '<rect x="3" y="4" width="18" height="8" rx="1"/><path d="M12 15v6M9 18h6"/>',
+  colLeft: '<rect x="12" y="3" width="8" height="18" rx="1"/><path d="M3 12h6M6 9v6"/>',
+  colRight: '<rect x="4" y="3" width="8" height="18" rx="1"/><path d="M15 12h6M18 9v6"/>',
+  alignLeft: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>',
+  alignCenter: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
+  alignRight: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   undo: '<path d="M9 13.5 4.5 9 9 4.5"/><path d="M4.5 9H15a5 5 0 0 1 0 10h-3"/>',
   redo: '<path d="M15 13.5 19.5 9 15 4.5"/><path d="M19.5 9H9a5 5 0 0 0 0 10h3"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
@@ -447,7 +454,7 @@ export async function confirmDialog({ title, message, details, confirmLabel, can
  * A small form in a dialog. fields: [{ name, label, type, value, help,
  * options, required, min, max }]. Resolves with values or null.
  */
-export async function formDialog({ title, intro, media, fields, submitLabel, cancelLabel = 'Go back', iconName = 'edit' }) {
+export async function formDialog({ title, intro, media, fields, submitLabel, cancelLabel = 'Go back', iconName = 'edit', onOpen }) {
   const inputs = {};
   const rows = fields.map((f) => {
     const fid = `fd-${++dialogSeq}`;
@@ -498,6 +505,7 @@ export async function formDialog({ title, intro, media, fields, submitLabel, can
       result = Object.fromEntries(fields.map((f) => [f.name, inputs[f.name].value]));
       return true;
     },
+    onOpen: onOpen ? () => onOpen(inputs) : undefined,
   });
   return value === 'ok' ? result : null;
 }

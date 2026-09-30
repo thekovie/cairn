@@ -112,6 +112,7 @@ fn workspace_view(state: &AppState, ws: &OpenWorkspace) -> Value {
         "read_only": ws.read_only,
         "storage": ws.storage,
         "drafts_persistent": state.drafts().is_persistent(),
+        "version_cleanup": history::Cleanup::load(&ws.root),
     })
 }
 
@@ -191,8 +192,9 @@ pub fn open_at(state: &AppState, root: &FsPath) -> Result<Arc<OpenWorkspace>> {
         last_refresh: Mutex::new(None),
     });
     ws.refresh_index(true);
-    // Tidy old earlier versions in the background (see history::prune_all).
-    if ws.read_only.is_none() {
+    // Tidy old earlier versions in the background, if the team has chosen
+    // to (see history::Cleanup).
+    if ws.read_only.is_none() && history::Cleanup::load(&ws.root).enabled {
         let tidy = ws.clone();
         std::thread::spawn(move || history::prune_all(&tidy.root));
     }
@@ -303,6 +305,24 @@ pub async fn rename_workspace(
         let marker = workspace::rename_workspace(ws.root.path(), &body.display_name)?;
         *ws.marker.write().expect("marker lock") = marker;
         Ok(state_view(st))
+    })
+    .await
+}
+
+/// Save whether (and how) old earlier versions are removed for everyone
+/// using this documentation. Turning it on tidies straight away.
+pub async fn set_version_cleanup(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<history::Cleanup>,
+) -> ApiResult {
+    blocking(state, move |st| {
+        let ws = st.workspace()?;
+        require_writable(&ws)?;
+        workspace::set_version_cleanup(ws.root.path(), &body)?;
+        let removed = history::prune_all(&ws.root);
+        let mut view = state_view(st);
+        view["removed_versions"] = json!(removed);
+        Ok(view)
     })
     .await
 }

@@ -304,6 +304,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/workspace/open", post(api::open_workspace))
         .route("/api/workspace/init", post(api::init_workspace))
         .route("/api/workspace/rename", post(api::rename_workspace))
+        .route("/api/workspace/cleanup", post(api::set_version_cleanup))
         .route("/api/workspace/close", post(api::close_workspace))
         .route("/api/home", get(api::home))
         .route("/api/folder", get(api::folder))

@@ -44,15 +44,64 @@ fn history_dir(root: &Root, article_rel: &str) -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Each page keeps at least this many of its newest versions, however old.
-pub const KEEP_NEWEST: usize = 3;
-/// Versions older than this many days are removed, beyond those.
-pub const KEEP_DAYS: i64 = 30;
+/// Whether and how old earlier versions are removed automatically. A
+/// choice for the whole team, so it lives in the documentation folder's
+/// marker file (`"version_cleanup"`); off unless someone turns it on.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Cleanup {
+    pub enabled: bool,
+    /// Each page keeps at least this many of its newest versions, however old.
+    pub keep_newest: usize,
+    /// Versions older than this many days are removed, beyond those.
+    pub older_than_days: i64,
+}
+
+impl Default for Cleanup {
+    fn default() -> Self {
+        Cleanup {
+            enabled: false,
+            keep_newest: 3,
+            older_than_days: 30,
+        }
+    }
+}
+
+impl Cleanup {
+    pub fn validate(&self) -> Result<()> {
+        if !(1..=100).contains(&self.keep_newest) {
+            return Err(CairnError::BadRequest(
+                "Keep between 1 and 100 of each page's newest versions.".into(),
+            ));
+        }
+        if !(1..=3650).contains(&self.older_than_days) {
+            return Err(CairnError::BadRequest(
+                "Choose between 1 and 3,650 days.".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The team's setting from the marker file. Anything unreadable or out
+    /// of range counts as off: nothing is ever removed by mistake.
+    pub fn load(root: &Root) -> Cleanup {
+        fs::read(root.path().join(crate::workspace::MARKER_FILE))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+            .and_then(|v| serde_json::from_value::<Cleanup>(v.get("version_cleanup")?.clone()).ok())
+            .filter(|c| c.validate().is_ok())
+            .unwrap_or_default()
+    }
+
+    fn cutoff(&self, now: OffsetDateTime) -> String {
+        stamp(now - time::Duration::days(self.older_than_days))
+    }
+}
 
 /// Tidy one page's history folder: remove versions saved before `cutoff`
-/// (a version-id time stamp), except the newest [`KEEP_NEWEST`]. Only files
-/// named like versions are ever touched. Returns how many were removed.
-fn prune_dir(dir: &Path, cutoff: &str) -> usize {
+/// (a version-id time stamp), except the newest `keep`. Only files named
+/// like versions are ever touched. Returns how many were removed.
+fn prune_dir(dir: &Path, keep: usize, cutoff: &str) -> usize {
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
@@ -65,7 +114,7 @@ fn prune_dir(dir: &Path, cutoff: &str) -> usize {
     // Ids start with their UTC time stamp, so this is newest first.
     ids.sort_by(|a, b| b.cmp(a));
     let mut removed = 0;
-    for id in ids.iter().skip(KEEP_NEWEST) {
+    for id in ids.iter().skip(keep) {
         let old = id.get(..19).is_some_and(|s| s < &cutoff[..19]);
         if old && fs::remove_file(dir.join(id)).is_ok() {
             let _ = fs::remove_file(author_file(dir, id));
@@ -75,20 +124,21 @@ fn prune_dir(dir: &Path, cutoff: &str) -> usize {
     removed
 }
 
-fn cutoff(now: OffsetDateTime) -> String {
-    stamp(now - time::Duration::days(KEEP_DAYS))
-}
-
-/// Tidy every page's earlier versions. Best effort: a folder that can't be
-/// read or a file that can't be removed is left for next time.
+/// Tidy every page's earlier versions, if the team has cleanup turned on.
+/// Best effort: a folder that can't be read or a file that can't be removed
+/// is left for next time.
 pub fn prune_all(root: &Root) -> usize {
-    let cutoff = cutoff(OffsetDateTime::now_utc());
+    let cleanup = Cleanup::load(root);
+    if !cleanup.enabled {
+        return 0;
+    }
+    let cutoff = cleanup.cutoff(OffsetDateTime::now_utc());
     walkdir::WalkDir::new(root.system_dir().join("history"))
         .follow_links(false)
         .into_iter()
         .flatten()
         .filter(|e| e.file_type().is_dir())
-        .map(|e| prune_dir(e.path(), &cutoff))
+        .map(|e| prune_dir(e.path(), cleanup.keep_newest, &cutoff))
         .sum()
 }
 
@@ -120,7 +170,14 @@ pub fn save_version(root: &Root, article_rel: &str, bytes: &[u8]) -> Result<Stri
             {
                 let _ = create_new_with(&author_file(&dir, &id), &note);
             }
-            prune_dir(&dir, &cutoff(OffsetDateTime::now_utc()));
+            let cleanup = Cleanup::load(root);
+            if cleanup.enabled {
+                prune_dir(
+                    &dir,
+                    cleanup.keep_newest,
+                    &cleanup.cutoff(OffsetDateTime::now_utc()),
+                );
+            }
             return Ok(id);
         }
     }
@@ -217,7 +274,7 @@ mod tests {
         fs::write(page.join("notes.txt"), "not a version").unwrap();
 
         let cutoff = "20260315T000000000Z";
-        assert_eq!(prune_dir(page, cutoff), 2);
+        assert_eq!(prune_dir(page, 3, cutoff), 2);
         for id in &ids[..2] {
             assert!(!page.join(id).exists(), "{id} should be gone");
         }
@@ -236,13 +293,49 @@ mod tests {
         ] {
             fs::write(page.join(id), id).unwrap();
         }
-        assert_eq!(prune_dir(page, cutoff), 2);
+        assert_eq!(prune_dir(page, 3, cutoff), 2);
         let left = fs::read_dir(page)
             .unwrap()
             .flatten()
             .filter(|e| validate_id(&e.file_name().to_string_lossy()).is_ok())
             .count();
         assert_eq!(left, 4);
+    }
+
+    #[test]
+    fn cleanup_is_off_unless_the_team_turns_it_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = Root::new(dir.path()).unwrap();
+        let page = dir.path().join("_system/history/a.md");
+        fs::create_dir_all(&page).unwrap();
+        for id in [
+            "20200101T000000000Z-aaaaaaaa.md",
+            "20200201T000000000Z-bbbbbbbb.md",
+        ] {
+            fs::write(page.join(id), id).unwrap();
+        }
+        let marker = dir.path().join(crate::workspace::MARKER_FILE);
+
+        // No setting, or an unreadable one: nothing is removed.
+        fs::write(&marker, r#"{"kind":"shared-docs"}"#).unwrap();
+        assert_eq!(Cleanup::load(&root), Cleanup::default());
+        assert_eq!(prune_all(&root), 0);
+        fs::write(
+            &marker,
+            r#"{"version_cleanup":{"enabled":true,"keep_newest":0}}"#,
+        )
+        .unwrap();
+        assert!(!Cleanup::load(&root).enabled);
+        assert_eq!(prune_all(&root), 0);
+
+        // Turned on, keeping just the newest one.
+        fs::write(
+            &marker,
+            r#"{"version_cleanup":{"enabled":true,"keep_newest":1,"older_than_days":30}}"#,
+        )
+        .unwrap();
+        assert_eq!(prune_all(&root), 1);
+        assert!(page.join("20200201T000000000Z-bbbbbbbb.md").exists());
     }
 
     #[test]

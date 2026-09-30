@@ -20,7 +20,14 @@ export {
   toggleLinkCommand,
   linkSchema,
 } from '@milkdown/kit/preset/commonmark';
-export { gfm, insertTableCommand, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm';
+export {
+  gfm, insertTableCommand, toggleStrikethroughCommand,
+  addRowBeforeCommand, addRowAfterCommand, addColBeforeCommand, addColAfterCommand,
+  setAlignCommand,
+} from '@milkdown/kit/preset/gfm';
+export {
+  deleteRow, deleteColumn, deleteTable, isInTable, selectedRect, moveTableRow, moveTableColumn,
+} from '@milkdown/kit/prose/tables';
 export { history, undoCommand, redoCommand } from '@milkdown/kit/plugin/history';
 export { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 export { clipboard } from '@milkdown/kit/plugin/clipboard';

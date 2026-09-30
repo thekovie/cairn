@@ -2,6 +2,21 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **Edit tables where they are.** Click in a table and a **Table** bar appears: add a row above or below, add a column left or right, align a column, move rows and columns, and delete a row, a column, or the whole table. **Tab** in the last cell adds a row. Cells can't be merged, because Markdown tables don't support it; the bar says so.
+- **Callout boxes.** **Note box** now also offers **Note**, **Tip**, **Important**, **Warning**, and **Caution**. Each has its own colour and a label in words. They're written as `> [!WARNING]`, as on GitHub, so they show the same there.
+- **Replace…** (**Ctrl+H**) changes a word or phrase everywhere in the page, leaving link addresses alone. One **Undo** takes it back.
+- **Type `/` on an empty line** to pick what to add there: a heading, list, callout, table, picture, and more.
+- **Word count** and reading time at the top of the editor.
+- **Link to a section of a page.** **Link…** lists the chosen page's headings, so the link opens right at one.
+
+### Changed
+
+- **Removing old earlier versions is now a choice, and off unless someone turns it on.** In 0.8.0 it was always on. In **Settings → Earlier versions**, tick **Remove old earlier versions automatically** and choose how many of each page's newest versions to always keep and after how many days the others go. The choice applies to everyone using the documentation folder, and Cairn asks before turning it on.
+
 ## 0.8.0 (2026-09-30)
 
 ### Added

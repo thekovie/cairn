@@ -114,7 +114,7 @@ function welcomePanel(ctx) {
     h('ul', { class: 'welcome-points' },
       h('li', null, h('strong', null, 'Reading: '), 'choose a folder on the left, or search for any word.'),
       h('li', null, h('strong', null, 'Changing a page: '), 'choose “Edit this page”, write as you would in a letter, then “Publish”. Nobody else sees your changes until you publish.'),
-      h('li', null, h('strong', null, 'Mistakes can be undone: '), 'every page keeps its recent earlier versions, and deleted pages wait in “Recently deleted”.')),
+      h('li', null, h('strong', null, 'Mistakes can be undone: '), `every page keeps its ${ctx.app.state.workspace?.version_cleanup?.enabled ? 'recent ' : ''}earlier versions, and deleted pages wait in “Recently deleted”.`)),
     config.display_name
       ? null
       : h('p', null, `While you edit, others see you as “${user.os_user}”. `,
@@ -585,7 +585,7 @@ export async function historyView(ctx) {
     h('div', { class: 'page-head' },
       h('h1', null, `Earlier versions of “${data.title}”`),
       linkButton('Back to the page', href.page(data.path), { icon: 'back' }),
-      h('p', { class: 'lede' }, 'A copy of the page is kept here every time someone publishes a change. Copies older than a month are removed, but the 3 most recent are always kept.')),
+      h('p', { class: 'lede' }, `A copy of the page is kept here every time someone publishes a change. ${keptSentence(ctx.app.state.workspace?.version_cleanup)}`)),
     data.versions.length
       ? h('ul', { class: 'list' }, data.versions.map((v) => h('li', null,
         h('div', { class: 'row-link' },
@@ -759,7 +759,66 @@ function workspaceSection(ctx, ws) {
     ws.storage?.notes?.length ? banner({ tone: 'warn', text: ws.storage.notes.join(' ') }) : null,
     ws.read_only ? null : renameForm,
     h('div', { class: 'actions', style: 'margin-top: var(--space-5)' }, downloadAll, switchButton),
-    h('p', { class: 'help' }, '“Download everything” saves every page, picture, and template as one .zip file (Markdown or PDFs), for a backup or to share.'));
+    h('p', { class: 'help' }, '“Download everything” saves every page, picture, and template as one .zip file (Markdown or PDFs), for a backup or to share.'),
+    ws.read_only ? null : cleanupForm(ctx, ws));
+}
+
+const dayCount = (n) => (n === 1 ? '1 day' : `${n} days`);
+
+/** How long earlier versions are kept, in one sentence. */
+export function keptSentence(vc) {
+  if (!vc?.enabled) return 'Every copy is kept.';
+  const copies = vc.keep_newest === 1 ? 'the most recent copy is' : `the ${vc.keep_newest} most recent copies are`;
+  return `Copies older than ${dayCount(vc.older_than_days)} are removed, but ${copies} always kept.`;
+}
+
+/** Whether old earlier versions are removed: one choice for the whole team,
+ *  saved in the documentation folder. */
+function cleanupForm(ctx, ws) {
+  const vc = ws.version_cleanup || { enabled: false, keep_newest: 3, older_than_days: 30 };
+  const enabled = h('input', { type: 'checkbox', id: 's-cleanup', checked: vc.enabled });
+  const keep = h('input', { type: 'number', id: 's-keep', min: '1', max: '100', value: String(vc.keep_newest) });
+  const days = h('input', { type: 'number', id: 's-days', min: '1', max: '3650', value: String(vc.older_than_days) });
+  const error = h('div');
+  const showEnabled = () => { keep.disabled = !enabled.checked; days.disabled = !enabled.checked; };
+  enabled.addEventListener('change', showEnabled);
+  showEnabled();
+  const submit = button('Save', { type: 'submit' });
+  return h('form', {
+    class: 'cleanup-form',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      clear(error);
+      const body = { enabled: enabled.checked, keep_newest: Number(keep.value), older_than_days: Number(days.value) };
+      if (body.enabled && !vc.enabled) {
+        const ok = await confirmDialog({
+          title: 'Remove old earlier versions?',
+          message: `For everyone using this documentation, earlier versions older than ${dayCount(body.older_than_days)} will be removed, keeping each page's ${body.keep_newest === 1 ? 'most recent one' : `${body.keep_newest} most recent`}. This starts now and can't be undone.`,
+          confirmLabel: 'Turn on and remove', cancelLabel: 'Keep everything', danger: true, iconName: 'history',
+        });
+        if (!ok) return;
+      }
+      try {
+        const state = await whileBusy(submit, 'Saving…', () => post('/api/workspace/cleanup', body));
+        ctx.app.state = state;
+        Object.assign(vc, state.workspace.version_cleanup);
+        const n = state.removed_versions || 0;
+        toast(!body.enabled ? 'Earlier versions will all be kept.'
+          : n ? `Saved. ${n === 1 ? '1 old version was' : `${n} old versions were`} removed.` : 'Saved. There were no old versions to remove.');
+      } catch (err) {
+        error.append(fieldError(errorText(err)));
+      }
+    },
+  },
+  h('h3', null, 'Earlier versions'),
+  h('p', { class: 'help' }, 'Each time a page is published, the version it replaces is kept. This choice applies to everyone using this documentation folder.'),
+  h('label', { class: 'check', for: 's-cleanup' }, enabled,
+    h('span', null, h('strong', null, 'Remove old earlier versions automatically'))),
+  h('div', { class: 'inline-form cleanup-numbers' },
+    h('div', { class: 'field' }, h('label', { for: 's-keep' }, 'Newest versions to always keep'), keep),
+    h('div', { class: 'field' }, h('label', { for: 's-days' }, 'Remove versions older than (days)'), days)),
+  error,
+  h('div', { class: 'actions' }, submit));
 }
 
 function pdfSection(ctx, cfg) {

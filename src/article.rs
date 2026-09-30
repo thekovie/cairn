@@ -145,6 +145,8 @@ pub(crate) fn md_options() -> Options {
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
+        // Callouts: "> [!NOTE]", "> [!WARNING]" and so on, as on GitHub.
+        | Options::ENABLE_GFM
 }
 
 /// The text of the first level-1 heading, if any.
@@ -623,6 +625,16 @@ pub fn render_notes(md: &str) -> String {
     sanitize(&raw_html)
 }
 
+/// The callout kinds a page can use ("> [!NOTE]" …), as the classes the
+/// renderer gives their boxes.
+const CALLOUT_CLASSES: [&str; 5] = [
+    "markdown-alert-note",
+    "markdown-alert-tip",
+    "markdown-alert-important",
+    "markdown-alert-warning",
+    "markdown-alert-caution",
+];
+
 fn sanitize(html: &str) -> String {
     let mut builder = ammonia::Builder::default();
     builder
@@ -634,6 +646,7 @@ fn sanitize(html: &str) -> String {
         .add_generic_attributes(["title"])
         .add_allowed_classes("a", ["broken-link", "blocked-link", "external-image"])
         .add_allowed_classes("span", ["broken-image"])
+        .add_allowed_classes("blockquote", CALLOUT_CLASSES)
         .add_allowed_classes("code", ["language-*"]);
     for h in ["h1", "h2", "h3", "h4", "h5", "h6"] {
         builder.add_tag_attributes(h, ["id"]);
@@ -644,6 +657,40 @@ fn sanitize(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_link_to_a_section_points_at_its_page() {
+        // "Section of that page" in the link dialog writes page.md#heading-id.
+        assert_eq!(
+            resolve_local_target("Guides/a.md", "../Reference/b.md#who-to-call").as_deref(),
+            Some("Reference/b.md")
+        );
+    }
+
+    #[test]
+    fn callouts_keep_their_kind_and_nothing_else() {
+        let out = sanitize(&{
+            let mut html = String::new();
+            pulldown_cmark::html::push_html(
+                &mut html,
+                Parser::new_ext("> [!WARNING]\n> Unplug it first.\n", md_options()),
+            );
+            html
+        });
+        assert!(
+            out.contains(r#"<blockquote class="markdown-alert-warning">"#),
+            "{out}"
+        );
+        assert!(!out.contains("[!WARNING]"), "{out}");
+        assert!(!sanitize(r#"<blockquote class="evil">x</blockquote>"#).contains("evil"));
+        // As the visual editor writes it once tidied (see visual.js).
+        let mut html = String::new();
+        pulldown_cmark::html::push_html(
+            &mut html,
+            Parser::new_ext("> [!TIP]\n> Save often.\n", md_options()),
+        );
+        assert!(html.contains("markdown-alert-tip"), "{html}");
+    }
 
     #[test]
     fn invalid_front_matter_still_returns_body() {

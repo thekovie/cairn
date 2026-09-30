@@ -118,6 +118,7 @@ A workspace is a folder with `shared-docs.json` at its root:
 | `schema_version` | integer | `1` for this release. Higher values open read-only. |
 | `instance_id` | UUID string | Generated once at creation; never changes |
 | `display_name` | string | Name shown in Cairn |
+| `version_cleanup` | object, optional | Whether old earlier versions are removed: `{ "enabled": false, "keep_newest": 3, "older_than_days": 30 }`. Set in **Settings → Earlier versions**. Missing or invalid means off: every version is kept. `keep_newest` is 1–100, `older_than_days` 1–3650. |
 
 Other fields are preserved when Cairn rewrites the file.
 
@@ -129,7 +130,7 @@ Inside the workspace:
 | `<page>.assets/` | Pictures belonging to `<page>.md` |
 | `_templates/*.md` | This documentation's team templates (not shown as pages or in search) |
 | `_system/locks/` | Edit locks (don't edit these by hand; use `cairn locks`) |
-| `_system/history/` | Earlier versions of pages. Versions older than 30 days are removed, but each page keeps its 3 most recent. |
+| `_system/history/` | Earlier versions of pages. All are kept unless `version_cleanup` is turned on. |
 | `_system/edited/` | Who last published each page, and a fingerprint of what they published |
 | `_system/trash/` | Recently deleted pages and folders, restorable in Cairn. Deleting a folder in here removes it for good. |
 | `_system/.probe/` | Temporary files from the storage check |

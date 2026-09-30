@@ -36,7 +36,27 @@ You can use the toolbar, or type these shortcuts and the formatting appears as y
 | `_words_` | _Italic_ |
 | `` `words` `` | Code |
 
+On an empty line, type `/` to open a list of things to add there (a heading, a list, a callout box, a table, a picture, and so on). Keep typing to narrow the list, use the arrow keys and **Enter** to pick, or **Esc** to close it.
+
 Pictures can be pasted or dragged in. The page details block (owner, status, and so on) is edited with **Page details** below the editor.
+
+The line at the top of the editor shows how long the page is, for example **412 words, about 2 minutes to read**.
+
+### Tables
+
+Click in a table and a **Table** bar appears above the page:
+
+| Control | What it does |
+| --- | --- |
+| **Row above**, **Row below**, **Column left**, **Column right** | Add an empty row or column next to the cell you're in. |
+| **Align column: Left / Centre / Right** | Line up the words in the whole column. |
+| **Move** | Move the row up or down, or the column left or right. |
+| **Delete row**, **Delete column** | Remove the one you're in. **Undo** brings it back. |
+| **Delete table** | Remove the whole table. Cairn asks first. |
+
+Press **Tab** to go to the next cell (**Shift+Tab** goes back). **Tab** in the last cell adds a new row. The top row is the heading row: it can't be moved or deleted.
+
+Cells can't be merged: Markdown tables don't support it. In **Codes only**, a table is the lines starting with `|`; to add rows or columns easily, switch to **As it will look**.
 
 The page is still saved as Markdown. This view writes it in a standard, tidy form, so after your first change there, some lines may be written slightly differently (for example `-` for every bullet). The page looks the same.
 
@@ -49,18 +69,19 @@ Every toolbar button shows its name. For a more compact toolbar, choose **Settin
 | Control | What it does |
 | --- | --- |
 | **Undo**, **Redo** | Take back the last change, or put it back. |
+| **Replace…** | Change a word or phrase everywhere in the page at once, with a count of how many times it's found. Link addresses and picture file names are left alone, so links don't break. One **Undo** takes it all back. To only find something, use the browser's own **Ctrl+F**. |
 | **Text style** list (Normal text, Heading, Subheading, Small heading, Smaller heading, Smallest heading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
 | **Bold**, **Italic**, **Strikethrough** | Style the selected words. With nothing selected, example words are inserted for you to replace. Strikethrough crosses words out, for something that no longer applies. |
 | **Bullet list**, **Numbered list** | Turn the selected lines into a list. Choose again to undo. |
 | **Checklist** | Turn the selected lines into items with a box to tick. Choose again to make them a plain list. |
-| **Note box** | Put the selected lines in a tinted box, for tips and warnings. |
+| **Note box** | Put the selected lines in a tinted box. Choose **Plain box**, or a callout labelled **Note**, **Tip**, **Important**, **Warning**, or **Caution**. Each callout has its own colour and says its kind in words. |
 | **Divider line** | Add a line across the page after the paragraph you're in. |
-| **Link…** | Link to another page in this documentation (pick it from the list) or to a website. |
+| **Link…** | Link to another page in this documentation (pick it from the list, and optionally one of its sections) or to a website. |
 | **Table…** | Insert a table with the number of columns and rows you choose. |
 | **Code** | Mark text as a command or exact text to type. |
 | **Insert picture…** | Add a picture from your computer. |
 
-Optional keyboard shortcuts: **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. Everything a shortcut does is also available as a button.
+Optional keyboard shortcuts: **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+H** replace, **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. Everything a shortcut does is also available as a button.
 
 ### Markdown, if you want it
 
@@ -77,6 +98,8 @@ Pages are stored as Markdown, a plain-text format. The toolbar writes it for you
 | Numbered list | `1. step` |
 | Checklist | `- [ ] item` (`- [x] item` is ticked) |
 | Note box | `> text` |
+| Callout | `> [!WARNING]` on its own line, then `> text`. Also `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!CAUTION]`, as on GitHub. |
+| Link to a section | `[text](other-page.md#heading-name)` |
 | Divider line | `---` on a line of its own |
 | Link | `[text](https://example.com)` or `[text](other-page.md)` |
 | Picture | `![description](my-page.assets/picture.png)` |
@@ -185,7 +208,12 @@ On any page, choose **Earlier versions** to see the versions that were replaced 
 
 Earlier versions are ordinary Markdown files in `_system/history/`.
 
-Earlier versions older than a month are removed automatically, but each page always keeps its 3 most recent ones, however old. Cairn tidies a page's versions whenever it is published, and every page's when Cairn opens the documentation.
+Every earlier version is kept unless someone chooses otherwise. To save space, go to **Settings → Earlier versions**, tick **Remove old earlier versions automatically**, and choose:
+
+- **Newest versions to always keep**: how many of each page's most recent versions stay, however old (3 to begin with);
+- **Remove versions older than (days)**: how old the others may get (30 to begin with).
+
+The choice applies to everyone using this documentation folder. Cairn asks before turning it on, because removed versions can't be brought back. When it's on, Cairn tidies a page's versions whenever it is published, and every page's when Cairn opens the documentation.
 
 ## Who last edited a page
 

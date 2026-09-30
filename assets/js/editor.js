@@ -162,6 +162,7 @@ function helpTable() {
     ['Numbered list', '1. step', 'Numbers are filled in for you.'],
     ['Checklist', '- [ ] item', 'A box to tick. - [x] is ticked.'],
     ['Note box', '> text', 'A tinted box for tips and warnings.'],
+    ['Callout', '> [!WARNING]', 'On its own line, then > text. Also NOTE, TIP, IMPORTANT, CAUTION.'],
     ['Divider line', '---', 'On a line of its own, with an empty line above and below.'],
     ['Link', '[text](https://example.com)', 'Or a link to another page.'],
     ['Picture', '![description](picture.png)', 'Use “Insert picture…”; it does this for you.'],
@@ -287,6 +288,7 @@ function mountEditor(ctx, path, start) {
   const titleEl = h('h1', null, 'Editing');
   const lockStatus = h('span', { class: 'status-item is-ok' });
   const saveStatus = h('span', { class: 'status-item', role: 'status' });
+  const wordStatus = h('span', { class: 'status-item' });
   const notices = h('div');
   const ta = h('textarea', { id: 'md-text', spellcheck: 'true', 'aria-describedby': 'drop-hint' });
   // The page details block (owner, status, …) is kept out of the text box:
@@ -298,13 +300,19 @@ function mountEditor(ctx, path, start) {
     const parts = splitFront(text);
     front = parts.front;
     ta.value = parts.body;
+    countWords();
   };
   setFullText(start.content);
   // Until the first preview arrives (slow on a slow shared folder), say so.
   const previewBody = h('div', { class: 'md-body' },
     h('p', { class: 'loading-label' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Preparing the preview…'));
+  // Tables are changed row by row in the visual view; say so when the
+  // cursor is on a table line here.
+  const tableCodeHint = h('p', { class: 'help table-code-hint', hidden: true },
+    'To add or remove rows and columns, switch to “As it will look”: a table bar appears when you click in the table.');
   const writePane = h('div', { class: 'pane pane-write' },
     h('label', { class: 'pane-label', for: 'md-text' }, 'Page text with formatting codes'),
+    tableCodeHint,
     ta,
     h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder. “Formatting help” below lists the codes.'));
   // Visual editing: type on the page as it will look (see visual.js).
@@ -491,7 +499,17 @@ function mountEditor(ctx, path, start) {
   // Declared below; used by `changed`.
   let syncDetailsFromText = () => {};
 
+  // How long the page is, in words and reading time (200 words a minute).
+  // Link addresses and formatting codes aren't counted.
+  function countWords() {
+    const text = ta.value.replace(/\]\([^)\n]*\)/g, ' ').replace(/[#>*_`~|\[\]()!]/g, ' ');
+    const n = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*/gu) || []).length;
+    const minutes = Math.max(1, Math.round(n / 200));
+    wordStatus.textContent = `${n === 1 ? '1 word' : `${n} words`}, about ${minutes} minute${minutes === 1 ? '' : 's'} to read`;
+  }
+
   function changed() {
+    countWords();
     s.dirty = true;
     setSave(null, 'Not saved yet');
     scheduleSave();
@@ -546,6 +564,12 @@ function mountEditor(ctx, path, start) {
     } else if (kind === 'quote') {
       const all = lines.every((l) => /^\s*>/.test(l));
       out = lines.map((l) => (all ? l.replace(/^(\s*)>\s?/, '$1') : `> ${l}`));
+    } else if (kind.startsWith('callout:')) {
+      // "> [!WARNING]" on its own line, then the box's text.
+      const body = lines
+        .filter((l) => !/^\s*>\s*\[![A-Za-z]+\]\s*$/.test(l))
+        .map((l) => (/^\s*>/.test(l) ? l : `> ${l || 'Text'}`));
+      out = [`> [!${kind.slice(8).toUpperCase()}]`, ...body];
     } else if (kind === 'ul') {
       const all = lines.every((l) => /^\s*[-*+]\s/.test(l));
       out = lines.map((l) => (all ? l.replace(/^(\s*)[-*+]\s/, '$1') : `- ${l.replace(/^\s*\d+\.\s/, '') || 'Item'}`));
@@ -589,9 +613,32 @@ function mountEditor(ctx, path, start) {
           options: [{ value: '', label: 'Not a page: I’ll type a web address below' },
             ...pages.map((p) => ({ value: p.path, label: `${p.title} (${p.path})` }))],
         },
+        {
+          name: 'section', label: 'Section of that page (optional)', type: 'select', value: '',
+          options: [{ value: '', label: 'The top of the page' }],
+          help: 'Choose a page first. The link then opens at that heading.',
+        },
         { name: 'url', label: 'Or a web address', value: '', help: 'Starts with https://. Leave empty if you chose a page above.' },
       ],
       submitLabel: 'Add link',
+      // List the chosen page's headings, so a link can open at one of them.
+      onOpen: (inputs) => {
+        const sections = inputs.section;
+        sections.disabled = true;
+        inputs.page.addEventListener('change', async () => {
+          const chosen = inputs.page.value;
+          sections.replaceChildren(h('option', { value: '' }, 'The top of the page'));
+          sections.disabled = true;
+          if (!chosen) return;
+          let toc = [];
+          try { toc = (await get('/api/page', { path: chosen })).toc; } catch { toc = []; }
+          if (inputs.page.value !== chosen) return; // another page was chosen meanwhile
+          const headings = toc.filter((t) => t.level > 1);
+          sections.append(...headings
+            .map((t) => h('option', { value: t.id }, `${'  '.repeat(t.level - 2)}${t.text}`)));
+          sections.disabled = headings.length === 0;
+        });
+      },
     });
     if (vis) vis.focus();
     else {
@@ -599,7 +646,9 @@ function mountEditor(ctx, path, start) {
       ta.setSelectionRange(selStart, selEnd);
     }
     if (!values) return;
-    let target = values.page ? relativeLink(path, values.page) : values.url.trim();
+    let target = values.page
+      ? `${relativeLink(path, values.page)}${values.section ? `#${values.section}` : ''}`
+      : values.url.trim();
     if (!target) {
       toast('The link needs a page or a web address, so nothing was added.', { error: true });
       return;
@@ -730,6 +779,7 @@ function mountEditor(ctx, path, start) {
   const viewSwitch = h('div', { class: 'view-switch', role: 'group', 'aria-label': 'How to see the page while editing' });
   async function setView(view, { remember = false } = {}) {
     panes.dataset.view = view;
+    setTimeout(() => updateTableBar(), 0); // defined below; the bar only shows in the visual view
     for (const b of viewSwitch.children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
     if (remember) {
       try { localStorage.setItem(VIEW_KEY, view); } catch { /* remembered for this visit only */ }
@@ -769,12 +819,96 @@ function mountEditor(ctx, path, start) {
     const v = ta.value;
     const from = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
     showStyle(v.slice(from).match(/^(#{1,6})\s/)?.[1].length || 0);
+    tableCodeHint.hidden = !/^\s*\|/.test(v.slice(from));
   };
   for (const ev of ['keyup', 'click', 'focus']) ta.addEventListener(ev, syncStyle);
   // The editor applies a cursor move just after the event, so read it a tick later.
   for (const ev of ['keyup', 'mouseup', 'focusin']) {
     visualRoot.addEventListener(ev, () => setTimeout(() => { if (visual) showStyle(visual.headingLevel()); }, 0));
   }
+
+  // Replace: find words in the page and change them all at once. (Finding
+  // alone is the browser's own Ctrl+F, which works in both views.) Link
+  // addresses and picture paths are left alone, so links never break.
+  const PROTECTED = /(\]\([^)\n]*\)|<https?:[^>\s]*>)/;
+  function replaceIn(text, find, replacement, matchCase) {
+    const pattern = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    let count = 0;
+    const out = text.split(PROTECTED).map((part, i) => (i % 2 ? part : part.replace(pattern, () => {
+      count += 1;
+      return replacement;
+    }))).join('');
+    return { out, count };
+  }
+  async function openReplace() {
+    const selected = inVisual()?.selectedText() || ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    const findInput = h('input', { type: 'text', id: 'rp-find', value: selected.includes('\n') ? '' : selected, autocomplete: 'off' });
+    const withInput = h('input', { type: 'text', id: 'rp-with', autocomplete: 'off' });
+    const caseBox = h('input', { type: 'checkbox', id: 'rp-case' });
+    const count = h('p', { class: 'help', role: 'status' });
+    const recount = () => {
+      const n = findInput.value ? replaceIn(ta.value, findInput.value, '', caseBox.checked).count : 0;
+      count.textContent = !findInput.value ? 'Type the words to find.'
+        : n === 0 ? 'Not found in this page.' : n === 1 ? 'Found once.' : `Found ${n} times.`;
+    };
+    for (const el of [findInput, caseBox]) el.addEventListener('input', recount);
+    recount();
+    const value = await openDialog({
+      title: 'Replace words in this page', iconName: 'search', tone: 'info',
+      body: [
+        h('div', { class: 'field' }, h('label', { for: 'rp-find' }, 'Find'), findInput),
+        h('div', { class: 'field' }, h('label', { for: 'rp-with' }, 'Replace with'), withInput),
+        h('label', { class: 'check', for: 'rp-case' }, caseBox, h('span', null, 'Match capital letters exactly')),
+        count,
+        h('p', { class: 'help' }, 'Link addresses and picture file names are not changed. Undo takes it all back.'),
+      ],
+      actions: [
+        { label: 'Close', value: 'cancel' },
+        { label: 'Replace all', value: 'replace', kind: 'primary', submit: true },
+      ],
+      onSubmit: () => findInput.value !== '' && replaceIn(ta.value, findInput.value, '', caseBox.checked).count > 0,
+      onOpen: () => findInput.focus(),
+    });
+    if (value !== 'replace') return;
+    const { out, count: n } = replaceIn(ta.value, findInput.value, withInput.value, caseBox.checked);
+    const vis = inVisual();
+    if (vis) {
+      vis.replaceText(out);
+    } else {
+      ta.focus();
+      ta.select();
+      replaceSelection(out);
+    }
+    activity();
+    toast(n === 1 ? 'Replaced 1 time.' : `Replaced ${n} times.`);
+  }
+
+  for (const el of [ta, visualRoot]) {
+    el.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        openReplace();
+      }
+    });
+  }
+
+  // Note box: a plain tinted box, or a callout that says what kind it is
+  // (written "> [!WARNING]" and so on, as on GitHub).
+  const noteKinds = [
+    ['Plain box', null], ['Note', 'note'], ['Tip', 'tip'],
+    ['Important', 'important'], ['Warning', 'warning'], ['Caution', 'caution'],
+  ];
+  const noteMenu = h('details', { class: 'more-actions note-menu' },
+    h('summary', { class: 'btn btn-icon', dataset: { tip: 'Note box' } },
+      icon('quote'), h('span', { class: 'btn-icon-label' }, 'Note box')),
+    h('div', { class: 'more-actions-list' }, noteKinds.map(([label, kind]) => button(label, {
+      class: 'btn btn-quiet',
+      onClick: run(() => {
+        noteMenu.open = false;
+        if (kind) either((v) => v.callout(kind), () => prefixLines(`callout:${kind}`))();
+        else either((v) => v.run('quote'), () => prefixLines('quote'))();
+      }),
+    }))));
 
   // Undo and redo in the Markdown box use its own history (every toolbar
   // change goes in through insertText, so it is recorded there too).
@@ -783,6 +917,7 @@ function mountEditor(ctx, path, start) {
   const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
     tool('Undo', 'undo', undoRedo('undo'), 'Ctrl+Z'),
     tool('Redo', 'redo', undoRedo('redo'), 'Ctrl+Y'),
+    tool('Replace…', 'search', openReplace, 'Ctrl+H'),
     sep(),
     styleSelect,
     sep(),
@@ -794,7 +929,7 @@ function mountEditor(ctx, path, start) {
     tool('Numbered list', 'listNumbered', either((v) => v.run('ordered'), () => prefixLines('ol'))),
     tool('Checklist', 'checklist', either((v) => v.checklist(), () => prefixLines('task'))),
     sep(),
-    tool('Note box', 'quote', either((v) => v.run('quote'), () => prefixLines('quote'))),
+    noteMenu,
     tool('Divider line', 'divider', either((v) => v.run('divider'), () => insertBlock('---'))),
     sep(),
     tool('Link…', 'link', insertLink),
@@ -802,6 +937,170 @@ function mountEditor(ctx, path, start) {
     tool('Table…', 'table', insertTable),
     tool('Code', 'code', code),
     viewSwitch));
+
+  // Slash menu (visual view): type "/" on an empty line to pick what to add
+  // there, then keep typing to narrow the list. Arrow keys and Enter pick,
+  // Esc closes. Each choice runs the same action as its toolbar button.
+  const slashChoices = [
+    ['Heading', (v) => v.run('heading', 2)],
+    ['Subheading', (v) => v.run('heading', 3)],
+    ['Bullet list', (v) => v.run('bullet')],
+    ['Numbered list', (v) => v.run('ordered')],
+    ['Checklist', (v) => v.checklist()],
+    ...noteKinds.filter(([, kind]) => kind).map(([label, kind]) => [`${label} box`, (v) => v.callout(kind)]),
+    ['Table…', () => insertTable()],
+    ['Picture…', () => fileInput.click()],
+    ['Divider line', (v) => v.run('divider')],
+    ['Code', () => code()],
+  ];
+  const slashList = h('ul', { class: 'slash-menu', role: 'listbox', id: 'slash-menu', 'aria-label': 'Add to this line' });
+  slashList.hidden = true;
+  let slashShown = [];
+  let slashActive = 0;
+  const closeSlash = () => {
+    slashList.hidden = true;
+    visualRoot.removeAttribute('aria-activedescendant');
+    visualRoot.removeAttribute('aria-controls');
+  };
+  const markSlash = () => {
+    slashShown.forEach(([, , li], i) => li.setAttribute('aria-selected', String(i === slashActive)));
+    const li = slashShown[slashActive]?.[2];
+    if (li) {
+      visualRoot.setAttribute('aria-activedescendant', li.id);
+      li.scrollIntoView({ block: 'nearest' });
+    }
+  };
+  const pickSlash = (i) => {
+    const vis = inVisual();
+    const choice = slashShown[i];
+    closeSlash();
+    if (!vis || !choice) return;
+    vis.clearSlash();
+    choice[1](vis);
+    activity();
+  };
+  const slashItems = slashChoices.map(([label, action], i) => {
+    const li = h('li', { role: 'option', id: `slash-${i}`, 'aria-selected': 'false' }, label);
+    // mousedown, so the editor keeps the cursor where the "/" was typed.
+    li.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      pickSlash(slashShown.findIndex(([l]) => l === label));
+    });
+    return [label, action, li];
+  });
+  const updateSlash = () => {
+    const vis = inVisual();
+    const query = vis?.slashQuery();
+    if (query == null) { closeSlash(); return; }
+    const wanted = query.toLowerCase();
+    slashShown = slashItems.filter(([label]) => label.toLowerCase().includes(wanted));
+    if (!slashShown.length) { closeSlash(); return; }
+    slashList.replaceChildren(...slashShown.map(([, , li]) => li));
+    slashActive = Math.min(slashActive, slashShown.length - 1);
+    const at = vis.caretRect();
+    slashList.style.left = `${Math.max(8, Math.min(at.left, window.innerWidth - 272))}px`;
+    slashList.style.top = `${at.bottom + 6}px`;
+    slashList.hidden = false;
+    visualRoot.setAttribute('aria-controls', 'slash-menu');
+    markSlash();
+  };
+  document.body.append(slashList);
+  visualRoot.addEventListener('keydown', (e) => {
+    if (slashList.hidden) return;
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
+    if (e.key in moves) {
+      slashActive = (slashActive + moves[e.key] + slashShown.length) % slashShown.length;
+      markSlash();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      pickSlash(slashActive);
+    } else if (e.key === 'Escape') {
+      closeSlash();
+    } else {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+  visualRoot.addEventListener('input', () => {
+    if (slashList.hidden) slashActive = 0;
+    setTimeout(updateSlash, 0);
+  });
+  visualRoot.addEventListener('focusout', closeSlash);
+  visualRoot.addEventListener('mousedown', closeSlash);
+
+  // Table bar: appears while the cursor is in a table (visual view), so the
+  // main toolbar stays short. Every button keeps its words: tables are
+  // edited now and then, and nobody should have to guess an icon.
+  const tableRun = (action, arg) => run(() => { inVisual()?.tableAction(action, arg); updateTableBar(); });
+  const tb = (label, iconName, action, arg) => button(label, {
+    icon: iconName, class: 'btn btn-quiet btn-table', onClick: tableRun(action, arg),
+  });
+  const alignBtn = (label, value) => {
+    const b = tb(label, `align${value[0].toUpperCase()}${value.slice(1)}`, 'align', value);
+    b.dataset.align = value;
+    return b;
+  };
+  const tableButtons = {
+    rowAbove: tb('Row above', 'rowAbove', 'rowAbove'),
+    rowBelow: tb('Row below', 'rowBelow', 'rowBelow'),
+    colLeft: tb('Column left', 'colLeft', 'colLeft'),
+    colRight: tb('Column right', 'colRight', 'colRight'),
+    rowUp: tb('Move row up', 'rowAbove', 'rowUp'),
+    rowDown: tb('Move row down', 'rowBelow', 'rowDown'),
+    colLeftMove: tb('Move column left', 'colLeft', 'colLeftMove'),
+    colRightMove: tb('Move column right', 'colRight', 'colRightMove'),
+    deleteRow: tb('Delete row', 'trash', 'deleteRow'),
+    deleteCol: tb('Delete column', 'trash', 'deleteCol'),
+  };
+  const alignButtons = [alignBtn('Left', 'left'), alignBtn('Centre', 'center'), alignBtn('Right', 'right')];
+  const deleteTableBtn = button('Delete table', {
+    icon: 'trash', class: 'btn btn-quiet btn-table is-danger',
+    onClick: async () => {
+      const ok = await confirmDialog({
+        title: 'Delete this table?',
+        message: 'The whole table and everything in it is removed from the page. You can bring it back with Undo.',
+        confirmLabel: 'Delete table', cancelLabel: 'Keep it', danger: true, iconName: 'trash',
+      });
+      if (ok) tableRun('deleteTable')();
+    },
+  });
+  for (const key of ['deleteRow', 'deleteCol']) tableButtons[key].classList.add('is-danger');
+  const moveMenu = h('details', { class: 'more-actions table-move' },
+    h('summary', { class: 'btn btn-quiet btn-table' }, icon('chevron'), h('span', null, 'Move')),
+    h('div', { class: 'more-actions-list' },
+      tableButtons.rowUp, tableButtons.rowDown, tableButtons.colLeftMove, tableButtons.colRightMove));
+  const tableBar = toolbarKeys(h('div', {
+    class: 'toolbar table-bar', role: 'toolbar', 'aria-label': 'Table', hidden: true,
+  },
+  h('span', { class: 'toolbar-label' }, 'Table:'),
+  tableButtons.rowAbove, tableButtons.rowBelow, tableButtons.colLeft, tableButtons.colRight,
+  sep(),
+  h('span', { class: 'toolbar-label' }, 'Align column:'), ...alignButtons,
+  sep(),
+  moveMenu,
+  h('span', { class: 'table-bar-danger' }, tableButtons.deleteRow, tableButtons.deleteCol, deleteTableBtn),
+  h('p', { class: 'table-hint' }, 'Tab moves to the next cell, and adds a row at the end. Cells can’t be merged: Markdown tables don’t support it.')));
+
+  function updateTableBar() {
+    const t = panes.dataset.view === 'visual' ? inVisual()?.tableState() : null;
+    tableBar.hidden = !t;
+    if (!t) {
+      moveMenu.open = false;
+      return;
+    }
+    const body = t.row > 0;
+    tableButtons.rowAbove.disabled = !body;
+    tableButtons.deleteRow.disabled = !body || t.rows <= 2;
+    tableButtons.deleteCol.disabled = t.cols <= 1;
+    tableButtons.rowUp.disabled = t.row <= 1;
+    tableButtons.rowDown.disabled = !body || t.row >= t.rows - 1;
+    tableButtons.colLeftMove.disabled = t.col <= 0;
+    tableButtons.colRightMove.disabled = t.col >= t.cols - 1;
+    for (const b of alignButtons) b.setAttribute('aria-pressed', String(b.dataset.align === t.align));
+  }
+  for (const ev of ['keyup', 'mouseup', 'focusin']) {
+    visualRoot.addEventListener(ev, () => setTimeout(updateTableBar, 0));
+  }
 
   // Templates: worded buttons insert fill-in fields so nobody types {{…}}.
   // They stay worded: there is no icon anyone would recognize for them.
@@ -1031,6 +1330,7 @@ function mountEditor(ctx, path, start) {
     clearTimeout(s.saveTimer);
     clearTimeout(s.previewTimer);
     if (visual) visual.destroy();
+    slashList.remove();
     window.removeEventListener('beforeunload', onBeforeUnload);
   }
 
@@ -1211,10 +1511,11 @@ function mountEditor(ctx, path, start) {
   ctx.main.append(
     h('div', { class: 'editor-head' },
       titleEl,
-      h('div', { class: 'editor-status' }, lockStatus, saveStatus)),
+      h('div', { class: 'editor-status' }, lockStatus, saveStatus, wordStatus)),
     notices,
     templatePanel,
     toolbar,
+    tableBar,
     fillInBar,
     panes,
     resizer,

@@ -458,6 +458,32 @@ fn starter_readme(name: &str) -> String {
 }
 
 /// Change the workspace display name, preserving any unknown marker fields.
+/// Save the team's choice about removing old earlier versions in the
+/// marker file, keeping every other field as it is.
+pub fn set_version_cleanup(root: &Path, cleanup: &crate::history::Cleanup) -> Result<()> {
+    cleanup.validate()?;
+    let path = root.join(MARKER_FILE);
+    let bytes = read_optional(&path)?
+        .ok_or_else(|| CairnError::NotFound("The marker file is missing.".into()))?;
+    match parse_marker(&bytes) {
+        MarkerStatus::Valid(m) if m.is_supported() => {}
+        MarkerStatus::Valid(m) => return Err(CairnError::ReadOnly(schema_message(&m))),
+        _ => {
+            return Err(CairnError::BadRequest(
+                "The marker file is not valid JSON.".into(),
+            ));
+        }
+    }
+    let mut value: Value = serde_json::from_slice(&bytes)
+        .map_err(|_| CairnError::BadRequest("The marker file is not valid JSON.".into()))?;
+    value["version_cleanup"] = serde_json::to_value(cleanup).expect("cleanup serializes");
+    write_atomic(
+        &path,
+        &serde_json::to_vec_pretty(&value).expect("marker serializes"),
+    )?;
+    Ok(())
+}
+
 pub fn rename_workspace(root: &Path, new_name: &str) -> Result<Marker> {
     let new_name = new_name.trim();
     if new_name.is_empty() || new_name.chars().count() > 120 {

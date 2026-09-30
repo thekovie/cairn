@@ -877,6 +877,10 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
 .settings-section h2 { margin-bottom: var(--space-2); }
 .settings-section > .help { margin: 0 0 var(--space-4); }
 .inline-form { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+.cleanup-form { margin-top: var(--space-6); padding-top: var(--space-5); border-top: var(--border-width) solid var(--border); display: grid; gap: var(--space-3); }
+.cleanup-form h3 { font-size: var(--text-base); }
+.cleanup-form .help { margin-top: 0; }
+.cleanup-numbers .field { flex: 0 1 18rem; margin: 0; }
 .inline-form .field { flex: 1 1 16rem; margin: 0; }
 .version-preview { margin-top: var(--space-5); }
 
@@ -905,6 +909,21 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   background: var(--surface-2);
 }
 .toolbar-label { font-weight: 600; margin-right: var(--space-1); }
+
+/* Table bar: shows under the toolbar while the cursor is in a table. */
+.table-bar { position: static; border-radius: 0; background: var(--surface-2); align-items: center; }
+.table-bar .toolbar-label { font-size: var(--text-sm); color: var(--fg-muted); font-weight: 600; }
+.table-bar .btn-table { min-height: 2rem; padding: 0 var(--space-2); font-size: var(--text-sm); }
+.table-bar .btn-table[aria-pressed="true"] { background: var(--surface-hover); font-weight: 650; }
+.table-bar .btn-table.is-danger { color: var(--danger); }
+.table-bar .btn-table.is-danger:hover { background: var(--danger-soft); }
+.table-bar .btn-table.is-danger .icon { color: inherit; }
+.table-bar-danger { display: flex; gap: 2px; margin-left: auto; }
+.table-move > summary .icon { transform: rotate(90deg); }
+.table-move .more-actions-list { z-index: var(--z-overlay); }
+.table-hint { flex-basis: 100%; margin: var(--space-1) 0 0; font-size: var(--text-sm); color: var(--fg-muted); }
+/* The cells picked for an action ("you are here" in the table). */
+.visual-doc .selectedCell { background: var(--accent-soft); }
 
 /* ------------------------------------------------------- time and export */
 .tz-chooser {
@@ -1022,3 +1041,18 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   .tpl-actions .btn { flex: 1 1 100%; }
   .tpl-actions .push-right { margin-left: 0; }
 }
+/* Slash menu: beside the cursor in the visual editor. */
+.slash-menu {
+  position: fixed; z-index: var(--z-overlay);
+  width: 16rem; max-height: 18rem; overflow-y: auto;
+  margin: 0; padding: var(--space-2); list-style: none;
+  border: var(--border-width) solid var(--border); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-overlay);
+}
+.slash-menu li {
+  display: flex; align-items: center; min-height: 2.25rem;
+  padding: 0 var(--space-3); border-radius: var(--radius); cursor: pointer;
+}
+.slash-menu li:hover { background: var(--surface-2); }
+.slash-menu li[aria-selected="true"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.table-code-hint { margin: 0; padding: var(--space-2) var(--space-4); background: var(--surface-2); border-bottom: var(--border-width) solid var(--border); }

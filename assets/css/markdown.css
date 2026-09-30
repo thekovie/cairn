@@ -67,6 +67,22 @@
 }
 [data-theme="contrast"] .md-body blockquote { border: var(--border-width) solid var(--border); }
 
+/* Callouts ("> [!WARNING]" …): a label in words, so the kind never depends
+   on colour, and the tint of the matching status. */
+.md-body blockquote[class^="markdown-alert-"]::before {
+  display: block; margin-bottom: 0.3em;
+  font-weight: 700; font-size: var(--text-sm);
+}
+.md-body .markdown-alert-note::before { content: "Note"; color: var(--accent); }
+.md-body .markdown-alert-tip { background: var(--ok-soft); }
+.md-body .markdown-alert-tip::before { content: "Tip"; color: var(--ok); }
+.md-body .markdown-alert-important { background: var(--surface-2); }
+.md-body .markdown-alert-important::before { content: "Important"; color: var(--fg); }
+.md-body .markdown-alert-warning { background: var(--warn-soft); }
+.md-body .markdown-alert-warning::before { content: "Warning"; color: var(--warn); }
+.md-body .markdown-alert-caution { background: var(--danger-soft); }
+.md-body .markdown-alert-caution::before { content: "Caution"; color: var(--danger); }
+
 .md-body code { font-family: var(--font-mono); font-size: 0.85em; background: var(--surface-2); padding: 0.12em 0.4em; border-radius: 4px; border: var(--border-width) solid var(--border); word-break: break-word; }
 .md-body pre { background: var(--surface-2); border: var(--border-width) solid var(--border); border-radius: var(--radius); padding: var(--space-4); overflow-x: auto; line-height: 1.5; }
 .md-body pre code { background: none; border: 0; padding: 0; font-size: var(--text-sm); }
