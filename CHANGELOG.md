@@ -6,7 +6,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Added
 
-- **Edit tables where they are.** Click in a table and a **Table** bar appears: add a row above or below, add a column left or right, align a column, move rows and columns, and delete a row, a column, or the whole table. **Tab** in the last cell adds a row. Cells can't be merged, because Markdown tables don't support it; the bar says so.
+- **Edit tables where they are.** Click in a table and a small **Table** bar appears just above it, with four menus: **Insert** (rows and columns), **Align**, **Move**, and **Delete**. The page doesn't jump when it appears. **Tab** in the last cell adds a row. Cells can't be merged, because Markdown tables don't support it; the Insert menu says so.
 - **Callout boxes.** **Note box** now also offers **Note**, **Tip**, **Important**, **Warning**, and **Caution**. Each has its own colour and a label in words. They're written as `> [!WARNING]`, as on GitHub, so they show the same there.
 - **Replace…** (**Ctrl+H**) changes a word or phrase everywhere in the page, leaving link addresses alone. One **Undo** takes it back.
 - **Type `/` on an empty line** to pick what to add there: a heading, list, callout, table, picture, and more.
@@ -15,6 +15,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Changed
 
+- **A tidier editor toolbar.** Every control is the same size and fits on one row. **As it will look / Show formatting codes / Codes only** is now one switch at the top right. **Replace…** sits at the far right, and **Note box** shows a small ▾ because it opens a menu. The word count is under the page.
 - **Removing old earlier versions is now a choice, and off unless someone turns it on.** In 0.8.0 it was always on. In **Settings → Earlier versions**, tick **Remove old earlier versions automatically** and choose how many of each page's newest versions to always keep and after how many days the others go. The choice applies to everyone using the documentation folder, and Cairn asks before turning it on.
 
 ## 0.8.0 (2026-09-30)

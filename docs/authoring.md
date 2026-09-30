@@ -16,7 +16,7 @@ The editor opens on the page **as it will look**: click anywhere and type, like 
 | Part | What it's for |
 | --- | --- |
 | Toolbar | Buttons that format text for you, each with its name. |
-| **As it will look / Show formatting codes / Codes only** | How to see the page while you edit. Most people never need anything but the first; Cairn remembers what you choose. |
+| **As it will look / Show formatting codes / Codes only** | At the top right: how to see the page while you edit. Most people never need anything but the first; Cairn remembers what you choose. |
 | **Page details** | Owner, status, last reviewed date, and tags. |
 | **Formatting help** | The formatting codes, for anyone who prefers typing them. |
 | **Publish changes** | Shows what you changed, then publishes. |
@@ -40,21 +40,20 @@ On an empty line, type `/` to open a list of things to add there (a heading, a l
 
 Pictures can be pasted or dragged in. The page details block (owner, status, and so on) is edited with **Page details** below the editor.
 
-The line at the top of the editor shows how long the page is, for example **412 words, about 2 minutes to read**.
+The line under the page shows how long it is, for example **412 words, about 2 minutes to read**.
 
 ### Tables
 
-Click in a table and a **Table** bar appears above the page:
+Click in a table and a small **Table** bar appears just above it, with four menus:
 
-| Control | What it does |
+| Menu | What's in it |
 | --- | --- |
-| **Row above**, **Row below**, **Column left**, **Column right** | Add an empty row or column next to the cell you're in. |
-| **Align column: Left / Centre / Right** | Line up the words in the whole column. |
+| **Insert** | **Row above**, **Row below**, **Column left**, **Column right**: add an empty row or column next to the cell you're in. |
+| **Align** | Line up the words in the whole column: left, centre, or right. The current one is marked. |
 | **Move** | Move the row up or down, or the column left or right. |
-| **Delete row**, **Delete column** | Remove the one you're in. **Undo** brings it back. |
-| **Delete table** | Remove the whole table. Cairn asks first. |
+| **Delete** | **Delete row** or **Delete column** (**Undo** brings it back), or **Delete whole table…**, which asks first. |
 
-Press **Tab** to go to the next cell (**Shift+Tab** goes back). **Tab** in the last cell adds a new row. The top row is the heading row: it can't be moved or deleted.
+The arrow keys move along the bar and open a menu; **Esc** closes it and goes back to the table. Press **Tab** to go to the next cell (**Shift+Tab** goes back). **Tab** in the last cell adds a new row. The top row is the heading row: it can't be moved or deleted.
 
 Cells can't be merged: Markdown tables don't support it. In **Codes only**, a table is the lines starting with `|`; to add rows or columns easily, switch to **As it will look**.
 
@@ -69,7 +68,7 @@ Every toolbar button shows its name. For a more compact toolbar, choose **Settin
 | Control | What it does |
 | --- | --- |
 | **Undo**, **Redo** | Take back the last change, or put it back. |
-| **Replace…** | Change a word or phrase everywhere in the page at once, with a count of how many times it's found. Link addresses and picture file names are left alone, so links don't break. One **Undo** takes it all back. To only find something, use the browser's own **Ctrl+F**. |
+| **Replace…** (at the far right) | Change a word or phrase everywhere in the page at once, with a count of how many times it's found. Link addresses and picture file names are left alone, so links don't break. One **Undo** takes it all back. To only find something, use the browser's own **Ctrl+F**. |
 | **Text style** list (Normal text, Heading, Subheading, Small heading, Smaller heading, Smallest heading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
 | **Bold**, **Italic**, **Strikethrough** | Style the selected words. With nothing selected, example words are inserted for you to replace. Strikethrough crosses words out, for something that no longer applies. |
 | **Bullet list**, **Numbered list** | Turn the selected lines into a list. Choose again to undo. |

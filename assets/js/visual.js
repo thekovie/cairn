@@ -292,6 +292,14 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
       const { $from } = v.state.selection;
       v.dispatch(v.state.tr.delete($from.start(), $from.end()));
     },
+    /** The table the cursor is in, as shown on screen (to place the table
+     *  bar above it), or null. */
+    tableDom() {
+      const v = view();
+      if (!m.isInTable(v.state)) return null;
+      const dom = v.nodeDOM(m.selectedRect(v.state).tableStart - 1);
+      return dom?.querySelector?.('table') || dom || null;
+    },
     /** Where the cursor is on screen, to place the slash menu beside it. */
     caretRect() {
       const v = view();

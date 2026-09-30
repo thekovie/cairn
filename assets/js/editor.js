@@ -7,7 +7,7 @@
 import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
-  iconButton, toolbarKeys, formatSize, diffSummary, lineDiff,
+  iconButton, menuButton, toolbarKeys, formatSize, diffSummary, lineDiff,
 } from './core.js';
 import { createVisualEditor } from './visual.js';
 import { lockSentence } from './views.js';
@@ -288,7 +288,8 @@ function mountEditor(ctx, path, start) {
   const titleEl = h('h1', null, 'Editing');
   const lockStatus = h('span', { class: 'status-item is-ok' });
   const saveStatus = h('span', { class: 'status-item', role: 'status' });
-  const wordStatus = h('span', { class: 'status-item' });
+  // How long the page is, at the foot of whichever view is showing.
+  const wordCounts = [h('span', { class: 'word-count' }), h('span', { class: 'word-count' })];
   const notices = h('div');
   const ta = h('textarea', { id: 'md-text', spellcheck: 'true', 'aria-describedby': 'drop-hint' });
   // The page details block (owner, status, …) is kept out of the text box:
@@ -314,13 +315,17 @@ function mountEditor(ctx, path, start) {
     h('label', { class: 'pane-label', for: 'md-text' }, 'Page text with formatting codes'),
     tableCodeHint,
     ta,
-    h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder. “Formatting help” below lists the codes.'));
+    h('div', { class: 'pane-foot' },
+      h('p', { class: 'drop-hint', id: 'drop-hint' }, 'Tip: you can paste a picture here, or drag one in from a folder. “Formatting help” below lists the codes.'),
+      wordCounts[0]));
   // Visual editing: type on the page as it will look (see visual.js).
   const visualRoot = h('div', { class: 'visual-root' });
   const visualPane = h('section', { class: 'pane pane-visual', 'aria-labelledby': 'visual-h' },
     h('h2', { class: 'pane-label', id: 'visual-h' }, 'The page as it will look: click anywhere to write'),
     visualRoot,
-    h('p', { class: 'drop-hint' }, 'Tip: use the buttons above to format text. You can paste or drag in pictures, and click a checkbox to tick it.'));
+    h('div', { class: 'pane-foot' },
+      h('p', { class: 'drop-hint' }, 'Tip: use the buttons above, or type / on an empty line. You can paste or drag in pictures.'),
+      wordCounts[1]));
   // Everyone starts on the page as it will look. Showing the formatting
   // codes is a choice, remembered in this browser once someone makes it.
   let savedView = null;
@@ -505,7 +510,8 @@ function mountEditor(ctx, path, start) {
     const text = ta.value.replace(/\]\([^)\n]*\)/g, ' ').replace(/[#>*_`~|\[\]()!]/g, ' ');
     const n = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*/gu) || []).length;
     const minutes = Math.max(1, Math.round(n / 200));
-    wordStatus.textContent = `${n === 1 ? '1 word' : `${n} words`}, about ${minutes} minute${minutes === 1 ? '' : 's'} to read`;
+    const words = `${n === 1 ? '1 word' : `${n} words`}, about ${minutes} minute${minutes === 1 ? '' : 's'} to read`;
+    for (const el of wordCounts) el.textContent = words;
   }
 
   function changed() {
@@ -898,17 +904,15 @@ function mountEditor(ctx, path, start) {
     ['Plain box', null], ['Note', 'note'], ['Tip', 'tip'],
     ['Important', 'important'], ['Warning', 'warning'], ['Caution', 'caution'],
   ];
-  const noteMenu = h('details', { class: 'more-actions note-menu' },
-    h('summary', { class: 'btn btn-icon', dataset: { tip: 'Note box' } },
-      icon('quote'), h('span', { class: 'btn-icon-label' }, 'Note box')),
-    h('div', { class: 'more-actions-list' }, noteKinds.map(([label, kind]) => button(label, {
-      class: 'btn btn-quiet',
-      onClick: run(() => {
-        noteMenu.open = false;
-        if (kind) either((v) => v.callout(kind), () => prefixLines(`callout:${kind}`))();
-        else either((v) => v.run('quote'), () => prefixLines('quote'))();
-      }),
-    }))));
+  const noteMenu = menuButton('Note box', {
+    icon: 'quote', compact: true,
+    items: noteKinds.map(([label, kind]) => ({
+      label,
+      onSelect: run(kind
+        ? either((v) => v.callout(kind), () => prefixLines(`callout:${kind}`))
+        : either((v) => v.run('quote'), () => prefixLines('quote'))),
+    })),
+  });
 
   // Undo and redo in the Markdown box use its own history (every toolbar
   // change goes in through insertText, so it is recorded there too).
@@ -917,7 +921,6 @@ function mountEditor(ctx, path, start) {
   const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
     tool('Undo', 'undo', undoRedo('undo'), 'Ctrl+Z'),
     tool('Redo', 'redo', undoRedo('redo'), 'Ctrl+Y'),
-    tool('Replace…', 'search', openReplace, 'Ctrl+H'),
     sep(),
     styleSelect,
     sep(),
@@ -931,12 +934,13 @@ function mountEditor(ctx, path, start) {
     sep(),
     noteMenu,
     tool('Divider line', 'divider', either((v) => v.run('divider'), () => insertBlock('---'))),
+    tool('Code', 'code', code),
     sep(),
     tool('Link…', 'link', insertLink),
     tool('Insert picture…', 'image', () => fileInput.click()),
     tool('Table…', 'table', insertTable),
-    tool('Code', 'code', code),
-    viewSwitch));
+    // Find tools sit at the far end, where people look for them.
+    h('span', { class: 'toolbar-end' }, tool('Replace…', 'replace', openReplace, 'Ctrl+H'))));
 
   // Slash menu (visual view): type "/" on an empty line to pick what to add
   // there, then keep typing to narrow the list. Arrow keys and Enter pick,
@@ -1028,79 +1032,108 @@ function mountEditor(ctx, path, start) {
   visualRoot.addEventListener('focusout', closeSlash);
   visualRoot.addEventListener('mousedown', closeSlash);
 
-  // Table bar: appears while the cursor is in a table (visual view), so the
-  // main toolbar stays short. Every button keeps its words: tables are
+  // Table bar: one slim row that floats just above the table the cursor is
+  // in (visual view), so the page never jumps. Four worded menus: tables are
   // edited now and then, and nobody should have to guess an icon.
-  const tableRun = (action, arg) => run(() => { inVisual()?.tableAction(action, arg); updateTableBar(); });
-  const tb = (label, iconName, action, arg) => button(label, {
-    icon: iconName, class: 'btn btn-quiet btn-table', onClick: tableRun(action, arg),
-  });
-  const alignBtn = (label, value) => {
-    const b = tb(label, `align${value[0].toUpperCase()}${value.slice(1)}`, 'align', value);
-    b.dataset.align = value;
-    return b;
+  const tableDo = (action, arg) => () => { inVisual()?.tableAction(action, arg); activity(); updateTableBar(); };
+  const confirmDeleteTable = async () => {
+    const ok = await confirmDialog({
+      title: 'Delete this table?',
+      message: 'The whole table and everything in it is removed from the page. You can bring it back with Undo.',
+      confirmLabel: 'Delete table', cancelLabel: 'Keep it', danger: true, iconName: 'trash',
+    });
+    if (ok) tableDo('deleteTable')();
   };
-  const tableButtons = {
-    rowAbove: tb('Row above', 'rowAbove', 'rowAbove'),
-    rowBelow: tb('Row below', 'rowBelow', 'rowBelow'),
-    colLeft: tb('Column left', 'colLeft', 'colLeft'),
-    colRight: tb('Column right', 'colRight', 'colRight'),
-    rowUp: tb('Move row up', 'rowAbove', 'rowUp'),
-    rowDown: tb('Move row down', 'rowBelow', 'rowDown'),
-    colLeftMove: tb('Move column left', 'colLeft', 'colLeftMove'),
-    colRightMove: tb('Move column right', 'colRight', 'colRightMove'),
-    deleteRow: tb('Delete row', 'trash', 'deleteRow'),
-    deleteCol: tb('Delete column', 'trash', 'deleteCol'),
+  const alignItems = [['left', 'Align column left'], ['center', 'Align column centre'], ['right', 'Align column right']];
+  const tableMenus = {
+    insert: menuButton('Insert', {
+      icon: 'plus',
+      items: [
+        { label: 'Row above', icon: 'rowAbove', onSelect: tableDo('rowAbove') },
+        { label: 'Row below', icon: 'rowBelow', onSelect: tableDo('rowBelow') },
+        { label: 'Column left', icon: 'colLeft', onSelect: tableDo('colLeft') },
+        { label: 'Column right', icon: 'colRight', onSelect: tableDo('colRight') },
+      ],
+    }),
+    align: menuButton('Align', {
+      icon: 'alignLeft',
+      items: alignItems.map(([value, label]) => ({
+        label, icon: `align${value[0].toUpperCase()}${value.slice(1)}`, checked: false, onSelect: tableDo('align', value),
+      })),
+    }),
+    move: menuButton('Move', {
+      icon: 'move',
+      items: [
+        { label: 'Move row up', icon: 'rowAbove', onSelect: tableDo('rowUp') },
+        { label: 'Move row down', icon: 'rowBelow', onSelect: tableDo('rowDown') },
+        { label: 'Move column left', icon: 'colLeft', onSelect: tableDo('colLeftMove') },
+        { label: 'Move column right', icon: 'colRight', onSelect: tableDo('colRightMove') },
+      ],
+    }),
+    remove: menuButton('Delete', {
+      icon: 'trash', danger: true,
+      items: [
+        { label: 'Delete row', icon: 'trash', danger: true, onSelect: tableDo('deleteRow') },
+        { label: 'Delete column', icon: 'trash', danger: true, onSelect: tableDo('deleteCol') },
+        null,
+        { label: 'Delete whole table…', icon: 'trash', danger: true, onSelect: confirmDeleteTable },
+      ],
+    }),
   };
-  const alignButtons = [alignBtn('Left', 'left'), alignBtn('Centre', 'center'), alignBtn('Right', 'right')];
-  const deleteTableBtn = button('Delete table', {
-    icon: 'trash', class: 'btn btn-quiet btn-table is-danger',
-    onClick: async () => {
-      const ok = await confirmDialog({
-        title: 'Delete this table?',
-        message: 'The whole table and everything in it is removed from the page. You can bring it back with Undo.',
-        confirmLabel: 'Delete table', cancelLabel: 'Keep it', danger: true, iconName: 'trash',
-      });
-      if (ok) tableRun('deleteTable')();
-    },
-  });
-  for (const key of ['deleteRow', 'deleteCol']) tableButtons[key].classList.add('is-danger');
-  const moveMenu = h('details', { class: 'more-actions table-move' },
-    h('summary', { class: 'btn btn-quiet btn-table' }, icon('chevron'), h('span', null, 'Move')),
-    h('div', { class: 'more-actions-list' },
-      tableButtons.rowUp, tableButtons.rowDown, tableButtons.colLeftMove, tableButtons.colRightMove));
+  // How tables work, said once in the menu people open first.
+  tableMenus.insert.querySelector('.menu').append(h('p', { class: 'menu-note' },
+    'Tab in the last cell also adds a row. Cells can’t be merged: Markdown tables don’t support it.'));
   const tableBar = toolbarKeys(h('div', {
-    class: 'toolbar table-bar', role: 'toolbar', 'aria-label': 'Table', hidden: true,
-  },
-  h('span', { class: 'toolbar-label' }, 'Table:'),
-  tableButtons.rowAbove, tableButtons.rowBelow, tableButtons.colLeft, tableButtons.colRight,
-  sep(),
-  h('span', { class: 'toolbar-label' }, 'Align column:'), ...alignButtons,
-  sep(),
-  moveMenu,
-  h('span', { class: 'table-bar-danger' }, tableButtons.deleteRow, tableButtons.deleteCol, deleteTableBtn),
-  h('p', { class: 'table-hint' }, 'Tab moves to the next cell, and adds a row at the end. Cells can’t be merged: Markdown tables don’t support it.')));
+    class: 'table-bar', role: 'toolbar', 'aria-label': 'Table', hidden: true,
+  }, tableMenus.insert, tableMenus.align, tableMenus.move, tableMenus.remove));
+  visualPane.insertBefore(tableBar, visualRoot);
+  // Esc in the bar goes back to the table.
+  tableBar.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') inVisual()?.focus();
+  });
 
+  function placeTableBar() {
+    const tableEl = tableBar.hidden ? null : inVisual()?.tableDom();
+    if (!tableEl) return;
+    const pane = visualPane.getBoundingClientRect();
+    const view = visualRoot.getBoundingClientRect();
+    const table = tableEl.getBoundingClientRect();
+    const barH = tableBar.offsetHeight;
+    // Just above the table; kept inside the visible part of the page while
+    // the table is scrolled partly out of view.
+    const top = Math.min(Math.max(table.top - barH - 6, view.top + 4), Math.max(view.top + 4, table.bottom - barH));
+    const left = Math.max(view.left + 4, Math.min(table.left, view.right - tableBar.offsetWidth - 4));
+    tableBar.style.top = `${Math.round(top - pane.top)}px`;
+    tableBar.style.left = `${Math.round(left - pane.left)}px`;
+  }
   function updateTableBar() {
     const t = panes.dataset.view === 'visual' ? inVisual()?.tableState() : null;
+    // Leave the bar up while someone is using it.
+    if (!t && tableBar.contains(document.activeElement)) return;
     tableBar.hidden = !t;
     if (!t) {
-      moveMenu.open = false;
+      for (const menu of Object.values(tableMenus)) menu.close();
       return;
     }
     const body = t.row > 0;
-    tableButtons.rowAbove.disabled = !body;
-    tableButtons.deleteRow.disabled = !body || t.rows <= 2;
-    tableButtons.deleteCol.disabled = t.cols <= 1;
-    tableButtons.rowUp.disabled = t.row <= 1;
-    tableButtons.rowDown.disabled = !body || t.row >= t.rows - 1;
-    tableButtons.colLeftMove.disabled = t.col <= 0;
-    tableButtons.colRightMove.disabled = t.col >= t.cols - 1;
-    for (const b of alignButtons) b.setAttribute('aria-pressed', String(b.dataset.align === t.align));
+    const { insert, move, remove, align } = tableMenus;
+    insert.itemFor('Row above').disabled = !body;
+    remove.itemFor('Delete row').disabled = !body || t.rows <= 2;
+    remove.itemFor('Delete column').disabled = t.cols <= 1;
+    move.itemFor('Move row up').disabled = t.row <= 1;
+    move.itemFor('Move row down').disabled = !body || t.row >= t.rows - 1;
+    move.itemFor('Move column left').disabled = t.col <= 0;
+    move.itemFor('Move column right').disabled = t.col >= t.cols - 1;
+    for (const [value, label] of alignItems) {
+      align.itemFor(label).setAttribute('aria-checked', String(value === (t.align || 'left')));
+    }
+    placeTableBar();
   }
-  for (const ev of ['keyup', 'mouseup', 'focusin']) {
+  for (const ev of ['keyup', 'mouseup', 'focusin', 'input']) {
     visualRoot.addEventListener(ev, () => setTimeout(updateTableBar, 0));
   }
+  visualRoot.addEventListener('scroll', placeTableBar, { passive: true });
+  window.addEventListener('resize', placeTableBar);
 
   // Templates: worded buttons insert fill-in fields so nobody types {{…}}.
   // They stay worded: there is no icon anyone would recognize for them.
@@ -1331,6 +1364,7 @@ function mountEditor(ctx, path, start) {
     clearTimeout(s.previewTimer);
     if (visual) visual.destroy();
     slashList.remove();
+    window.removeEventListener('resize', placeTableBar);
     window.removeEventListener('beforeunload', onBeforeUnload);
   }
 
@@ -1510,12 +1544,13 @@ function mountEditor(ctx, path, start) {
 
   ctx.main.append(
     h('div', { class: 'editor-head' },
-      titleEl,
-      h('div', { class: 'editor-status' }, lockStatus, saveStatus, wordStatus)),
+      h('div', { class: 'editor-title' },
+        titleEl,
+        h('div', { class: 'editor-status' }, lockStatus, saveStatus)),
+      viewSwitch),
     notices,
     templatePanel,
     toolbar,
-    tableBar,
     fillInBar,
     panes,
     resizer,

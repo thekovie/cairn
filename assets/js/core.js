@@ -159,8 +159,11 @@ const ICONS = {
   chevron: '<path d="m9.5 6 6 6-6 6"/>',
   strike: '<path d="M4 12h16"/><path d="M16.5 7.5A4 4 0 0 0 12.5 5H11a3.5 3.5 0 0 0-1.5 6.7M8 16.5a4 4 0 0 0 4 2.5h1a3.5 3.5 0 0 0 3.2-4.9"/>',
   checklist: '<rect x="3" y="4" width="6" height="6" rx="1"/><path d="m4.6 7 1.1 1.1L7.6 6"/><rect x="3" y="14" width="6" height="6" rx="1"/><path d="M12 7h9M12 17h9"/>',
-  quote: '<path d="M4.5 5v14"/><path d="M9 8h11M9 12h11M9 16h7"/>',
-  divider: '<path d="M3 12h18"/><path d="M7 6.5h10M7 17.5h10" stroke-dasharray="2 2.5"/>',
+  quote: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 9v6"/><path d="M11 10h6M11 14h4"/>',
+  divider: '<rect x="5" y="3" width="14" height="5" rx="1"/><path d="M3 12h18"/><rect x="5" y="16" width="14" height="5" rx="1"/>',
+  replace: '<path d="M4 7.5h11M12 4.5l3 3-3 3"/><path d="M20 16.5H9M12 13.5l-3 3 3 3"/>',
+  caretDown: '<path d="m7 10 5 5 5-5"/>',
+  move: '<path d="M12 3v18M3 12h18"/><path d="m9 5.5 3-3 3 3M9 18.5l3 3 3-3M5.5 9l-3 3 3 3M18.5 9l3 3-3 3"/>',
   rowAbove: '<rect x="3" y="12" width="18" height="8" rx="1"/><path d="M12 3v6M9 6h6"/>',
   rowBelow: '<rect x="3" y="4" width="18" height="8" rx="1"/><path d="M12 15v6M9 18h6"/>',
   colLeft: '<rect x="12" y="3" width="8" height="18" rx="1"/><path d="M3 12h6M6 9v6"/>',
@@ -208,6 +211,88 @@ export function iconButton(label, { icon: iconName, shortcut, onClick, ...rest }
     'aria-keyshortcuts': shortcut ? shortcut.replace('Ctrl', 'Control') : null, ...rest,
   }, icon(iconName), h('span', { class: 'btn-icon-label' }, label));
 }
+
+/**
+ * A button that opens a short menu of worded choices (Note box, the table
+ * menus). items: [{ label, icon, onSelect, danger, checked }] or null for a
+ * divider line. With `compact` the button is an icon with a tooltip, like
+ * the other toolbar buttons. Returns the wrapper; `.itemFor(label)` gives
+ * a choice's button so it can be disabled or checked.
+ */
+export function menuButton(label, { icon: iconName, items, compact = false, danger = false }) {
+  const menuId = `menu-${++menuSeq}`;
+  const trigger = compact
+    ? iconButton(label, { icon: iconName })
+    : button(label, { icon: iconName, class: `btn btn-quiet${danger ? ' is-danger' : ''}` });
+  trigger.classList.add('btn-menu');
+  trigger.append(icon('caretDown'));
+  trigger.lastChild.classList.add('menu-caret');
+  trigger.setAttribute('aria-haspopup', 'menu');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.setAttribute('aria-controls', menuId);
+  const list = h('div', { class: 'menu', role: 'menu', id: menuId, 'aria-label': label });
+  list.hidden = true;
+  const buttons = new Map();
+  for (const item of items) {
+    if (!item) { list.append(h('div', { class: 'menu-sep', role: 'separator' })); continue; }
+    const b = button(item.label, {
+      icon: item.icon,
+      class: `btn btn-quiet menu-item${item.danger ? ' is-danger' : ''}`,
+      role: item.checked === undefined ? 'menuitem' : 'menuitemradio',
+      tabindex: '-1',
+    });
+    if (item.checked !== undefined) b.setAttribute('aria-checked', String(item.checked));
+    b.addEventListener('click', () => { close(true); item.onSelect(); });
+    buttons.set(item.label, b);
+    list.append(b);
+  }
+  const enabled = () => [...buttons.values()].filter((b) => !b.disabled);
+  const onOutside = (e) => { if (!wrap.contains(e.target)) close(false); };
+  function open(focusLast = false) {
+    list.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', onOutside, true);
+    const choices = enabled();
+    (focusLast ? choices.at(-1) : choices[0])?.focus();
+  }
+  function close(refocus) {
+    if (list.hidden) return;
+    list.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', onOutside, true);
+    if (refocus) trigger.focus();
+  }
+  trigger.addEventListener('click', () => (list.hidden ? open() : close(true)));
+  trigger.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      open(e.key === 'ArrowUp');
+    }
+  });
+  list.addEventListener('keydown', (e) => {
+    const choices = enabled();
+    const i = choices.indexOf(document.activeElement);
+    const moves = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: choices.length - 1 };
+    if (e.key in moves) {
+      e.preventDefault();
+      choices[(moves[e.key] + choices.length) % choices.length]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === 'Tab') {
+      close(false);
+    }
+    // Keep the toolbar's own arrow keys out of the menu.
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.stopPropagation();
+  });
+  const wrap = h('span', { class: 'menu-wrap' }, trigger, list);
+  wrap.trigger = trigger;
+  wrap.itemFor = (itemLabel) => buttons.get(itemLabel);
+  wrap.close = () => close(false);
+  return wrap;
+}
+let menuSeq = 0;
 
 /** Arrow keys, Home, and End move between the controls of a toolbar. */
 export function toolbarKeys(toolbar) {
