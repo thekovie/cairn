@@ -12,7 +12,7 @@
 
 import {
   bootstrapToken, hasToken, get, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
-  appendChildren,
+  appendChildren, actionInProgress, toast,
 } from './core.js';
 import * as views from './views.js';
 import { setupView } from './setup.js';
@@ -367,6 +367,14 @@ function routeLoader(main, route) {
 }
 
 async function onRoute() {
+  // Something is being saved to the shared folder: stay until it's done.
+  const working = actionInProgress();
+  if (working && app.currentHash) {
+    history.replaceState(null, '', app.currentHash);
+    renderNav();
+    toast(`${working.replace(/…$/, '')} is still going. Please wait for it to finish, then try again.`, { error: true });
+    return;
+  }
   if (app.current?.canLeave) {
     const ok = await app.current.canLeave();
     if (!ok) {

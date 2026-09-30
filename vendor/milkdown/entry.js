@@ -14,12 +14,14 @@ export {
   turnIntoTextCommand,
   wrapInBulletListCommand,
   wrapInOrderedListCommand,
+  wrapInBlockquoteCommand,
+  insertHrCommand,
   insertImageCommand,
   toggleLinkCommand,
   linkSchema,
 } from '@milkdown/kit/preset/commonmark';
-export { gfm, insertTableCommand } from '@milkdown/kit/preset/gfm';
-export { history } from '@milkdown/kit/plugin/history';
+export { gfm, insertTableCommand, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm';
+export { history, undoCommand, redoCommand } from '@milkdown/kit/plugin/history';
 export { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 export { clipboard } from '@milkdown/kit/plugin/clipboard';
 export { callCommand, replaceAll, getMarkdown, insert } from '@milkdown/kit/utils';

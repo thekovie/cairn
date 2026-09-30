@@ -5,7 +5,7 @@
 //! ordinary Markdown files, readable without Cairn.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -44,6 +44,54 @@ fn history_dir(root: &Root, article_rel: &str) -> Result<PathBuf> {
     Ok(dir)
 }
 
+/// Each page keeps at least this many of its newest versions, however old.
+pub const KEEP_NEWEST: usize = 3;
+/// Versions older than this many days are removed, beyond those.
+pub const KEEP_DAYS: i64 = 30;
+
+/// Tidy one page's history folder: remove versions saved before `cutoff`
+/// (a version-id time stamp), except the newest [`KEEP_NEWEST`]. Only files
+/// named like versions are ever touched. Returns how many were removed.
+fn prune_dir(dir: &Path, cutoff: &str) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut ids: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|id| validate_id(id).is_ok())
+        .collect();
+    // Ids start with their UTC time stamp, so this is newest first.
+    ids.sort_by(|a, b| b.cmp(a));
+    let mut removed = 0;
+    for id in ids.iter().skip(KEEP_NEWEST) {
+        let old = id.get(..19).is_some_and(|s| s < &cutoff[..19]);
+        if old && fs::remove_file(dir.join(id)).is_ok() {
+            let _ = fs::remove_file(author_file(dir, id));
+            removed += 1;
+        }
+    }
+    removed
+}
+
+fn cutoff(now: OffsetDateTime) -> String {
+    stamp(now - time::Duration::days(KEEP_DAYS))
+}
+
+/// Tidy every page's earlier versions. Best effort: a folder that can't be
+/// read or a file that can't be removed is left for next time.
+pub fn prune_all(root: &Root) -> usize {
+    let cutoff = cutoff(OffsetDateTime::now_utc());
+    walkdir::WalkDir::new(root.system_dir().join("history"))
+        .follow_links(false)
+        .into_iter()
+        .flatten()
+        .filter(|e| e.file_type().is_dir())
+        .map(|e| prune_dir(e.path(), &cutoff))
+        .sum()
+}
+
 fn stamp(now: OffsetDateTime) -> String {
     let fmt = time::macros::format_description!(
         "[year][month][day]T[hour][minute][second][subsecond digits:3]Z"
@@ -72,6 +120,7 @@ pub fn save_version(root: &Root, article_rel: &str, bytes: &[u8]) -> Result<Stri
             {
                 let _ = create_new_with(&author_file(&dir, &id), &note);
             }
+            prune_dir(&dir, &cutoff(OffsetDateTime::now_utc()));
             return Ok(id);
         }
     }
@@ -149,6 +198,52 @@ pub fn read_version(root: &Root, article_rel: &str, id: &str) -> Result<Vec<u8>>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_versions_go_but_the_newest_three_stay() {
+        let dir = tempfile::tempdir().unwrap();
+        let page = dir.path();
+        let ids = [
+            "20260101T090000000Z-aaaaaaaa.md", // old
+            "20260201T090000000Z-bbbbbbbb.md", // old
+            "20260301T090000000Z-cccccccc.md", // old, but one of the newest three
+            "20260310T090000000Z-dddddddd.md", // old, one of the newest three
+            "20260320T090000000Z-eeeeeeee.md", // newest
+        ];
+        for id in ids {
+            fs::write(page.join(id), id).unwrap();
+        }
+        fs::write(author_file(page, ids[0]), "{}").unwrap();
+        fs::write(page.join("notes.txt"), "not a version").unwrap();
+
+        let cutoff = "20260315T000000000Z";
+        assert_eq!(prune_dir(page, cutoff), 2);
+        for id in &ids[..2] {
+            assert!(!page.join(id).exists(), "{id} should be gone");
+        }
+        assert!(!author_file(page, ids[0]).exists());
+        for id in &ids[2..] {
+            assert!(page.join(id).exists(), "{id} should stay");
+        }
+        assert!(page.join("notes.txt").exists());
+
+        // Newer versions push the old ones out of the newest three; recent
+        // versions all stay, even when there are more than three.
+        for id in [
+            "20260316T000000000Z-ffffffff.md",
+            "20260317T000000000Z-gggggggg.md",
+            "20260318T000000000Z-hhhhhhhh.md",
+        ] {
+            fs::write(page.join(id), id).unwrap();
+        }
+        assert_eq!(prune_dir(page, cutoff), 2);
+        let left = fs::read_dir(page)
+            .unwrap()
+            .flatten()
+            .filter(|e| validate_id(&e.file_name().to_string_lossy()).is_ok())
+            .count();
+        assert_eq!(left, 4);
+    }
 
     #[test]
     fn id_validation_rejects_traversal() {

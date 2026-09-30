@@ -80,18 +80,39 @@ pub fn last_edit(root: &Root, rel: &str, current: &[u8]) -> LastEdit {
     }
 }
 
-/// Cairn itself rewrote the page (links fixed after a move): keep who
-/// wrote it, and match the new text.
-pub fn rehash(root: &Root, rel: &str, content: &[u8]) {
+/// Cairn itself rewrote the page from `old` to `new` (links fixed after a
+/// move): keep who wrote it, and match the new text. A page that had
+/// already been changed outside Cairn stays that way.
+pub fn rehash(root: &Root, rel: &str, old: &[u8], new: &[u8]) {
     let (Some(rec), Some(path)) = (lookup(root, rel), record_path(root, rel)) else {
         return;
     };
+    if rec.hash != sha256_hex(old) {
+        return;
+    }
     let rec = EditRecord {
-        hash: sha256_hex(content),
+        hash: sha256_hex(new),
         ..rec
     };
     if let Ok(bytes) = serde_json::to_vec_pretty(&rec) {
         let _ = write_atomic(&path, &bytes);
+    }
+}
+
+/// Put back the record a page had before Cairn published a mechanical
+/// change to it (which names whoever made the change); `None` removes it.
+pub fn restore(root: &Root, rel: &str, before: Option<&EditRecord>) {
+    let Some(path) = record_path(root, rel) else {
+        return;
+    };
+    match before.map(serde_json::to_vec_pretty) {
+        Some(Ok(bytes)) => {
+            let _ = write_atomic(&path, &bytes);
+        }
+        Some(Err(_)) => {}
+        None => {
+            let _ = fs::remove_file(&path);
+        }
     }
 }
 
@@ -132,7 +153,11 @@ mod tests {
             other => panic!("{other:?}"),
         }
         assert_eq!(last_edit(&root, "Guides/a.md", b"two"), LastEdit::Outside);
-        rehash(&root, "Guides/a.md", b"two");
+        // A page changed elsewhere stays "outside" after a link fix...
+        rehash(&root, "Guides/a.md", b"two", b"three");
+        assert_eq!(last_edit(&root, "Guides/a.md", b"three"), LastEdit::Outside);
+        // ...and one Cairn published keeps its author.
+        rehash(&root, "Guides/a.md", b"one", b"two");
         assert!(
             matches!(last_edit(&root, "Guides/a.md", b"two"), LastEdit::By(r) if r.by == "Priya")
         );

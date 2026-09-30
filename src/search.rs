@@ -30,6 +30,9 @@ pub struct PageSummary {
     pub modified: u64,
     /// Who last published it in Cairn, if it hasn't changed since.
     pub edited_by: Option<String>,
+    /// When they did (Unix seconds). Link fixes after a move change the
+    /// file's own time but not this.
+    pub edited_at: Option<u64>,
     /// Changed since Cairn last published it (outside Cairn).
     pub edited_outside: bool,
 }
@@ -45,9 +48,13 @@ struct Entry {
 
 fn set_last_edit(summary: &mut PageSummary, last: LastEdit) {
     summary.edited_by = None;
+    summary.edited_at = None;
     summary.edited_outside = false;
     match last {
-        LastEdit::By(rec) => summary.edited_by = Some(rec.by),
+        LastEdit::By(rec) => {
+            summary.edited_by = Some(rec.by);
+            summary.edited_at = Some(rec.at);
+        }
         LastEdit::Outside => summary.edited_outside = true,
         LastEdit::Unknown => {}
     }
@@ -91,6 +98,7 @@ pub fn summarize(path: &str, text: &str, modified: u64) -> (PageSummary, String)
         tags: meta.tags,
         modified,
         edited_by: None,
+        edited_at: None,
         edited_outside: false,
     };
     (summary, plain_text(body))
@@ -194,14 +202,13 @@ impl SearchIndex {
         all
     }
 
-    /// Most recently modified pages.
+    /// Most recently changed pages, by the time lists show: when someone
+    /// published it (a link fix after a move doesn't count), or else the
+    /// file's own time.
     pub fn recent(&self, limit: usize) -> Vec<PageSummary> {
         let mut all: Vec<_> = self.entries.values().map(|e| e.summary.clone()).collect();
-        all.sort_by(|a, b| {
-            b.modified
-                .cmp(&a.modified)
-                .then_with(|| a.title.cmp(&b.title))
-        });
+        let when = |p: &PageSummary| p.edited_at.unwrap_or(p.modified);
+        all.sort_by(|a, b| when(b).cmp(&when(a)).then_with(|| a.title.cmp(&b.title)));
         all.truncate(limit);
         all
     }

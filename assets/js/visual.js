@@ -71,7 +71,7 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
       ctx.set(m.defaultValueCtx, markdown);
       ctx.update(m.remarkPluginsCtx, (plugins) => [...plugins, { plugin: emptyTitles, options: {} }]);
       // Write Markdown the way Cairn's own buttons do.
-      ctx.update(m.remarkStringifyOptionsCtx, (opts) => ({ ...opts, bullet: '-', emphasis: '_', strong: '*' }));
+      ctx.update(m.remarkStringifyOptionsCtx, (opts) => ({ ...opts, bullet: '-', emphasis: '_', strong: '*', rule: '-' }));
       ctx.update(m.editorViewOptionsCtx, (prev) => ({
         ...prev,
         attributes: {
@@ -144,11 +144,33 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
     heading: m.wrapInHeadingCommand,
     paragraph: m.turnIntoTextCommand,
     table: m.insertTableCommand,
+    strike: m.toggleStrikethroughCommand,
+    quote: m.wrapInBlockquoteCommand,
+    divider: m.insertHrCommand,
+    undo: m.undoCommand,
+    redo: m.redoCommand,
+  };
+
+  const inListItem = () => {
+    const { $from } = view().state.selection;
+    for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === 'list_item') return true;
+    return false;
   };
 
   return {
     /** Run a formatting command by name (see `commands`). */
     run(name, payload) {
+      if (name === 'divider') {
+        // A line goes in after the paragraph (or list) the cursor is in:
+        // it never replaces words or splits a sentence.
+        const v = view();
+        const { state } = v;
+        const { $to } = state.selection;
+        const pos = $to.depth ? $to.after(1) : $to.pos;
+        v.dispatch(state.tr.insert(pos, state.schema.nodes.hr.create()).scrollIntoView());
+        v.focus();
+        return;
+      }
       if (name === 'table') {
         // A table goes in after the selected words; it never replaces them.
         const { state } = view();
@@ -156,6 +178,24 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
       }
       editor.action(m.callCommand(commands[name].key, payload));
       view().focus();
+    },
+    /** Turn the selected lines into a checklist, or back into a plain list
+     *  when they already are one. */
+    checklist() {
+      if (!inListItem()) editor.action(m.callCommand(m.wrapInBulletListCommand.key));
+      const v = view();
+      const { from, to } = v.state.selection;
+      const items = [];
+      v.state.doc.nodesBetween(from, to, (node, pos) => {
+        if (node.type.name === 'list_item') items.push([node, pos]);
+      });
+      const makeTasks = items.some(([node]) => node.attrs.checked == null);
+      let tr = v.state.tr;
+      for (const [node, pos] of items) {
+        tr = tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: makeTasks ? (node.attrs.checked ?? false) : null });
+      }
+      if (tr.docChanged) v.dispatch(tr);
+      v.focus();
     },
     /** Insert Markdown at the cursor, replacing any selection. */
     insert(md, inline = false) {

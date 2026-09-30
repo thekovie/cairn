@@ -135,7 +135,7 @@ function statusLine(s) {
 
 async function checkNow(btn) {
   try {
-    setStatus(await whileBusy(btn, 'Checking…', () => post('/api/update/check')));
+    setStatus(await whileBusy(btn, 'Checking…', () => post('/api/update/check'), { guard: false }));
     if (status.error) toast(status.error, { error: true });
     else toast(status.available ? `Cairn ${status.available.version} is available.` : 'You have the latest version.');
   } catch (err) {

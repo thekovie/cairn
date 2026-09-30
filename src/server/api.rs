@@ -191,6 +191,11 @@ pub fn open_at(state: &AppState, root: &FsPath) -> Result<Arc<OpenWorkspace>> {
         last_refresh: Mutex::new(None),
     });
     ws.refresh_index(true);
+    // Tidy old earlier versions in the background (see history::prune_all).
+    if ws.read_only.is_none() {
+        let tidy = ws.clone();
+        std::thread::spawn(move || history::prune_all(&tidy.root));
+    }
 
     state.release_all_locks();
     state.denied_dirs.lock().expect("denied lock").clear();

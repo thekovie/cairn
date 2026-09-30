@@ -154,11 +154,15 @@ function folderOf(path) {
 
 function helpTable() {
   const rows = [
-    ['Heading', '## Heading', 'A section title. Use one # for the page title.'],
+    ['Heading', '## Heading', 'A section title. Use one # for the page title, and ### to ###### for smaller headings.'],
     ['Bold', '**words**', 'Makes words stand out.'],
     ['Italic', '_words_', 'Slanted words.'],
+    ['Strikethrough', '~~words~~', 'Crossed out, for something that no longer applies.'],
     ['Bullet list', '- item', 'One item per line.'],
     ['Numbered list', '1. step', 'Numbers are filled in for you.'],
+    ['Checklist', '- [ ] item', 'A box to tick. - [x] is ticked.'],
+    ['Note box', '> text', 'A tinted box for tips and warnings.'],
+    ['Divider line', '---', 'On a line of its own, with an empty line above and below.'],
     ['Link', '[text](https://example.com)', 'Or a link to another page.'],
     ['Picture', '![description](picture.png)', 'Use “Insert picture…”; it does this for you.'],
     ['Code', '`code`', 'For commands or exact text to type.'],
@@ -530,9 +534,18 @@ function mountEditor(ctx, path, start) {
     let out;
     if (kind === 'p') {
       out = lines.map((l) => l.replace(/^#{1,6}\s*/, ''));
-    } else if (kind === 'h1' || kind === 'h2' || kind === 'h3') {
-      const mark = { h1: '# ', h2: '## ', h3: '### ' }[kind];
+    } else if (/^h[1-6]$/.test(kind)) {
+      const mark = `${'#'.repeat(Number(kind[1]))} `;
       out = lines.map((l) => mark + (l.replace(/^#{1,6}\s*/, '') || 'Section title'));
+    } else if (kind === 'task') {
+      // A checklist, or back to a plain list if it already is one.
+      const all = lines.every((l) => /^\s*[-*+]\s\[[ xX]\]\s/.test(l));
+      out = lines.map((l) => (all
+        ? l.replace(/^(\s*[-*+]\s)\[[ xX]\]\s/, '$1')
+        : `- [ ] ${l.replace(/^\s*([-*+]|\d+\.)\s(\[[ xX]\]\s)?/, '') || 'Item'}`));
+    } else if (kind === 'quote') {
+      const all = lines.every((l) => /^\s*>/.test(l));
+      out = lines.map((l) => (all ? l.replace(/^(\s*)>\s?/, '$1') : `> ${l}`));
     } else if (kind === 'ul') {
       const all = lines.every((l) => /^\s*[-*+]\s/.test(l));
       out = lines.map((l) => (all ? l.replace(/^(\s*)[-*+]\s/, '$1') : `- ${l.replace(/^\s*\d+\.\s/, '') || 'Item'}`));
@@ -743,12 +756,15 @@ function mountEditor(ctx, path, start) {
     h('option', { value: 'p' }, 'Normal text'),
     h('option', { value: 'h2' }, 'Heading'),
     h('option', { value: 'h3' }, 'Subheading'),
+    h('option', { value: 'h4' }, 'Small heading'),
+    h('option', { value: 'h5' }, 'Smaller heading'),
+    h('option', { value: 'h6' }, 'Smallest heading'),
     h('option', { value: 'h1' }, 'Page title'));
   styleSelect.addEventListener('change', run(either(
     (v) => (styleSelect.value === 'p' ? v.run('paragraph') : v.run('heading', Number(styleSelect.value.slice(1)))),
     () => prefixLines(styleSelect.value))));
   // Show the style of the line the cursor is on.
-  const showStyle = (hashes) => { styleSelect.value = { 0: 'p', 1: 'h1', 2: 'h2' }[hashes] || 'h3'; };
+  const showStyle = (hashes) => { styleSelect.value = hashes ? `h${hashes}` : 'p'; };
   const syncStyle = () => {
     const v = ta.value;
     const from = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
@@ -760,18 +776,29 @@ function mountEditor(ctx, path, start) {
     visualRoot.addEventListener(ev, () => setTimeout(() => { if (visual) showStyle(visual.headingLevel()); }, 0));
   }
 
+  // Undo and redo in the Markdown box use its own history (every toolbar
+  // change goes in through insertText, so it is recorded there too).
+  const undoRedo = (name) => either((v) => v.run(name), () => { ta.focus(); document.execCommand(name); });
+
   const toolbar = toolbarKeys(h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': 'Formatting', 'aria-controls': 'md-text' },
+    tool('Undo', 'undo', undoRedo('undo'), 'Ctrl+Z'),
+    tool('Redo', 'redo', undoRedo('redo'), 'Ctrl+Y'),
+    sep(),
     styleSelect,
     sep(),
     tool('Bold', 'bold', either((v) => v.run('bold'), () => wrap('**', '**', 'bold words')), 'Ctrl+B'),
     tool('Italic', 'italic', either((v) => v.run('italic'), () => wrap('_', '_', 'slanted words')), 'Ctrl+I'),
+    tool('Strikethrough', 'strike', either((v) => v.run('strike'), () => wrap('~~', '~~', 'crossed-out words'))),
     sep(),
     tool('Bullet list', 'list', either((v) => v.run('bullet'), () => prefixLines('ul'))),
     tool('Numbered list', 'listNumbered', either((v) => v.run('ordered'), () => prefixLines('ol'))),
+    tool('Checklist', 'checklist', either((v) => v.checklist(), () => prefixLines('task'))),
+    sep(),
+    tool('Note box', 'quote', either((v) => v.run('quote'), () => prefixLines('quote'))),
+    tool('Divider line', 'divider', either((v) => v.run('divider'), () => insertBlock('---'))),
     sep(),
     tool('Link…', 'link', insertLink),
-    // Adding a picture is common enough to always show its name.
-    iconButton('Insert picture…', { icon: 'image', class: 'btn btn-icon has-words', onClick: run(() => fileInput.click()) }),
+    tool('Insert picture…', 'image', () => fileInput.click()),
     tool('Table…', 'table', insertTable),
     tool('Code', 'code', code),
     viewSwitch));
@@ -910,7 +937,7 @@ function mountEditor(ctx, path, start) {
     h('div', { class: 'details-body' },
       h('p', { class: 'help', style: 'margin: 0 0 var(--space-3)' }, 'The buttons above do all of this for you; you never need to type these codes. They are for anyone who prefers typing, with “Show formatting codes” turned on. To tick a checklist item, click its box.'),
       helpTable(),
-      h('p', { class: 'help' }, 'Keyboard shortcuts (optional): Ctrl+B bold, Ctrl+I italic, Ctrl+S save now.')));
+      h('p', { class: 'help' }, 'Keyboard shortcuts (optional): Ctrl+Z undo, Ctrl+Y redo, Ctrl+B bold, Ctrl+I italic, Ctrl+S save now.')));
 
   // ------------------------------------------------------------ lock
   function showReleased(reason, lock) {

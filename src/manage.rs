@@ -313,6 +313,8 @@ fn update_links_elsewhere(
             }
         };
         let base = sha256_hex(text.as_bytes());
+        // A link fix isn't writing the page: it stays credited as before.
+        let before = editors::lookup(root, p);
         let request = PublishRequest {
             root,
             article_rel: p,
@@ -322,7 +324,11 @@ fn update_links_elsewhere(
             staged: Vec::new(),
         };
         match publish::publish(request, &PublishOptions::default()) {
-            Ok(PublishOutcome::Published { .. }) => out.updated.push(p.clone()),
+            Ok(PublishOutcome::Published { .. }) => {
+                editors::restore(root, p, before.as_ref());
+                editors::rehash(root, p, text.as_bytes(), rw.text.as_bytes());
+                out.updated.push(p.clone());
+            }
             Ok(PublishOutcome::Conflict { .. }) => {
                 out.skipped
                     .push(skip("It was changed at the same moment.".into()));
@@ -420,6 +426,11 @@ pub fn move_page(
         require_writable_dir(dir)?;
     }
     relocate_page(root, &from, &to, &src, &dst, &old, &new_text)?;
+    // A new title is an edit by whoever renamed it (as when only the title
+    // changes); a move alone keeps the page credited as before.
+    if new_title.is_some() && new_text.as_bytes() != old.as_slice() {
+        editors::record(root, &to, &me.display_name, new_text.as_bytes());
+    }
     drop(locks);
     let links = update_links_elsewhere(root, me, pages, &map, |p| {
         p.eq_ignore_ascii_case(&from) || p.eq_ignore_ascii_case(&to)
@@ -488,7 +499,7 @@ fn relocate_page(
     move_history(root, from, to);
     if new_text.as_bytes() != old {
         let _ = history::save_version(root, to, old);
-        editors::rehash(root, to, new_text.as_bytes());
+        editors::rehash(root, to, old, new_text.as_bytes());
     }
     Ok(())
 }
@@ -574,7 +585,7 @@ pub fn move_folder(
                 undo(&written);
                 return Err(e);
             }
-            editors::rehash(root, p, text.as_bytes());
+            editors::rehash(root, p, &old, text.as_bytes());
             written.push((path, old.clone()));
         }
         moved.push(Moved {

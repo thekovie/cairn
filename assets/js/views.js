@@ -4,7 +4,7 @@
 import {
   get, post, h, clear, icon, button, linkButton, banner, emptyState, breadcrumbsNav, statusChip,
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
-  confirmDialog, formDialog, whileBusy, errorText, diffView, fieldError, announce, applyPrefs,
+  confirmDialog, formDialog, whileBusy, guardAction, errorText, diffView, fieldError, announce, applyPrefs,
   appendChildren, isToday, enablePictureZoom, ApiError,
 } from './core.js';
 import { openPageDownload, openBulkDownload } from './export.js';
@@ -28,7 +28,7 @@ function pageRow(page, { showFolder = false } = {}) {
   return h('li', null, h('a', { class: 'row-link', href: href.page(page.path) },
     icon('page'),
     h('span', { class: 'row-title' }, page.title),
-    h('span', { class: 'row-side' }, changedLine(page.modified, page.edited_by, page.edited_outside)),
+    h('span', { class: 'row-side' }, changedLine(page.edited_at || page.modified, page.edited_by, page.edited_outside)),
     h('span', { class: 'row-meta' },
       statusChip(page.status),
       page.owner ? h('span', null, `Owner: ${page.owner}`) : null,
@@ -84,7 +84,8 @@ async function createFolder(ctx, parent) {
   });
   if (!values) return;
   try {
-    const res = await post('/api/folder/create', { parent: parent || '', name: values.name.trim() });
+    const res = await guardAction('Creating the folder…',
+      () => post('/api/folder/create', { parent: parent || '', name: values.name.trim() }));
     toast(`Folder “${values.name.trim()}” created.`);
     window.dispatchEvent(new Event('cairn:nav-changed'));
     ctx.navigate(href.folder(res.path));
@@ -113,7 +114,7 @@ function welcomePanel(ctx) {
     h('ul', { class: 'welcome-points' },
       h('li', null, h('strong', null, 'Reading: '), 'choose a folder on the left, or search for any word.'),
       h('li', null, h('strong', null, 'Changing a page: '), 'choose “Edit this page”, write as you would in a letter, then “Publish”. Nobody else sees your changes until you publish.'),
-      h('li', null, h('strong', null, 'Nothing is lost: '), 'every page keeps its earlier versions, and deleted pages wait in “Recently deleted”.')),
+      h('li', null, h('strong', null, 'Mistakes can be undone: '), 'every page keeps its recent earlier versions, and deleted pages wait in “Recently deleted”.')),
     config.display_name
       ? null
       : h('p', null, `While you edit, others see you as “${user.os_user}”. `,
@@ -559,7 +560,7 @@ export async function historyView(ctx) {
 
   async function show(version, btn) {
     try {
-      const v = await whileBusy(btn, 'Opening…', () => get('/api/history/version', { path: data.path, id: version.id }));
+      const v = await whileBusy(btn, 'Opening…', () => get('/api/history/version', { path: data.path, id: version.id }), { guard: false });
       clear(preview).append(
         h('div', { class: 'page-head' },
           h('h2', { id: 'ver-h', tabindex: '-1' }, `Version saved ${formatIsoDateTime(version.saved_at)}`),
@@ -584,7 +585,7 @@ export async function historyView(ctx) {
     h('div', { class: 'page-head' },
       h('h1', null, `Earlier versions of “${data.title}”`),
       linkButton('Back to the page', href.page(data.path), { icon: 'back' }),
-      h('p', { class: 'lede' }, 'A copy of the page is kept here every time someone publishes a change.')),
+      h('p', { class: 'lede' }, 'A copy of the page is kept here every time someone publishes a change. Copies older than a month are removed, but the 3 most recent are always kept.')),
     data.versions.length
       ? h('ul', { class: 'list' }, data.versions.map((v) => h('li', null,
         h('div', { class: 'row-link' },
@@ -722,7 +723,7 @@ function workspaceSection(ctx, ws) {
     onsubmit: async (e) => {
       e.preventDefault();
       try {
-        await post('/api/workspace/rename', { display_name: wsNameInput.value });
+        await guardAction('Renaming…', () => post('/api/workspace/rename', { display_name: wsNameInput.value }));
         await ctx.refreshState();
         toast('The documentation has been renamed.');
       } catch (err) { toast(errorText(err), { error: true }); }

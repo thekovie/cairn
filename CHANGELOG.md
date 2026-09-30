@@ -6,7 +6,19 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Added
 
+- **Old earlier versions are tidied away.** Versions older than a month are removed, but every page always keeps its 3 most recent ones. This happens when a page is published and when Cairn opens the documentation.
+- **Cairn keeps you on the page while it saves.** While it publishes, renames, moves, deletes, restores, or creates something:
+  - closing or reloading the tab makes the browser ask first;
+  - Home, the page tree, and the Back button wait until it's done, with a message saying why;
+  - a notice at the bottom says to keep the tab open.
+  This way nothing is left half done.
+- **More formatting in the editor:** **Strikethrough**, **Checklist**, **Note box**, and **Divider line** buttons, plus **Undo** and **Redo**. The text style list has three more heading sizes: Small, Smaller, and Smallest heading. Everything is still plain Markdown.
 - **Proxy server setting** (**Settings → Updates**). Offices that reach the internet through a proxy can type its address and port, such as `proxy.office.local:8080`, so Cairn can check for and download updates. Leave it empty to keep using Windows' proxy settings.
+
+### Fixed
+
+- **"Edited by" stays with whoever wrote the page.** When a rename or move fixes links in other pages, those pages are no longer credited to the person who moved things. A new title still counts as that person's edit.
+- **Page lists show when a page was published,** not when a link in it was last fixed. "Recently changed" is in that same order.
 
 ## 0.7.0 (2026-09-30)
 

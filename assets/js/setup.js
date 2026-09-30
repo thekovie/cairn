@@ -25,7 +25,7 @@ function folderChooser({ intro, onChosen }) {
     onClick: async (e) => {
       clear(error);
       try {
-        const res = await whileBusy(e.currentTarget, 'Waiting for you to choose…', () => post('/api/workspace/pick'));
+        const res = await whileBusy(e.currentTarget, 'Waiting for you to choose…', () => post('/api/workspace/pick'), { guard: false });
         if (res.path) {
           pathInput.value = res.path;
           onChosen(res.path);

@@ -129,7 +129,8 @@ Inside the workspace:
 | `<page>.assets/` | Pictures belonging to `<page>.md` |
 | `_templates/*.md` | This documentation's team templates (not shown as pages or in search) |
 | `_system/locks/` | Edit locks (don't edit these by hand; use `cairn locks`) |
-| `_system/history/` | Earlier versions of pages |
+| `_system/history/` | Earlier versions of pages. Versions older than 30 days are removed, but each page keeps its 3 most recent. |
+| `_system/edited/` | Who last published each page, and a fingerprint of what they published |
 | `_system/trash/` | Recently deleted pages and folders, restorable in Cairn. Deleting a folder in here removes it for good. |
 | `_system/.probe/` | Temporary files from the storage check |
 | Files and folders starting with `.` | Ignored |

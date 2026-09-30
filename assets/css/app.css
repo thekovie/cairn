@@ -598,11 +598,6 @@ textarea, input, [contenteditable="true"] { caret-color: var(--accent); }
 }
 .view-switch .btn.btn-view { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: var(--text-sm); }
 
-/* "Insert picture…" always shows its name: it's too common to hide. */
-.toolbar .btn.btn-icon.has-words { width: auto; padding: 0 var(--space-3); gap: var(--space-2); }
-.has-words .btn-icon-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
-.has-words.btn-icon::after { display: none; }
-
 /* Words beside the icons: chosen in Settings, and always on touch screens,
    where there is no hover to reveal a tooltip. */
 html[data-toolbar="words"] .toolbar .btn.btn-icon { width: auto; padding: 0 var(--space-3); gap: var(--space-2); }
@@ -821,6 +816,19 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
 .dlg-foot { padding: var(--space-4) var(--space-5); border-top: var(--border-width) solid var(--border); display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; background: var(--surface-2); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .dlg-foot .btn-danger, .dlg-foot .push-left { margin-right: auto; }
 
+/* While something is being saved to the shared folder (see core.js). */
+.working-note {
+  position: fixed; left: 50%; bottom: var(--space-5); transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex; align-items: center; gap: var(--space-3);
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--fg); color: var(--bg);
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--text-sm);
+}
+
 /* -------------------------------------------------------------- toasts */
 .toasts { position: fixed; right: var(--space-5); bottom: var(--space-5); z-index: var(--z-toast); display: flex; flex-direction: column; gap: var(--space-3); max-width: min(28rem, calc(100vw - 2rem)); }
 .toast {
@@ -1005,6 +1013,8 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   .dlg-foot .btn-danger, .dlg-foot .push-left { margin-right: 0; }
   .inline-form .field { flex-basis: 100%; }
   .toasts { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); max-width: none; }
+  /* Toasts fill the bottom of a phone screen: the saving notice goes on top. */
+  .working-note { top: var(--space-3); bottom: auto; }
   .empty { padding: var(--space-5); }
   .tpl-row { grid-template-columns: minmax(0, 1fr); }
   .tpl-row > .icon { display: none; }

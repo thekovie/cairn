@@ -44,19 +44,23 @@ The page is still saved as Markdown. This view writes it in a standard, tidy for
 
 ### Formatting with the toolbar
 
-Every toolbar button shows its name. For a more compact toolbar, choose **Settings → Appearance → Editor toolbar → Icons only**: then a button's name appears when you point at it or move to it with **Tab** (the arrow keys move along the toolbar). **Insert picture…** always shows its name, and on touch screens all names are shown.
+Every toolbar button shows its name. For a more compact toolbar, choose **Settings → Appearance → Editor toolbar → Icons only**: then a button's name appears when you point at it or move to it with **Tab** (the arrow keys move along the toolbar). On touch screens all names are shown.
 
 | Control | What it does |
 | --- | --- |
-| **Text style** list (Normal text, Heading, Subheading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
-| **Bold**, **Italic** | Style the selected words. With nothing selected, example words are inserted for you to replace. |
+| **Undo**, **Redo** | Take back the last change, or put it back. |
+| **Text style** list (Normal text, Heading, Subheading, Small heading, Smaller heading, Smallest heading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
+| **Bold**, **Italic**, **Strikethrough** | Style the selected words. With nothing selected, example words are inserted for you to replace. Strikethrough crosses words out, for something that no longer applies. |
 | **Bullet list**, **Numbered list** | Turn the selected lines into a list. Choose again to undo. |
+| **Checklist** | Turn the selected lines into items with a box to tick. Choose again to make them a plain list. |
+| **Note box** | Put the selected lines in a tinted box, for tips and warnings. |
+| **Divider line** | Add a line across the page after the paragraph you're in. |
 | **Link…** | Link to another page in this documentation (pick it from the list) or to a website. |
 | **Table…** | Insert a table with the number of columns and rows you choose. |
 | **Code** | Mark text as a command or exact text to type. |
 | **Insert picture…** | Add a picture from your computer. |
 
-Optional keyboard shortcuts: **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. Everything a shortcut does is also available as a button.
+Optional keyboard shortcuts: **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. Everything a shortcut does is also available as a button.
 
 ### Markdown, if you want it
 
@@ -65,17 +69,21 @@ Pages are stored as Markdown, a plain-text format. The toolbar writes it for you
 | To get | Type |
 | --- | --- |
 | Page title | `# Title` (the first one is the page's title) |
-| Section heading | `## Heading` |
+| Section heading | `## Heading`, and `###` to `######` for smaller headings |
 | Bold | `**words**` |
 | Italic | `_words_` |
+| Strikethrough | `~~words~~` |
 | Bullet list | `- item` |
 | Numbered list | `1. step` |
+| Checklist | `- [ ] item` (`- [x] item` is ticked) |
+| Note box | `> text` |
+| Divider line | `---` on a line of its own |
 | Link | `[text](https://example.com)` or `[text](other-page.md)` |
 | Picture | `![description](my-page.assets/picture.png)` |
 | Table | `\| A \| B \|`, then `\| --- \| --- \|`, then one line per row |
 | Code | `` `code` ``, or three backticks on their own lines around a block |
 
-Raw HTML typed into a page is shown as text; it never runs.
+Raw HTML typed into a page is shown as text; it never runs. That is also why there is no underline, highlight, or text colour: Markdown doesn't have them, and the only way would be HTML.
 
 ## Pictures
 
@@ -170,12 +178,14 @@ Only typing, pasting, adding pictures, and using editor buttons count as activit
 
 ## Earlier versions
 
-On any page, choose **Earlier versions** to see every version that was replaced by a publish. For each one you can:
+On any page, choose **Earlier versions** to see the versions that were replaced by a publish (see below for how long they are kept). For each one you can:
 
 - **View this version** to read it, and see what's different from the current page;
 - **Restore this version** to make it the current page again. The page it replaces is kept in the list, so a restore can itself be undone.
 
 Earlier versions are ordinary Markdown files in `_system/history/`.
+
+Earlier versions older than a month are removed automatically, but each page always keeps its 3 most recent ones, however old. Cairn tidies a page's versions whenever it is published, and every page's when Cairn opens the documentation.
 
 ## Who last edited a page
 

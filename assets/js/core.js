@@ -157,6 +157,12 @@ const ICONS = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   chevron: '<path d="m9.5 6 6 6-6 6"/>',
+  strike: '<path d="M4 12h16"/><path d="M16.5 7.5A4 4 0 0 0 12.5 5H11a3.5 3.5 0 0 0-1.5 6.7M8 16.5a4 4 0 0 0 4 2.5h1a3.5 3.5 0 0 0 3.2-4.9"/>',
+  checklist: '<rect x="3" y="4" width="6" height="6" rx="1"/><path d="m4.6 7 1.1 1.1L7.6 6"/><rect x="3" y="14" width="6" height="6" rx="1"/><path d="M12 7h9M12 17h9"/>',
+  quote: '<path d="M4.5 5v14"/><path d="M9 8h11M9 12h11M9 16h7"/>',
+  divider: '<path d="M3 12h18"/><path d="M7 6.5h10M7 17.5h10" stroke-dasharray="2 2.5"/>',
+  undo: '<path d="M9 13.5 4.5 9 9 4.5"/><path d="M4.5 9H15a5 5 0 0 1 0 10h-3"/>',
+  redo: '<path d="M15 13.5 19.5 9 15 4.5"/><path d="M19.5 9H9a5 5 0 0 0 0 10h3"/>',
   menu: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
 };
 
@@ -216,14 +222,63 @@ export function linkButton(label, target, { icon: iconName, kind, large } = {}) 
   return h('a', { class: cls, href: target }, iconName ? icon(iconName) : null, h('span', null, label));
 }
 
-/** Show a working state on a button while `fn` runs. */
-export async function whileBusy(btn, busyLabel, fn) {
+// ------------------------------------------------------ actions in progress
+// While Cairn is changing shared files (publishing, renaming, deleting…),
+// leaving halfway could leave things half done: the tab can't be closed or
+// reloaded without the browser asking first, Cairn won't switch screens,
+// and a notice says to wait.
+
+const running = [];
+let workingNote = null;
+
+/** The action being carried out, such as "Publishing…", or null. */
+export const actionInProgress = () => running.at(-1) ?? null;
+
+window.addEventListener('beforeunload', (e) => {
+  if (!running.length) return;
+  e.preventDefault();
+  e.returnValue = ''; // older browsers need this to ask
+});
+
+function showWorking() {
+  const label = actionInProgress();
+  if (!label) {
+    workingNote?.remove();
+    workingNote = null;
+    return;
+  }
+  if (!workingNote) {
+    workingNote = h('div', { class: 'working-note', role: 'status' });
+    document.body.append(workingNote);
+  }
+  clear(workingNote).append(
+    h('span', { class: 'spinner', 'aria-hidden': 'true' }),
+    h('span', null, h('strong', null, label), ' Keep this tab open until it finishes.'));
+}
+
+/** Run `fn`, an action that changes shared files, guarded as above. */
+export async function guardAction(label, fn) {
+  running.push(label);
+  showWorking();
+  try {
+    return await fn();
+  } finally {
+    running.splice(running.lastIndexOf(label), 1);
+    showWorking();
+  }
+}
+
+/**
+ * Show a working state on a button while `fn` runs. Guarded like
+ * `guardAction` unless `guard: false` (for waits that change nothing).
+ */
+export async function whileBusy(btn, busyLabel, fn, { guard = true } = {}) {
   const original = Array.from(btn.childNodes);
   btn.disabled = true;
   btn.setAttribute('aria-busy', 'true');
   clear(btn).append(h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', null, busyLabel));
   try {
-    return await fn();
+    return await (guard ? guardAction(busyLabel, fn) : fn());
   } finally {
     btn.disabled = false;
     btn.removeAttribute('aria-busy');

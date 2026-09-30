@@ -15,7 +15,12 @@
 .md-body h1 { font-size: var(--text-2xl); margin-top: 0; }
 .md-body h2 { font-size: var(--text-xl); margin-top: 2em; padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--border); }
 .md-body h3 { font-size: var(--text-lg); margin-top: 1.75em; }
-.md-body h4, .md-body h5, .md-body h6 { font-size: var(--text-md); margin-top: 1.5em; }
+/* Smaller heading levels step down in size, then in colour, so each level
+   still looks different from the one above it. */
+.md-body h4 { font-size: var(--text-md); margin-top: 1.5em; }
+.md-body h5 { font-size: var(--text-base); margin-top: 1.4em; }
+.md-body h6 { font-size: var(--text-sm); margin-top: 1.4em; color: var(--fg-muted); }
+.md-body del { color: var(--fg-muted); }
 .md-body :is(table, th, td, pre, code) { font-variant-numeric: lining-nums tabular-nums; }
 .md-body a { text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
 .md-body a:hover { text-decoration-thickness: 2px; }

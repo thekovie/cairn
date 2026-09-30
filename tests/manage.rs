@@ -335,3 +335,42 @@ fn a_deleted_folder_comes_back_whole() {
     assert!(exists(&ws, "Guides/printer.assets/tray.png"));
     assert!(locks::list_locks(&ws.root).unwrap().is_empty());
 }
+
+#[test]
+fn link_fixes_after_a_move_keep_who_wrote_each_page() {
+    use cairn::editors::{self, LastEdit};
+    let ws = common::workspace();
+    seed(&ws);
+    let who = |rel: &str| match editors::last_edit(&ws.root, rel, read(&ws, rel).as_bytes()) {
+        LastEdit::By(rec) => Some(rec.by),
+        LastEdit::Outside => Some("outside".into()),
+        LastEdit::Unknown => None,
+    };
+    for rel in ["Guides/printer.md", "Guides/setup.md", "index.md"] {
+        editors::record(&ws.root, rel, "Ana", read(&ws, rel).as_bytes());
+    }
+    let sam = common::identity("Sam");
+
+    // Moving the folder fixes links inside it and in index.md: nobody's
+    // work is credited to Sam.
+    move_folder(&ws.root, &sam, &all(&ws), "Guides", "Hardware/How-to").unwrap();
+    assert_eq!(who("Hardware/How-to/printer.md").as_deref(), Some("Ana"));
+    assert_eq!(who("Hardware/How-to/setup.md").as_deref(), Some("Ana"));
+    assert_eq!(who("index.md").as_deref(), Some("Ana"));
+
+    // A new title is Sam's edit.
+    move_page(
+        &ws.root,
+        &sam,
+        &all(&ws),
+        "Hardware/How-to/setup.md",
+        "Hardware/How-to/getting-set-up.md",
+        Some("Getting set up"),
+    )
+    .unwrap();
+    assert_eq!(
+        who("Hardware/How-to/getting-set-up.md").as_deref(),
+        Some("Sam")
+    );
+    assert_eq!(who("Hardware/How-to/printer.md").as_deref(), Some("Ana"));
+}
