@@ -14,6 +14,7 @@ All notable changes that people using Cairn would notice are listed here.
 - **Callouts look like callouts while you edit.** In **As it will look**, a Warning box is tinted and labelled "Warning", as on the published page, instead of showing the `[!WARNING]` code.
 - **The Table bar no longer covers the line above a table.** Tables keep a little room above them while you edit.
 - **The template Insert buttons** match the rest of the toolbar.
+- **Editing on a phone is one scroll.** The editor grows with the page instead of being a small box that scrolls inside it, and the formatting buttons stay at the top of the screen while you write. The middle view button is called **Page + codes** on a phone, so all three fit on one line.
 
 ## 0.9.0 (2026-09-30)
 

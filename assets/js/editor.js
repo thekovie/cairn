@@ -815,14 +815,22 @@ function mountEditor(ctx, path, start) {
       ta.focus();
     }
   }
-  const viewBtn = (label, view) => button(label, {
-    class: 'btn btn-view', dataset: { view },
-    'aria-pressed': view === startView ? 'true' : 'false',
-    onClick: () => setView(view, { remember: true }),
-  });
+  const viewBtn = (label, view, phoneLabel) => {
+    const b = button(label, {
+      class: 'btn btn-view', dataset: { view },
+      'aria-pressed': view === startView ? 'true' : 'false',
+      onClick: () => setView(view, { remember: true }),
+    });
+    // A shorter name on a phone, so all three fit on one line.
+    if (phoneLabel) {
+      b.lastChild.classList.add('view-long');
+      b.append(h('span', { class: 'view-short' }, phoneLabel));
+    }
+    return b;
+  };
   viewSwitch.append(
     viewBtn('As it will look', 'visual'),
-    viewBtn('Show formatting codes', 'both'),
+    viewBtn('Show formatting codes', 'both', 'Page + codes'),
     viewBtn('Codes only', 'write'));
 
   const styleSelect = h('select', { id: 'tb-style', class: 'toolbar-select', 'aria-label': 'Text style' },
