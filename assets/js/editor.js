@@ -10,6 +10,7 @@ import {
   iconButton, menuButton, toolbarKeys, formatSize, diffSummary, lineDiff,
 } from './core.js';
 import { createVisualEditor } from './visual.js';
+import { scrollTogether } from './scrollsync.js';
 import { lockSentence } from './views.js';
 
 const SAVE_DELAY_MS = 2500;
@@ -82,6 +83,7 @@ export function writeMeta(text, fields) {
 // ------------------------------------------------------------ visual mode
 
 const VIEW_KEY = 'cairn.editView';
+const SCROLL_KEY = 'cairn.scrollTogether';
 const HEIGHT_KEY = 'cairn.editorHeight';
 const EDITOR_MIN_HEIGHT = 224;
 const VIEWS = ['visual', 'both', 'write'];
@@ -331,12 +333,25 @@ function mountEditor(ctx, path, start) {
   let savedView = null;
   try { savedView = localStorage.getItem(VIEW_KEY); } catch { savedView = null; }
   const startView = VIEWS.includes(savedView) ? savedView : 'visual';
+  let scrollPref = null;
+  try { scrollPref = localStorage.getItem(SCROLL_KEY); } catch { scrollPref = null; }
+  const scrollBox = h('input', { type: 'checkbox', id: 'scroll-together', checked: scrollPref !== 'off' });
   const panes = h('div', { class: 'editor-panes', 'data-view': startView },
     visualPane,
     writePane,
     h('section', { class: 'pane pane-preview', 'aria-labelledby': 'preview-h' },
-      h('h2', { class: 'pane-label', id: 'preview-h' }, 'Preview: how the page will look'),
+      h('div', { class: 'pane-head' },
+        h('h2', { class: 'pane-label', id: 'preview-h' }, 'Preview: how the page will look'),
+        h('label', { class: 'check pane-option', for: 'scroll-together' },
+          scrollBox, h('span', null, 'Scroll together'))),
       previewBody));
+  // The text box and the preview follow each other while this is ticked.
+  const syncedScroll = scrollTogether(ta, previewBody,
+    () => scrollBox.checked && panes.dataset.view === 'both');
+  scrollBox.addEventListener('change', () => {
+    try { localStorage.setItem(SCROLL_KEY, scrollBox.checked ? 'on' : 'off'); } catch { /* this visit only */ }
+    syncedScroll.refresh();
+  });
 
   // The editor is a box with its own scrolling, so the page around it stays
   // put and "Publish" is always just below it. Drag the bar under the box
@@ -489,6 +504,7 @@ function mountEditor(ctx, path, start) {
       const content = isTemplate ? withExampleValues(fullText(), author) : fullText();
       const res = await post('/api/preview', { path, content });
       previewBody.innerHTML = res.html; // sanitized by the server
+      syncedScroll.refresh();
       const heading = isTemplate
         ? `Editing template: ${readTemplateMeta(fullText()).template_name || 'Untitled template'}`
         : `Editing: ${res.title}`;
@@ -786,6 +802,7 @@ function mountEditor(ctx, path, start) {
   async function setView(view, { remember = false } = {}) {
     panes.dataset.view = view;
     setTimeout(() => updateTableBar(), 0); // defined below; the bar only shows in the visual view
+    if (view === 'both') setTimeout(() => syncedScroll.refresh(), 0);
     for (const b of viewSwitch.children) b.setAttribute('aria-pressed', String(b.dataset.view === view));
     if (remember) {
       try { localStorage.setItem(VIEW_KEY, view); } catch { /* remembered for this visit only */ }
@@ -1365,6 +1382,7 @@ function mountEditor(ctx, path, start) {
     if (visual) visual.destroy();
     slashList.remove();
     window.removeEventListener('resize', placeTableBar);
+    syncedScroll.destroy();
     window.removeEventListener('beforeunload', onBeforeUnload);
   }
 

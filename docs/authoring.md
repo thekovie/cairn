@@ -61,6 +61,8 @@ The page is still saved as Markdown. This view writes it in a standard, tidy for
 
 **Show formatting codes** puts the page's text with its codes on one side and a preview on the other; **Codes only** shows just the text. Pictures can be pasted or dragged in there too.
 
+In **Show formatting codes**, the two sides **scroll together**: scroll either one and the other follows, lined up heading by heading, so the text you're looking at is always beside its preview. To scroll them separately, untick **Scroll together** above the preview; Cairn remembers your choice.
+
 ### Formatting with the toolbar
 
 Every toolbar button shows its name. For a more compact toolbar, choose **Settings → Appearance → Editor toolbar → Icons only**: then a button's name appears when you point at it or move to it with **Tab** (the arrow keys move along the toolbar). On touch screens all names are shown.

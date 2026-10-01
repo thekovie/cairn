@@ -326,6 +326,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .check { display: flex; gap: var(--space-3); align-items: flex-start; font-weight: 400; cursor: pointer; }
 .check input { width: 1.35rem; height: 1.35rem; margin-top: 0.25rem; accent-color: var(--accent); flex: none; }
 
+/* A pane's heading with one option beside it ("Scroll together"). */
+.pane-head { display: flex; flex-wrap: wrap; gap: 0 var(--space-4); align-items: baseline; justify-content: space-between; padding-right: var(--space-4); }
+.pane-option { align-items: center; gap: var(--space-2); padding-top: var(--space-3); font-size: var(--text-sm); color: var(--fg-muted); }
+.pane-option input { width: 1.1rem; height: 1.1rem; margin-top: 0; }
+
 /* ------------------------------------------------------------- banners */
 .banner {
   display: flex; gap: var(--space-3); align-items: flex-start;

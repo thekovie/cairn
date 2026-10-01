@@ -2,6 +2,12 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **The text and the preview scroll together** in **Show formatting codes**. Scroll either side and the other follows, lined up heading by heading. Untick **Scroll together** above the preview to scroll them separately.
+
 ## 0.9.0 (2026-09-30)
 
 ### Added
