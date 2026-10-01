@@ -12,6 +12,8 @@ All notable changes that people using Cairn would notice are listed here.
 
 - **A link to a heading that no longer exists is marked "missing"**, like a link to a missing page, and counted in the page's broken-links notice.
 - **Clicking a same-page link in the editor's preview** scrolls the preview to the heading instead of changing the address.
+- **"On this page" indents subheadings clearly**, one step per level, and also for pages whose sections are `#` headings (those used to be left out, so their subheadings showed flat). The Link dialog's heading list is indented the same way.
+- **Pages that use `#` for their sections** get space above each one, like other headings.
 
 ## 0.9.1 (2026-10-01)
 

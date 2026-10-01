@@ -11,7 +11,7 @@ import {
 } from './core.js';
 import { createVisualEditor } from './visual.js';
 import { scrollTogether } from './scrollsync.js';
-import { lockSentence } from './views.js';
+import { lockSentence, sectionHeadings } from './views.js';
 
 const SAVE_DELAY_MS = 2500;
 const SAVE_MAX_WAIT_MS = 8000;
@@ -675,9 +675,9 @@ function mountEditor(ctx, path, start) {
               : (await get('/api/page', { path: chosen })).toc;
           } catch { toc = []; }
           if (inputs.page.value !== chosen) return; // another page was chosen meanwhile
-          const headings = toc.filter((t) => t.level > 1);
+          const headings = sectionHeadings(toc);
           sections.append(...headings
-            .map((t) => h('option', { value: t.id }, `${'  '.repeat(t.level - 2)}${t.text}`)));
+            .map((t) => h('option', { value: t.id }, `${'   '.repeat(t.depth)}${t.text}`)));
           sections.disabled = headings.length === 0;
         });
       },

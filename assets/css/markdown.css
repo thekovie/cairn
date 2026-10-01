@@ -12,7 +12,10 @@
 }
 .md-body > * + * { margin-top: 1em; }
 .md-body :is(h1, h2, h3, h4, h5, h6) { line-height: var(--leading-tight); letter-spacing: -0.015em; text-wrap: balance; font-weight: 700; }
-.md-body h1 { font-size: var(--text-2xl); margin-top: 0; }
+.md-body h1 { font-size: var(--text-2xl); margin-top: 2em; }
+/* Pages that use "#" for their sections still get room above each one;
+   only a heading that starts the page sits at the top. */
+.md-body > h1:first-child { margin-top: 0; }
 .md-body h2 { font-size: var(--text-xl); margin-top: 2em; padding-bottom: var(--space-2); border-bottom: var(--border-width) solid var(--border); }
 .md-body h3 { font-size: var(--text-lg); margin-top: 1.75em; }
 /* Smaller heading levels step down in size, then in colour, so each level
@@ -28,7 +31,7 @@
 /* Release notes in Settings are part of Cairn, not a page. */
 .md-body.release-notes { font-size: var(--text-base); line-height: var(--leading-body); }
 .md-body h1 + *, .md-body h2 + *, .md-body h3 + *, .md-body h4 + * { margin-top: var(--space-3); }
-.md-body h2, .md-body h3, .md-body h4 { scroll-margin-top: 6rem; }
+.md-body :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 6rem; }
 
 .md-body ul, .md-body ol { padding-left: 1.6em; }
 .md-body li + li { margin-top: var(--space-2); }

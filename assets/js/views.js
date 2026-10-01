@@ -379,16 +379,26 @@ function wireArticleLinks(article, path) {
   });
 }
 
+/** A page's sections for "On this page" (and the Link dialog): every heading
+ *  but the page title, each with how deep it sits under the page's top
+ *  section level (0–3). So a page whose sections are "#" headings, with
+ *  "##" under them, still shows the "##" ones indented. */
+export function sectionHeadings(toc) {
+  const entries = toc.filter((t, i) => !(i === 0 && t.level === 1));
+  const top = Math.min(...entries.map((t) => t.level));
+  return entries.map((t) => ({ ...t, depth: Math.min(t.level - top, 3) }));
+}
+
 /** "On this page": beside the article on wide screens, above it on narrow
  *  ones (folded away until opened, so the article comes first). */
 function tocNav(data) {
-  const entries = data.toc.filter((t) => t.level > 1);
+  const entries = sectionHeadings(data.toc);
   if (entries.length < 2) return null;
   const narrow = window.matchMedia('(max-width: 1180px)');
   const box = h('details', { class: 'toc-box', open: !narrow.matches },
     h('summary', { id: 'toc-h' }, icon('chevron'), h('span', null, 'On this page')),
     h('ul', { class: 'toc' }, entries.map((t) =>
-      h('li', { class: `lvl-${t.level}` }, h('a', { href: `#${t.id}` }, t.text)))));
+      h('li', { class: `depth-${t.depth}` }, h('a', { href: `#${t.id}` }, t.text)))));
   // Beside the text it's always open; above it, folded, so the text comes first.
   narrow.addEventListener('change', (e) => { if (box.isConnected) box.open = !e.matches; });
   return h('nav', { class: 'toc-nav', 'aria-labelledby': 'toc-h' }, box);
@@ -397,7 +407,7 @@ function tocNav(data) {
 /** Marks the section being read in "On this page" as the page scrolls.
  *  Returns a function that stops following. */
 function followSections(article, rail) {
-  const headings = [...article.querySelectorAll('h2[id], h3[id], h4[id], h5[id], h6[id]')];
+  const headings = [...article.querySelectorAll(':is(h1, h2, h3, h4, h5, h6)[id]')];
   if (headings.length < 2) return () => {};
   let queued = false;
   const update = () => {
