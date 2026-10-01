@@ -51,6 +51,30 @@ function emptyTitles() {
 const CALLOUT_ESCAPED = /^(\s*(?:>\s*)+)\\?\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\\?[ \t]*$/gim;
 export const unescapeCallouts = (md) => md.replace(CALLOUT_ESCAPED, '$1[!$2]');
 
+/** Callouts look here as they do on the published page: the box gets its
+ *  kind's tint and label, and the "[!WARNING]" code itself is tucked away.
+ *  Only the look changes; the page text keeps the code. */
+const CALLOUT_MARK = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/i;
+const calloutLook = (m) => m.$prose(() => new m.Plugin({
+  props: {
+    decorations(state) {
+      const found = [];
+      state.doc.descendants((node, pos) => {
+        if (node.type.name !== 'blockquote') return true;
+        const first = node.firstChild;
+        const match = first?.type.name === 'paragraph' && CALLOUT_MARK.exec(first.textContent);
+        if (match) {
+          found.push(m.Decoration.node(pos, pos + node.nodeSize, { class: `markdown-alert-${match[1].toLowerCase()}` }));
+          const start = pos + 2; // inside the box, inside its first paragraph
+          found.push(m.Decoration.inline(start, start + match[0].length, { class: 'callout-code' }));
+        }
+        return true;
+      });
+      return m.DecorationSet.create(state.doc, found);
+    },
+  },
+}));
+
 export async function createVisualEditor({ root, markdown, pagePath, readKey, staged = [], onChange }) {
   const m = await load();
   const draftUrl = (name) => `/draft-file?${new URLSearchParams({ article: pagePath, name, k: readKey })}`;
@@ -103,6 +127,7 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
     .use(m.history)
     .use(m.listener)
     .use(m.clipboard)
+    .use(calloutLook(m))
     .create();
   // Milkdown writes Markdown in its own tidy form; remember that form so
   // simply opening the page doesn't count as a change.

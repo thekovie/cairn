@@ -968,10 +968,20 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   background: var(--surface-2);
 }
 .toolbar-label { font-weight: 600; margin-right: var(--space-1); }
+/* The template "Insert:" buttons match the toolbar above: same height, no
+   box until pointed at. */
+.toolbar-insert .btn { min-height: 2.25rem; padding: 0 var(--space-3); border-color: transparent; background: transparent; box-shadow: none; font-size: var(--text-sm); }
+.toolbar-insert .btn:hover { background: var(--surface); border-color: var(--border); }
 
 /* Table bar: a slim floating row just above the table the cursor is in,
-   laid over the page so nothing moves (placed by editor.js). */
+   laid over the page so nothing moves (placed by editor.js). Tables keep
+   room above them for it while editing, so it never hides the line above. */
 .pane-visual { position: relative; }
+.pane-visual .visual-doc table { margin-top: 3.25rem; }
+/* A callout's "[!WARNING]" code is shown as the box's label instead (the
+   code stays in the page text). The line break after it goes too. */
+.visual-doc .callout-code { display: none; }
+.visual-doc .callout-code + [data-type="hardbreak"] { display: none; }
 .table-bar {
   position: absolute; z-index: var(--z-sticky);
   display: flex; gap: 2px; padding: 2px;

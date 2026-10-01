@@ -70,7 +70,7 @@ Every toolbar button shows its name. For a more compact toolbar, choose **Settin
 | Control | What it does |
 | --- | --- |
 | **Undo**, **Redo** | Take back the last change, or put it back. |
-| **Replace…** (at the far right) | Change a word or phrase everywhere in the page at once, with a count of how many times it's found. Link addresses and picture file names are left alone, so links don't break. One **Undo** takes it all back. To only find something, use the browser's own **Ctrl+F**. |
+| **Replace…** (at the far right) | Change a word or phrase everywhere in the page at once, with a count of how many times it's found. Link addresses and picture file names are left alone, so links don't break. **Whole words only** (on to begin with) means replacing "IT" doesn't change "edit". One **Undo** takes it all back. To only find something, use the browser's own **Ctrl+F**. |
 | **Text style** list (Normal text, Heading, Subheading, Small heading, Smaller heading, Smallest heading, Page title) | Change the line the cursor is on. It also shows the style of that line. |
 | **Bold**, **Italic**, **Strikethrough** | Style the selected words. With nothing selected, example words are inserted for you to replace. Strikethrough crosses words out, for something that no longer applies. |
 | **Bullet list**, **Numbered list** | Turn the selected lines into a list. Choose again to undo. |

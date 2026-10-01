@@ -854,8 +854,12 @@ function mountEditor(ctx, path, start) {
   // alone is the browser's own Ctrl+F, which works in both views.) Link
   // addresses and picture paths are left alone, so links never break.
   const PROTECTED = /(\]\([^)\n]*\)|<https?:[^>\s]*>)/;
-  function replaceIn(text, find, replacement, matchCase) {
-    const pattern = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+  function replaceIn(text, find, replacement, matchCase, wholeWords) {
+    const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Whole words: "IT" doesn't change "edit" or "with".
+    const word = wholeWords ? '(?<![\\p{L}\\p{N}_])' : '';
+    const wordEnd = wholeWords ? '(?![\\p{L}\\p{N}_])' : '';
+    const pattern = new RegExp(`${word}${escaped}${wordEnd}`, matchCase ? 'gu' : 'giu');
     let count = 0;
     const out = text.split(PROTECTED).map((part, i) => (i % 2 ? part : part.replace(pattern, () => {
       count += 1;
@@ -868,19 +872,22 @@ function mountEditor(ctx, path, start) {
     const findInput = h('input', { type: 'text', id: 'rp-find', value: selected.includes('\n') ? '' : selected, autocomplete: 'off' });
     const withInput = h('input', { type: 'text', id: 'rp-with', autocomplete: 'off' });
     const caseBox = h('input', { type: 'checkbox', id: 'rp-case' });
+    const wordBox = h('input', { type: 'checkbox', id: 'rp-words', checked: true });
     const count = h('p', { class: 'help', role: 'status' });
+    const replaceWith = (replacement) => replaceIn(ta.value, findInput.value, replacement, caseBox.checked, wordBox.checked);
     const recount = () => {
-      const n = findInput.value ? replaceIn(ta.value, findInput.value, '', caseBox.checked).count : 0;
+      const n = findInput.value ? replaceWith('').count : 0;
       count.textContent = !findInput.value ? 'Type the words to find.'
         : n === 0 ? 'Not found in this page.' : n === 1 ? 'Found once.' : `Found ${n} times.`;
     };
-    for (const el of [findInput, caseBox]) el.addEventListener('input', recount);
+    for (const el of [findInput, caseBox, wordBox]) el.addEventListener('input', recount);
     recount();
     const value = await openDialog({
       title: 'Replace words in this page', iconName: 'search', tone: 'info',
       body: [
         h('div', { class: 'field' }, h('label', { for: 'rp-find' }, 'Find'), findInput),
         h('div', { class: 'field' }, h('label', { for: 'rp-with' }, 'Replace with'), withInput),
+        h('label', { class: 'check', for: 'rp-words' }, wordBox, h('span', null, 'Whole words only (so “IT” doesn’t change “edit”)')),
         h('label', { class: 'check', for: 'rp-case' }, caseBox, h('span', null, 'Match capital letters exactly')),
         count,
         h('p', { class: 'help' }, 'Link addresses and picture file names are not changed. Undo takes it all back.'),
@@ -889,11 +896,11 @@ function mountEditor(ctx, path, start) {
         { label: 'Close', value: 'cancel' },
         { label: 'Replace all', value: 'replace', kind: 'primary', submit: true },
       ],
-      onSubmit: () => findInput.value !== '' && replaceIn(ta.value, findInput.value, '', caseBox.checked).count > 0,
+      onSubmit: () => findInput.value !== '' && replaceWith('').count > 0,
       onOpen: () => findInput.focus(),
     });
     if (value !== 'replace') return;
-    const { out, count: n } = replaceIn(ta.value, findInput.value, withInput.value, caseBox.checked);
+    const { out, count: n } = replaceWith(withInput.value);
     const vis = inVisual();
     if (vis) {
       vis.replaceText(out);

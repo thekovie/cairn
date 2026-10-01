@@ -7,6 +7,13 @@ All notable changes that people using Cairn would notice are listed here.
 ### Added
 
 - **The text and the preview scroll together** in **Show formatting codes**. Scroll either side and the other follows, lined up heading by heading. Untick **Scroll together** above the preview to scroll them separately.
+- **Replace… matches whole words** unless you untick **Whole words only**, so replacing "IT" no longer changes "edit" or "with".
+
+### Fixed
+
+- **Callouts look like callouts while you edit.** In **As it will look**, a Warning box is tinted and labelled "Warning", as on the published page, instead of showing the `[!WARNING]` code.
+- **The Table bar no longer covers the line above a table.** Tables keep a little room above them while you edit.
+- **The template Insert buttons** match the rest of the toolbar.
 
 ## 0.9.0 (2026-09-30)
 

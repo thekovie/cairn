@@ -31,5 +31,6 @@ export {
 export { history, undoCommand, redoCommand } from '@milkdown/kit/plugin/history';
 export { listener, listenerCtx } from '@milkdown/kit/plugin/listener';
 export { clipboard } from '@milkdown/kit/plugin/clipboard';
-export { callCommand, replaceAll, getMarkdown, insert } from '@milkdown/kit/utils';
-export { TextSelection } from '@milkdown/kit/prose/state';
+export { callCommand, replaceAll, getMarkdown, insert, $prose } from '@milkdown/kit/utils';
+export { TextSelection, Plugin } from '@milkdown/kit/prose/state';
+export { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
