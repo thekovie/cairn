@@ -361,6 +361,9 @@ function scrollToSection(id) {
   target.scrollIntoView({ block: 'start' });
   target.setAttribute('tabindex', '-1');
   target.focus({ preventScroll: true });
+  // "On this page" marks this section even when the page can't scroll it
+  // to the top (near the end of the page).
+  window.dispatchEvent(new CustomEvent('cairn:section', { detail: target.id }));
 }
 
 function wireArticleLinks(article, path) {
@@ -410,14 +413,17 @@ function followSections(article, rail) {
   const headings = [...article.querySelectorAll(':is(h1, h2, h3, h4, h5, h6)[id]')];
   if (headings.length < 2) return () => {};
   let queued = false;
+  let chosen = null; // a section just jumped to, kept marked until the reader scrolls
   const update = () => {
     queued = false;
     // The last heading that has scrolled up past the top bar.
     const line = (document.querySelector('.topbar')?.offsetHeight || 0) + 96;
-    let current = null;
-    for (const hd of headings) {
-      if (hd.getBoundingClientRect().top > line) break;
-      current = hd;
+    let current = chosen && headings.find((hd) => hd.id === chosen);
+    if (!current) {
+      for (const hd of headings) {
+        if (hd.getBoundingClientRect().top > line) break;
+        current = hd;
+      }
     }
     for (const a of rail.querySelectorAll('.toc a')) {
       const on = current !== null && a.getAttribute('href') === `#${current.id}`;
@@ -430,9 +436,19 @@ function followSections(article, rail) {
     queued = true;
     requestAnimationFrame(update);
   };
+  const onChosen = (e) => { chosen = e.detail; update(); };
+  // The reader scrolling on their own goes back to following the scroll.
+  const onReaderScroll = () => { if (chosen) { chosen = null; onScroll(); } };
+  const readerEvents = ['wheel', 'touchmove', 'keydown'];
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('cairn:section', onChosen);
+  for (const ev of readerEvents) window.addEventListener(ev, onReaderScroll, { passive: true });
   update();
-  return () => window.removeEventListener('scroll', onScroll);
+  return () => {
+    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('cairn:section', onChosen);
+    for (const ev of readerEvents) window.removeEventListener(ev, onReaderScroll);
+  };
 }
 
 export async function pageView(ctx) {

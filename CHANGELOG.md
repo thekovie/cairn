@@ -14,6 +14,8 @@ All notable changes that people using Cairn would notice are listed here.
 - **Clicking a same-page link in the editor's preview** scrolls the preview to the heading instead of changing the address.
 - **"On this page" indents subheadings clearly**, one step per level, and also for pages whose sections are `#` headings (those used to be left out, so their subheadings showed flat). The Link dialog's heading list is indented the same way.
 - **Pages that use `#` for their sections** get space above each one, like other headings.
+- **"On this page" marks the section you jumped to**, even near the end of a page where it can't scroll to the top. It goes back to following your scrolling as soon as you scroll yourself.
+- **On a phone, "More actions for this page"** lines up with the buttons above it instead of sitting centred.
 
 ## 0.9.1 (2026-10-01)
 

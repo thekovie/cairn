@@ -1107,6 +1107,8 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   .row-link > .btn { grid-column: 2; grid-row: 2; justify-self: start; }
   .row-link > .row-meta { grid-row: 3; }
   .more-actions, .more-actions > summary { width: 100%; }
+  /* Under a page's title its words line up with the buttons above. */
+  .article-head .more-actions > summary { justify-content: flex-start; }
   .more-actions-list { position: static; box-shadow: none; min-width: 0; width: auto; }
   .more-actions-list .btn { white-space: normal; }
   .page-head .actions, .editor-foot, .editor-foot .publish-group { width: 100%; }
