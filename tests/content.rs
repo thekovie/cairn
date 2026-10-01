@@ -217,6 +217,20 @@ fn missing_local_targets_are_flagged_and_existing_ones_link_inside_the_app() {
 }
 
 #[test]
+fn a_link_to_a_heading_on_the_same_page_works_and_a_missing_one_is_marked() {
+    let ws = common::workspace();
+    let md = "# Guide\n\nSee [the steps](#steps) and [old part](#gone).\n\n## Steps\n\nDo it.\n";
+    let r = rendered(&ws.root, "Guides/a.md", md, "K");
+    assert!(r.html.contains("href=\"#steps\""), "{}", r.html);
+    assert!(
+        r.html.contains("No heading with this name on this page"),
+        "{}",
+        r.html
+    );
+    assert_eq!(r.broken_links, vec!["#gone".to_string()]);
+}
+
+#[test]
 fn invalid_metadata_never_makes_a_page_unreadable() {
     let text = "---\nowner: [unclosed\nstatus: whatever\n---\n# Still readable\n\nBody.\n";
     let (meta, body) = parse_front_matter(text);

@@ -485,6 +485,18 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
                 title,
                 id,
             }) => match classify(&dest_url) {
+                // A link to a heading on this page that isn't there (renamed,
+                // say) is marked like a missing page.
+                LinkKind::Anchor
+                    if dest_url.len() > 1
+                        && !heading_ids.contains(&percent_decode(&dest_url[1..])) =>
+                {
+                    broken.push(dest_url.to_string());
+                    link_stack.push(true);
+                    out.push(Event::Html(CowStr::from(
+                        "<a class=\"broken-link\" title=\"No heading with this name on this page\">",
+                    )));
+                }
                 LinkKind::Anchor | LinkKind::External => {
                     link_stack.push(false);
                     out.push(Event::Start(Tag::Link {

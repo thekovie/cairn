@@ -453,7 +453,7 @@ export async function pageView(ctx) {
       notices.append(banner({
         tone: 'warn',
         title: n === 1 ? '1 link on this page is broken' : `${n} links on this page are broken`,
-        text: 'They point to pages or pictures that don’t exist. They are marked with a dashed underline and the word “missing”.',
+        text: 'They point to pages, pictures, or headings that don’t exist. They are marked with a dashed underline and the word “missing”.',
       }));
     }
     appendChildren(head, [h('h1', null, data.title), articleMeta(data), ...editArea(ctx, data)]);

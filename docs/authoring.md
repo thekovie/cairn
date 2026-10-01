@@ -77,7 +77,7 @@ Every toolbar button shows its name. For a more compact toolbar, choose **Settin
 | **Checklist** | Turn the selected lines into items with a box to tick. Choose again to make them a plain list. |
 | **Note box** | Put the selected lines in a tinted box. Choose **Plain box**, or a callout labelled **Note**, **Tip**, **Important**, **Warning**, or **Caution**. Each callout has its own colour and says its kind in words. |
 | **Divider line** | Add a line across the page after the paragraph you're in. |
-| **Link…** | Link to another page in this documentation (pick it from the list, and optionally one of its sections) or to a website. |
+| **Link…** | Link to a heading on this same page (choose **This page**, then the heading), to another page in this documentation (pick it from the list, and optionally one of its sections), or to a website. |
 | **Table…** | Insert a table with the number of columns and rows you choose. |
 | **Code** | Mark text as a command or exact text to type. |
 | **Insert picture…** | Add a picture from your computer. |
@@ -100,7 +100,7 @@ Pages are stored as Markdown, a plain-text format. The toolbar writes it for you
 | Checklist | `- [ ] item` (`- [x] item` is ticked) |
 | Note box | `> text` |
 | Callout | `> [!WARNING]` on its own line, then `> text`. Also `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!CAUTION]`, as on GitHub. |
-| Link to a section | `[text](other-page.md#heading-name)` |
+| Link to a section | `[text](other-page.md#heading-name)`, or `[text](#heading-name)` for a heading on the same page. A link to a heading that doesn't exist is marked "missing". |
 | Divider line | `---` on a line of its own |
 | Link | `[text](https://example.com)` or `[text](other-page.md)` |
 | Picture | `![description](my-page.assets/picture.png)` |

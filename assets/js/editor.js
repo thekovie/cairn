@@ -84,6 +84,8 @@ export function writeMeta(text, fields) {
 
 const VIEW_KEY = 'cairn.editView';
 const SCROLL_KEY = 'cairn.scrollTogether';
+/** The Link dialog's choice for "a heading on this page". */
+const THIS_PAGE = ':this-page';
 const HEIGHT_KEY = 'cairn.editorHeight';
 const EDITOR_MIN_HEIGHT = 224;
 const VIEWS = ['visual', 'both', 'write'];
@@ -345,6 +347,17 @@ function mountEditor(ctx, path, start) {
         h('label', { class: 'check pane-option', for: 'scroll-together' },
           scrollBox, h('span', null, 'Scroll together'))),
       previewBody));
+  // A link to a heading on this page scrolls the preview to it, instead of
+  // changing the address (which would lose the editor's place).
+  previewBody.addEventListener('click', (e) => {
+    const target = e.target.closest('a')?.getAttribute('href') || '';
+    if (!target.startsWith('#') || target.startsWith('#/')) return;
+    e.preventDefault();
+    let id = target.slice(1);
+    try { id = decodeURIComponent(id); } catch { /* use it as written */ }
+    const heading = id && previewBody.querySelector(`[id="${CSS.escape(id)}"]`);
+    if (heading) previewBody.scrollTop += heading.getBoundingClientRect().top - previewBody.getBoundingClientRect().top;
+  });
   // The text box and the preview follow each other while this is ticked.
   const syncedScroll = scrollTogether(ta, previewBody,
     () => scrollBox.checked && panes.dataset.view === 'both');
@@ -627,16 +640,17 @@ function mountEditor(ctx, path, start) {
     try { pages = (await get('/api/pages')).pages.filter((p) => p.path !== path); } catch { pages = []; }
     const values = await formDialog({
       title: 'Add a link', iconName: 'link',
-      intro: 'A link can go to another page in this documentation, or to a website.',
+      intro: 'A link can go to a heading on this page, to another page in this documentation, or to a website.',
       fields: [
         { name: 'text', label: 'Words to show', value: selected, required: true, help: 'For example: the printer guide' },
         {
           name: 'page', label: 'Link to a page in this documentation', type: 'select', value: '',
           options: [{ value: '', label: 'Not a page: I’ll type a web address below' },
+            { value: THIS_PAGE, label: 'This page (a heading further up or down)' },
             ...pages.map((p) => ({ value: p.path, label: `${p.title} (${p.path})` }))],
         },
         {
-          name: 'section', label: 'Section of that page (optional)', type: 'select', value: '',
+          name: 'section', label: 'Section of that page', type: 'select', value: '',
           options: [{ value: '', label: 'The top of the page' }],
           help: 'Choose a page first. The link then opens at that heading.',
         },
@@ -649,11 +663,17 @@ function mountEditor(ctx, path, start) {
         sections.disabled = true;
         inputs.page.addEventListener('change', async () => {
           const chosen = inputs.page.value;
-          sections.replaceChildren(h('option', { value: '' }, 'The top of the page'));
+          const here = chosen === THIS_PAGE;
+          sections.replaceChildren(h('option', { value: '' }, here ? 'Choose a heading' : 'The top of the page'));
           sections.disabled = true;
           if (!chosen) return;
           let toc = [];
-          try { toc = (await get('/api/page', { path: chosen })).toc; } catch { toc = []; }
+          try {
+            // This page's headings come from the text being edited now.
+            toc = here
+              ? (await post('/api/preview', { path, content: fullText() })).toc
+              : (await get('/api/page', { path: chosen })).toc;
+          } catch { toc = []; }
           if (inputs.page.value !== chosen) return; // another page was chosen meanwhile
           const headings = toc.filter((t) => t.level > 1);
           sections.append(...headings
@@ -668,9 +688,14 @@ function mountEditor(ctx, path, start) {
       ta.setSelectionRange(selStart, selEnd);
     }
     if (!values) return;
-    let target = values.page
-      ? `${relativeLink(path, values.page)}${values.section ? `#${values.section}` : ''}`
-      : values.url.trim();
+    if (values.page === THIS_PAGE && !values.section) {
+      toast('To link within this page, choose which heading it goes to. Nothing was added.', { error: true });
+      return;
+    }
+    let target;
+    if (values.page === THIS_PAGE) target = `#${values.section}`;
+    else if (values.page) target = `${relativeLink(path, values.page)}${values.section ? `#${values.section}` : ''}`;
+    else target = values.url.trim();
     if (!target) {
       toast('The link needs a page or a web address, so nothing was added.', { error: true });
       return;

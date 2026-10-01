@@ -2,6 +2,17 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **Link to a heading on the same page.** In **Link…**, choose **This page**, then the heading. The link is written as `[text](#heading-name)` and scrolls to that heading when clicked.
+
+### Fixed
+
+- **A link to a heading that no longer exists is marked "missing"**, like a link to a missing page, and counted in the page's broken-links notice.
+- **Clicking a same-page link in the editor's preview** scrolls the preview to the heading instead of changing the address.
+
 ## 0.9.1 (2026-10-01)
 
 ### Added
