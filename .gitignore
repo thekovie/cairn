@@ -9,3 +9,9 @@ node_modules/
 /.impeccable/hook.cache.json
 /tests/e2e/test-results/
 /tests/e2e/playwright-report/
+
+# Graphify: share only the report and the graph; everything else it makes
+# (graph.html, cache, manifest, scratch files) stays local.
+/graphify-out/*
+!/graphify-out/GRAPH_REPORT.md
+!/graphify-out/graph.json
