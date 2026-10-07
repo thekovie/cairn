@@ -9,7 +9,7 @@
 
 import {
   get, post, h, clear, button, linkButton, banner, href, toast, announce, openDialog,
-  errorText, downloadFile, statusChip, formatDay, relativeTime, guardAction,
+  errorText, downloadFile, statusChip, formatDay, relativeTime, guardAction, IS_WINDOWS,
 } from './core.js';
 
 const POLL_MS = 700;
@@ -244,8 +244,9 @@ export async function printView(ctx) {
       h('h1', null, `Print “${data.title}”`),
       banner({
         tone: 'info', title: 'To save as a PDF',
-        text: h('p', null, 'In the print window, choose ', h('strong', null, 'Save as PDF'), ' (or ',
-          h('strong', null, 'Microsoft Print to PDF'), ') as the printer, then choose Save.'),
+        text: h('p', null, 'In the print window, choose ', h('strong', null, 'Save as PDF'),
+          IS_WINDOWS ? [' (or ', h('strong', null, 'Microsoft Print to PDF'), ')'] : null,
+          ' as the printer, then choose Save.'),
       }),
       h('div', { class: 'actions' },
         button('Open the print window', { icon: 'page', kind: 'primary', large: true, onClick: printNow }),

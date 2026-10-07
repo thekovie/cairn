@@ -28,6 +28,29 @@ export function applyPrefs(config) {
   setTimeZone(config?.timezone || null);
 }
 
+// ---------------------------------------------------------------- system
+// The browser and Cairn always run on the same computer, so the browser
+// says which system's words to use (Start menu or Dock, Ctrl or ⌘).
+
+const SYSTEM = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+export const IS_MAC = SYSTEM.startsWith('mac');
+export const IS_WINDOWS = SYSTEM.startsWith('win');
+
+// On a Mac ⌘H hides the browser and redo is ⇧⌘Z.
+const MAC_KEYS = { 'Ctrl+Y': 'Shift+Ctrl+Z', 'Ctrl+H': 'Shift+Ctrl+H' };
+
+/** A shortcut written as "Ctrl+B", as people on this computer know it. */
+export function shortcutText(shortcut) {
+  if (!IS_MAC) return shortcut;
+  return (MAC_KEYS[shortcut] || shortcut).replace('Shift+', '⇧').replace('Ctrl+', '⌘');
+}
+
+function shortcutAria(shortcut) {
+  return IS_MAC
+    ? (MAC_KEYS[shortcut] || shortcut).replace('Ctrl', 'Meta')
+    : shortcut.replace('Ctrl', 'Control');
+}
+
 // ------------------------------------------------------------------- API
 
 export class ApiError extends Error {
@@ -205,10 +228,10 @@ export function button(label, { icon: iconName, kind, onClick, type = 'button', 
  */
 export function iconButton(label, { icon: iconName, shortcut, onClick, ...rest } = {}) {
   if (!label || !String(label).trim()) throw new Error('Buttons must have a visible text label');
-  const tip = shortcut ? `${label} (${shortcut})` : label;
+  const tip = shortcut ? `${label} (${shortcutText(shortcut)})` : label;
   return h('button', {
     type: 'button', class: 'btn btn-icon', onclick: onClick, dataset: { tip },
-    'aria-keyshortcuts': shortcut ? shortcut.replace('Ctrl', 'Control') : null, ...rest,
+    'aria-keyshortcuts': shortcut ? shortcutAria(shortcut) : null, ...rest,
   }, icon(iconName), h('span', { class: 'btn-icon-label' }, label));
 }
 

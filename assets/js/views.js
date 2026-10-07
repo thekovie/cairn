@@ -6,7 +6,10 @@ import {
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
   confirmDialog, formDialog, whileBusy, guardAction, errorText, diffView, fieldError, announce, applyPrefs,
   appendChildren, isToday, enablePictureZoom, ApiError,
+  IS_WINDOWS,
 } from './core.js';
+
+const PDF_BROWSERS = IS_WINDOWS ? 'Microsoft Edge or Google Chrome' : 'Google Chrome, Microsoft Edge, or Chromium';
 import { openPageDownload, openBulkDownload } from './export.js';
 import { pageMoreActions, folderOrganizeSection } from './manage.js';
 import { updatesSection } from './update.js';
@@ -853,10 +856,10 @@ function pdfSection(ctx, cfg) {
   return h('section', { class: 'settings-section', 'aria-labelledby': 'set-pdf' },
     h('h2', { id: 'set-pdf' }, 'PDF downloads'),
     cfg.pdf_available
-      ? h('p', { class: 'help' }, 'PDFs are made on this computer with Microsoft Edge or Google Chrome. Nothing is sent anywhere.')
+      ? h('p', { class: 'help' }, `PDFs are made on this computer with ${PDF_BROWSERS}. Nothing is sent anywhere.`)
       : banner({
         tone: 'warn', title: 'PDFs can’t be made automatically on this computer',
-        text: 'No working Microsoft Edge or Google Chrome was found. When you download a page as a PDF, Cairn opens the print window instead; choose “Save as PDF” there.',
+        text: `No working ${PDF_BROWSERS} was found. When you download a page as a PDF, Cairn opens the print window instead; choose “Save as PDF” there.`,
       }),
     radioGroup('pdf_paper', 'Paper size', [
       { value: 'a4', label: 'A4', text: 'Used in most countries.' },
@@ -944,7 +947,7 @@ export async function settingsView(ctx) {
       h('div', { class: 'field' },
         h('label', { for: 's-name' }, 'Name shown to others while you edit'),
         nameInput,
-        h('p', { class: 'help', id: 's-name-help' }, `Leave empty to use your Windows user name (${state.user.os_user}).`)),
+        h('p', { class: 'help', id: 's-name-help' }, `Leave empty to use your user name on this computer (${state.user.os_user}).`)),
       button('Save name', { type: 'submit', kind: 'primary' }))),
 
     h('section', { class: 'settings-section', 'aria-labelledby': 'set-look' },

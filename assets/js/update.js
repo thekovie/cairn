@@ -4,7 +4,12 @@
 import {
   get, post, h, icon, button, linkButton, banner, href, toast, errorText, confirmDialog,
   whileBusy, relativeTime, clear, appendChildren,
+  IS_MAC, IS_WINDOWS,
 } from './core.js';
+
+const START_AGAIN = IS_WINDOWS
+  ? 'Start Cairn from the Start menu (or double-click cairn.exe)'
+  : IS_MAC ? 'Open Cairn from your Applications folder' : 'Start Cairn again (double-click the Cairn AppImage, or run cairn)';
 
 const DISMISSED_KEY = 'cairn.updateDismissed';
 /** How often the page asks this computer's Cairn what it last found. */
@@ -117,7 +122,7 @@ function showRestarting(version, back) {
       }
     } catch { /* still restarting */ }
     if (Date.now() - started > RESTART_GIVE_UP_MS) {
-      clear(note).append('Cairn hasn’t started again by itself. Start Cairn from the Start menu (or double-click cairn.exe), then reload this tab. Your unsaved changes are kept.');
+      clear(note).append(`Cairn hasn’t started again by itself. ${START_AGAIN}, then reload this tab. Your unsaved changes are kept.`);
       note.classList.replace('help', 'field-error');
       return;
     }
@@ -200,7 +205,7 @@ export function updatesSection(cfg, { radioGroup, save }) {
       e.preventDefault();
       const value = proxyInput.value.trim();
       const saved = await save({ update_proxy: value },
-        value ? 'Proxy saved. Choose Check now to try it.' : 'Proxy removed. Cairn uses Windows’ proxy settings.');
+        value ? 'Proxy saved. Choose Check now to try it.' : IS_WINDOWS ? 'Proxy removed. Cairn uses Windows’ proxy settings.' : 'Proxy removed.');
       if (saved && value) proxyInput.value = value.replace(/^http:\/\//i, '').replace(/\/+$/, '');
     },
   },
@@ -208,7 +213,7 @@ export function updatesSection(cfg, { radioGroup, save }) {
     h('label', { for: 's-proxy' }, 'Proxy server (optional)'),
     proxyInput,
     h('p', { class: 'help', id: 's-proxy-help' },
-      'Only if your office reaches the internet through a proxy. Type its address and port, for example proxy.office.local:8080. Leave it empty to use Windows’ proxy settings.')),
+      `Only if your office reaches the internet through a proxy. Type its address and port, for example proxy.office.local:8080. ${IS_WINDOWS ? 'Leave it empty to use Windows’ proxy settings.' : 'Leave it empty if this computer reaches the internet directly.'}`)),
   button('Save proxy', { type: 'submit' }));
 
   return h('section', { class: 'settings-section', 'aria-labelledby': 'set-updates' },

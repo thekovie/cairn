@@ -8,7 +8,7 @@ import {
   api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy, guardAction,
   actionInProgress,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
-  iconButton, menuButton, toolbarKeys, formatSize, diffSummary, lineDiff,
+  iconButton, menuButton, toolbarKeys, formatSize, diffSummary, lineDiff, IS_MAC, shortcutText,
 } from './core.js';
 import { createVisualEditor } from './visual.js';
 import { scrollTogether } from './scrollsync.js';
@@ -950,7 +950,9 @@ function mountEditor(ctx, path, start) {
 
   for (const el of [ta, visualRoot]) {
     el.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'h') {
+      // Ctrl+H, or ⇧⌘H on a Mac (where ⌘H hides the browser).
+      const replaceKeys = IS_MAC ? e.metaKey && e.shiftKey : e.ctrlKey && !e.shiftKey;
+      if (replaceKeys && !e.altKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         openReplace();
       }
@@ -1328,7 +1330,9 @@ function mountEditor(ctx, path, start) {
     h('div', { class: 'details-body' },
       h('p', { class: 'help', style: 'margin: 0 0 var(--space-3)' }, 'The buttons above do all of this for you; you never need to type these codes. They are for anyone who prefers typing, with “Show formatting codes” turned on. To tick a checklist item, click its box.'),
       helpTable(),
-      h('p', { class: 'help' }, 'Keyboard shortcuts (optional): Ctrl+Z undo, Ctrl+Y redo, Ctrl+B bold, Ctrl+I italic, Ctrl+S save now.')));
+      h('p', { class: 'help' }, `Keyboard shortcuts (optional): ${[
+        ['Ctrl+Z', 'undo'], ['Ctrl+Y', 'redo'], ['Ctrl+B', 'bold'], ['Ctrl+I', 'italic'], ['Ctrl+S', 'save now'],
+      ].map(([keys, what]) => `${shortcutText(keys)} ${what}`).join(', ')}.`)));
 
   // ------------------------------------------------------------ lock
   function showReleased(reason, lock) {

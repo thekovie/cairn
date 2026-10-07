@@ -3,8 +3,15 @@
 // the folder's name and location first.
 
 import {
-  post, h, clear, icon, button, banner, fieldError, whileBusy, errorText, toast, href,
+  post, h, clear, icon, button, banner, fieldError, whileBusy, errorText, toast, href, IS_MAC, IS_WINDOWS,
 } from './core.js';
+
+const EXAMPLE_PATHS = IS_WINDOWS
+  ? 'C:\\Documentation or \\\\server\\shared\\Documentation'
+  : IS_MAC
+    ? '/Users/you/Documents/Documentation, or /Volumes/Shared/Documentation for a shared drive'
+    : '/home/you/Documentation, or /mnt/shared/Documentation for a shared drive';
+const WINDOW_LIST = IS_WINDOWS ? 'the taskbar at the bottom of the screen' : IS_MAC ? 'the Dock' : 'your list of open windows';
 
 const STEPS = ['Choose', 'Find the folder', 'Confirm'];
 
@@ -52,12 +59,12 @@ function folderChooser({ intro, onChosen }) {
   h('div', { class: 'inline-form' },
     h('div', { class: 'field' }, pathInput),
     button('Use this location', { type: 'submit' })),
-  h('p', { class: 'help', id: 'folder-path-help' }, 'For example: C:\\Documentation or \\\\server\\shared\\Documentation'));
+  h('p', { class: 'help', id: 'folder-path-help' }, `For example: ${EXAMPLE_PATHS}`));
 
   return h('div', { class: 'panel' },
     intro ? h('p', null, intro) : null,
     h('div', null, pick,
-      h('p', { class: 'help' }, 'A folder window will open. If you don’t see it, it may be behind this browser window: check the taskbar at the bottom of the screen.')),
+      h('p', { class: 'help' }, `A folder window will open. If you don’t see it, it may be behind this browser window: check ${WINDOW_LIST}.`)),
     h('p', { class: 'or-divider' }, 'or'),
     typed,
     error);
