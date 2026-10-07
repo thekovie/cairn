@@ -123,6 +123,32 @@ pub fn can_write_dir(dir: &Path) -> bool {
     }
 }
 
+/// Whether `to` is `from` under a name that differs only in case, so a
+/// rename between them just changes the capitals. On a disk where case
+/// matters (Linux, some Macs) `a.md` and `A.md` can be two different
+/// files, and then it isn't.
+pub fn is_case_only_rename(from: &Path, to: &Path) -> bool {
+    let (Some(a), Some(b)) = (from.to_str(), to.to_str()) else {
+        return false;
+    };
+    a.eq_ignore_ascii_case(b) && (!to.exists() || same_entry(from, to))
+}
+
+#[cfg(unix)]
+fn same_entry(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (fs::metadata(a), fs::metadata(b)) {
+        (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
+        _ => false,
+    }
+}
+
+/// Windows file names ignore case, so names equal but for case are one file.
+#[cfg(not(unix))]
+fn same_entry(_: &Path, _: &Path) -> bool {
+    true
+}
+
 /// Whether a path is a symlink, junction, or other reparse point.
 pub fn is_link_like(meta: &fs::Metadata) -> bool {
     if meta.file_type().is_symlink() {

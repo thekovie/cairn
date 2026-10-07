@@ -713,3 +713,29 @@ fn pages_and_versions_say_who_last_published_them() {
         LastEdit::Outside
     );
 }
+
+#[test]
+fn this_computer_has_a_real_name_for_locks() {
+    // Locks say whose computer they're on, and only that computer may
+    // reclaim one, so "unknown" would let any computer reclaim it.
+    let me = locks::Identity::current(None);
+    assert_ne!(me.host, "unknown");
+    assert!(!me.host.trim().is_empty());
+}
+
+#[test]
+fn the_same_user_name_on_another_computer_cannot_reclaim_a_lock() {
+    let ws = common::workspace();
+    let at_office = common::identity("Alex");
+    let at_home = locks::Identity {
+        session_id: uuid::Uuid::new_v4().to_string(),
+        host: "ALEX-LAPTOP".into(),
+        ..at_office.clone()
+    };
+    locks::acquire(&ws.root, PAGE, &at_office).unwrap();
+    make_heartbeat_ancient(&ws);
+    match locks::acquire(&ws.root, PAGE, &at_home).unwrap() {
+        Acquire::HeldBy(v) => assert!(!v.reclaimable_by_me),
+        Acquire::Acquired(_) => panic!("another computer must not take the lock"),
+    }
+}

@@ -106,7 +106,9 @@ pub fn rewrite_links(text: &str, old_rel: &str, new_rel: &str, map: &PathMap) ->
         }
         let target = resolve_local_target(old_rel, dest)?;
         let moved = map.apply(&target).unwrap_or(target);
-        if resolve_local_target(new_rel, dest).is_some_and(|t| t.eq_ignore_ascii_case(&moved)) {
+        // Exactly, capitals included: after renaming printer.md to Printer.md,
+        // a link to printer.md breaks on disks where capitals matter.
+        if resolve_local_target(new_rel, dest).is_some_and(|t| t == moved) {
             return None; // still right from the new place
         }
         let suffix = dest.find(['#', '?']).map_or("", |i| &dest[i..]);

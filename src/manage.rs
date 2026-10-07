@@ -18,7 +18,9 @@ use walkdir::WalkDir;
 use crate::article::title_from_filename;
 use crate::editors;
 use crate::error::{CairnError, Result};
-use crate::fsutil::{can_write_dir, create_new_with, sha256_hex, write_atomic};
+use crate::fsutil::{
+    can_write_dir, create_new_with, is_case_only_rename, sha256_hex, write_atomic,
+};
 use crate::history;
 use crate::links::{PathMap, may_link_to, rewrite_links, set_title};
 use crate::locks::{self, Acquire, Identity};
@@ -361,9 +363,9 @@ pub fn move_page(
             "Templates are managed on the Templates page.".into(),
         ));
     }
-    let same_file = from.eq_ignore_ascii_case(&to);
     let src = root.resolve(&from)?;
     let dst = root.resolve_for_create(&to)?;
+    let same_file = is_case_only_rename(&src, &dst);
     if !same_file && dst.exists() {
         return Err(CairnError::Conflict(
             "A page with that name is already in that folder.".into(),
@@ -457,8 +459,8 @@ fn relocate_page(
     let src_assets = root.resolve_for_create(&assets_dir_rel(from))?;
     let dst_assets = root.resolve_for_create(&assets_dir_rel(to))?;
     let has_assets = src_assets.is_dir();
-    let case_only = from.eq_ignore_ascii_case(to);
-    if has_assets && !case_only && dst_assets.exists() {
+    let case_only = is_case_only_rename(src, dst);
+    if has_assets && !is_case_only_rename(&src_assets, &dst_assets) && dst_assets.exists() {
         return Err(CairnError::Conflict(
             "A pictures folder with that name is already there. Choose a different title.".into(),
         ));
@@ -516,7 +518,6 @@ pub fn move_folder(
 ) -> Result<MoveOutcome> {
     let from = managed_folder(from)?;
     let to = managed_folder(to)?;
-    let case_only = from.eq_ignore_ascii_case(&to);
     if from == to {
         return Err(CairnError::BadRequest(
             "The folder already has that name and place.".into(),
@@ -525,7 +526,7 @@ pub fn move_folder(
     let inside_itself = to
         .to_lowercase()
         .starts_with(&format!("{}/", from.to_lowercase()));
-    if !case_only && inside_itself {
+    if inside_itself {
         return Err(CairnError::BadRequest(
             "A folder can't be moved inside itself.".into(),
         ));
@@ -537,6 +538,7 @@ pub fn move_folder(
         ));
     }
     let dst = root.resolve_for_create(&to)?;
+    let case_only = is_case_only_rename(&src, &dst);
     if !case_only && dst.exists() {
         return Err(CairnError::Conflict(
             "A folder with that name is already there.".into(),

@@ -374,3 +374,78 @@ fn link_fixes_after_a_move_keep_who_wrote_each_page() {
     );
     assert_eq!(who("Hardware/How-to/printer.md").as_deref(), Some("Ana"));
 }
+
+/// Whether this disk treats `a` and `A` as different names (Linux, and
+/// Macs formatted case-sensitive).
+fn case_sensitive_disk(ws: &common::TestWorkspace) -> bool {
+    let probe = ws.path.join("case-probe.txt");
+    fs::write(&probe, "x").unwrap();
+    let sensitive = !ws.path.join("CASE-PROBE.txt").exists();
+    fs::remove_file(probe).unwrap();
+    sensitive
+}
+
+#[test]
+fn renaming_a_page_to_another_page_differing_only_in_capitals_is_refused() {
+    let ws = common::workspace();
+    if !case_sensitive_disk(&ws) {
+        eprintln!("skipped: this disk ignores capitals, so the two pages can't both exist");
+        return;
+    }
+    common::write(&ws.path.join("Guides/printer.md"), "# printer (small)\n");
+    common::write(&ws.path.join("Guides/Printer.md"), "# Printer (big)\n");
+    let sam = common::identity("Sam");
+
+    let err = move_page(
+        &ws.root,
+        &sam,
+        &all(&ws),
+        "Guides/printer.md",
+        "Guides/Printer.md",
+        None,
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, CairnError::Conflict(_)), "{err:?}");
+    assert_eq!(read(&ws, "Guides/printer.md"), "# printer (small)\n");
+    assert_eq!(read(&ws, "Guides/Printer.md"), "# Printer (big)\n");
+}
+
+#[test]
+fn renaming_a_folder_onto_another_differing_only_in_capitals_is_refused() {
+    let ws = common::workspace();
+    if !case_sensitive_disk(&ws) {
+        eprintln!("skipped: this disk ignores capitals, so the two folders can't both exist");
+        return;
+    }
+    common::write(&ws.path.join("guides/a.md"), "# A\n");
+    common::write(&ws.path.join("Guides/b.md"), "# B\n");
+    let sam = common::identity("Sam");
+
+    let err = move_folder(&ws.root, &sam, &all(&ws), "guides", "Guides").unwrap_err();
+
+    assert!(matches!(err, CairnError::Conflict(_)), "{err:?}");
+    assert_eq!(read(&ws, "guides/a.md"), "# A\n");
+    assert_eq!(read(&ws, "Guides/b.md"), "# B\n");
+}
+
+#[test]
+fn changing_only_the_capitals_of_a_page_name_works() {
+    let ws = common::workspace();
+    seed(&ws);
+    let sam = common::identity("Sam");
+    let out = move_page(
+        &ws.root,
+        &sam,
+        &all(&ws),
+        "Guides/printer.md",
+        "Guides/Printer.md",
+        None,
+    )
+    .unwrap();
+    assert_eq!(out.path, "Guides/Printer.md");
+    let text = read(&ws, "Guides/Printer.md");
+    assert!(text.contains("(Printer.assets/tray.png)"), "{text}");
+    // Other pages' links follow the new capitals too.
+    assert!(read(&ws, "Guides/setup.md").contains("(Printer.md)"));
+}

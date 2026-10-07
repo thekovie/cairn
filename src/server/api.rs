@@ -217,15 +217,37 @@ pub async fn get_state(State(state): State<Arc<AppState>>) -> ApiResult {
 }
 
 pub async fn pick_folder(State(_state): State<Arc<AppState>>) -> ApiResult {
-    let picked = tokio::task::spawn_blocking(|| {
-        rfd::FileDialog::new()
-            .set_title("Choose a documentation folder")
-            .pick_folder()
-    })
-    .await
-    .ok()
-    .flatten();
+    let picked = tokio::task::spawn_blocking(choose_folder)
+        .await
+        .ok()
+        .flatten();
     Ok(Json(json!({ "path": picked.map(|p| display_path(&p)) })))
+}
+
+/// The system's own "choose a folder" window; `None` if it was cancelled.
+#[cfg(not(target_os = "macos"))]
+fn choose_folder() -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new()
+        .set_title("Choose a documentation folder")
+        .pick_folder()
+}
+
+/// On a Mac, rfd can only open its window from the main thread, which
+/// the server holds, so ask AppleScript for Finder's folder window instead.
+#[cfg(target_os = "macos")]
+fn choose_folder() -> Option<std::path::PathBuf> {
+    let out = std::process::Command::new("osascript")
+        .args([
+            "-e",
+            "tell me to activate",
+            "-e",
+            "POSIX path of (choose folder with prompt \"Choose a documentation folder\")",
+        ])
+        .output()
+        .ok()?;
+    let path = String::from_utf8(out.stdout).ok()?;
+    let path = path.trim().trim_end_matches('/');
+    (out.status.success() && !path.is_empty()).then(|| std::path::PathBuf::from(path))
 }
 
 #[derive(Deserialize)]

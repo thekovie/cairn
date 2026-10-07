@@ -40,9 +40,7 @@ impl Identity {
         let os_user = std::env::var("USERNAME")
             .or_else(|_| std::env::var("USER"))
             .unwrap_or_else(|_| "unknown".into());
-        let host = std::env::var("COMPUTERNAME")
-            .or_else(|_| std::env::var("HOSTNAME"))
-            .unwrap_or_else(|_| "unknown".into());
+        let host = computer_name().unwrap_or_else(|| "unknown".into());
         Identity {
             session_id: uuid::Uuid::new_v4().to_string(),
             display_name: display_name
@@ -53,6 +51,36 @@ impl Identity {
             os_user,
             host,
         }
+    }
+}
+
+#[cfg(windows)]
+fn computer_name() -> Option<String> {
+    std::env::var("COMPUTERNAME").ok().filter(|s| !s.is_empty())
+}
+
+/// The computer's network name. Apps started from Finder or a desktop
+/// launcher have no HOSTNAME variable, so ask the system.
+#[cfg(unix)]
+fn computer_name() -> Option<String> {
+    let mut buf = [0u8; 256];
+    // SAFETY: `buf` is valid for writes of `buf.len()` bytes for the whole
+    // call, and gethostname writes at most that many.
+    let rc = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) };
+    if rc != 0 {
+        return None;
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let name = String::from_utf8_lossy(&buf[..end]).trim().to_string();
+    (!name.is_empty()).then_some(name)
+}
+
+/// Windows user and computer names ignore case; Unix ones don't.
+fn same_name(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        a.eq_ignore_ascii_case(b)
+    } else {
+        a == b
     }
 }
 
@@ -143,8 +171,8 @@ fn view(info: LockInfo, me: &Identity, now: u64) -> LockView {
     let is_mine = !info.session_id.is_empty() && info.session_id == me.session_id;
     let reclaimable_by_me = !is_mine
         && !info.session_id.is_empty()
-        && info.host.eq_ignore_ascii_case(&me.host)
-        && info.os_user.eq_ignore_ascii_case(&me.os_user)
+        && same_name(&info.host, &me.host)
+        && same_name(&info.os_user, &me.os_user)
         && age >= RECLAIM_AFTER_SECS;
     LockView {
         possibly_abandoned: age >= STALE_AFTER_SECS,

@@ -414,8 +414,8 @@ pub async fn run(state: Arc<AppState>, listener: TcpListener) -> std::io::Result
 }
 
 /// Ctrl+C, and the ways Cairn is usually stopped without it: closing the
-/// Cairn window, signing out, or shutting down on Windows; SIGTERM
-/// elsewhere. Without these, edit locks stayed behind for everyone.
+/// Cairn window, signing out, or shutting down on Windows; SIGTERM, or
+/// SIGHUP when the Terminal window closes, elsewhere. Without these, edit locks stayed behind for everyone.
 async fn stop_requested() {
     #[cfg(windows)]
     {
@@ -438,13 +438,18 @@ async fn stop_requested() {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{SignalKind, signal};
-        let Ok(mut term) = signal(SignalKind::terminate()) else {
+        // SIGHUP: the Terminal window was closed, or the person logged out.
+        let (Ok(mut term), Ok(mut hangup)) = (
+            signal(SignalKind::terminate()),
+            signal(SignalKind::hangup()),
+        ) else {
             let _ = tokio::signal::ctrl_c().await;
             return;
         };
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {}
             _ = term.recv() => {}
+            _ = hangup.recv() => {}
         }
     }
 }

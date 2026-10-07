@@ -77,8 +77,8 @@ fn wait_for_exit(child: &mut Child) {
     panic!("cairn did not stop within 10 seconds");
 }
 
-#[test]
-fn sigterm_gives_back_edit_locks() {
+/// Start editing, send `signal`, and check the lock is given back.
+fn stopping_gives_back_locks(signal: &str) {
     let ws = common::workspace();
     let home = tempfile::tempdir().unwrap();
     let mut cairn = start(&ws.path, home.path());
@@ -93,9 +93,20 @@ fn sigterm_gives_back_edit_locks() {
     assert!(lock.exists(), "editing should take the lock");
 
     let pid = cairn.child.id().to_string();
-    let sent = Command::new("kill").args(["-TERM", &pid]).status().unwrap();
+    let sent = Command::new("kill").args([signal, &pid]).status().unwrap();
     assert!(sent.success());
     wait_for_exit(&mut cairn.child);
 
-    assert!(!lock.exists(), "the lock was left behind after SIGTERM");
+    assert!(!lock.exists(), "the lock was left behind after {signal}");
+}
+
+#[test]
+fn sigterm_gives_back_edit_locks() {
+    stopping_gives_back_locks("-TERM");
+}
+
+/// Closing the Terminal window Cairn runs in, or logging out.
+#[test]
+fn closing_the_terminal_window_gives_back_edit_locks() {
+    stopping_gives_back_locks("-HUP");
 }
