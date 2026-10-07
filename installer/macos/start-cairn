@@ -1,0 +1,5 @@
+#!/bin/sh
+# What Cairn.app runs when it's opened: Cairn itself (the program "cairn"
+# beside this script) in a Terminal window, like the Cairn window on
+# Windows. Closing that window stops Cairn and unlocks your pages.
+exec open -a Terminal "$(dirname "$0")/cairn"

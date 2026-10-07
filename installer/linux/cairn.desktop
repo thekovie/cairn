@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cairn
+Comment=Shared documentation in a folder you control
+Exec=cairn
+Icon=cairn
+Terminal=true
+Categories=Office;

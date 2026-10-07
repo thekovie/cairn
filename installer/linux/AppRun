@@ -1,0 +1,23 @@
+#!/bin/sh
+# Starts Cairn from the AppImage. Started from a terminal, Cairn runs there.
+# Double-clicked in a file manager there's no terminal, so open one that
+# starts this AppImage again (Cairn shows its address and "keep this window
+# open" there, as on Windows; closing the window stops Cairn). If no
+# terminal can be found, Cairn runs without one: stop it with Settings →
+# Quit Cairn.
+here=$(dirname "$(readlink -f "$0")")
+cairn="$here/usr/bin/cairn"
+
+if [ -t 1 ] || [ -n "${CAIRN_FROM_APPRUN:-}" ] || [ -z "${APPIMAGE:-}" ]; then
+  exec "$cairn" "$@"
+fi
+export CAIRN_FROM_APPRUN=1
+for term in x-terminal-emulator gnome-terminal kgx konsole xfce4-terminal xterm; do
+  command -v "$term" >/dev/null 2>&1 || continue
+  case $term in
+    gnome-terminal | kgx) exec "$term" -- "$APPIMAGE" "$@" ;;
+    xfce4-terminal) exec "$term" -x "$APPIMAGE" "$@" ;;
+    *) exec "$term" -e "$APPIMAGE" "$@" ;;
+  esac
+done
+exec "$cairn" "$@"

@@ -1,7 +1,9 @@
 name: Release
 
-# Push a tag such as v0.1.0 to build cairn.exe and publish it on the
-# GitHub Releases page. The tag must match the version in Cargo.toml.
+# Push a tag such as v1.0.0 to build Cairn for Windows, macOS, and Linux and
+# publish it on the GitHub Releases page. The tag must match the version in
+# Cargo.toml. A tag with a "-" (v1.0.0-rc.1) is published as a pre-release,
+# which copies of Cairn never offer as an update: use it for a trial run.
 on:
   push:
     tags: ["v*"]
@@ -14,7 +16,7 @@ env:
 
 jobs:
   windows:
-    name: Build and publish (Windows x64)
+    name: Build (Windows x64)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,48 +51,174 @@ jobs:
           Copy-Item target/release/cairn.exe, README.md, LICENSE, CHANGELOG.md "dist/$name/"
           Copy-Item docs "dist/$name/docs" -Recurse
           Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
-          $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
-          "$hash  $name.zip" | Out-File -Encoding ascii "dist/$name.zip.sha256"
-
           # The installer: per person, no administrator password needed.
           ./installer/build.ps1 -Version $env:VERSION -SourceDir "dist/$name" -OutDir dist | Out-Null
-          $setup = "cairn-$env:VERSION-setup.exe"
-          $hash = (Get-FileHash "dist/$setup" -Algorithm SHA256).Hash.ToLower()
-          "$hash  $setup" | Out-File -Encoding ascii "dist/$setup.sha256"
 
-          # Release notes: this version's section of CHANGELOG.md.
-          $lines = Get-Content CHANGELOG.md
-          $start = ($lines | Select-String -Pattern "^## $([regex]::Escape($env:VERSION))\b" | Select-Object -First 1).LineNumber
-          $notes = @("See CHANGELOG.md.")
-          if ($start) {
-            $rest = $lines[$start..($lines.Count - 1)]
-            $end = ($rest | Select-String -Pattern '^## ' | Select-Object -First 1).LineNumber
-            $notes = if ($end) { $rest[0..($end - 2)] } else { $rest }
-          }
-          $notes += ""
-          $notes += "**To install:** download ``cairn-$env:VERSION-setup.exe`` and run it. No administrator password is needed; Cairn is installed just for you and can update itself. Or download ``$name.zip``, unzip it, and double-click ``cairn.exe``. Instructions are in ``docs/getting-started.md``."
-          $notes | Out-File -Encoding utf8 dist/notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: |
+            dist/cairn-*-windows-x64.zip
+            dist/cairn-*-setup.exe
+          if-no-files-found: error
+
+  macos:
+    name: Build (macOS, Apple silicon and Intel)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-darwin,x86_64-apple-darwin
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "v$version" = "${{ github.ref_name }}" ] || { echo "Tag ${{ github.ref_name }} does not match Cargo.toml version $version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: cargo test
+
+      - name: Build
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Package
+        run: |
+          installer/macos/build-app.sh "$VERSION" \
+            target/aarch64-apple-darwin/release/cairn \
+            target/x86_64-apple-darwin/release/cairn dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: dist/cairn-*-macos-universal.zip
+          if-no-files-found: error
+
+  linux:
+    name: Build (Linux x86_64)
+    # The oldest supported Ubuntu, so the program runs on older Linux too.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "v$version" = "${{ github.ref_name }}" ] || { echo "Tag ${{ github.ref_name }} does not match Cargo.toml version $version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: cargo test
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Get appimagetool
+        run: |
+          curl -sSfL -o /usr/local/bin/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  /usr/local/bin/appimagetool" | sha256sum -c -
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Package
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          installer/linux/build-linux.sh "$VERSION" target/release/cairn dist
+          # The AppImage starts and reports its version.
+          [ "$(dist/cairn-$VERSION-linux-x86_64.AppImage --version)" = "cairn $VERSION" ]
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: dist/cairn-*-linux-x86_64*
+          if-no-files-found: error
+
+  publish:
+    name: Sign and publish
+    # Only once every system built: a release is never missing one's update.
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: List the downloads
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          cd dist
+          for f in "cairn-$version-setup.exe" "cairn-$version-windows-x64.zip" \
+                   "cairn-$version-macos-universal.zip" "cairn-$version-linux-x86_64.AppImage" \
+                   "cairn-$version-linux-x86_64.tar.gz" "cairn-$version-linux-x86_64"; do
+            [ -f "$f" ] || { echo "Missing $f"; exit 1; }
+          done
+          ls -l
 
       # Cairn installs an update only if it is signed with this key, so a
       # release can't go out unsigned.
       - name: Sign the downloads
-        shell: pwsh
         env:
           MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
         run: |
-          if (-not $env:MINISIGN_SECRET_KEY) { throw "The MINISIGN_SECRET_KEY secret is missing, so the downloads can't be signed." }
-          cargo run --release --locked --example release_sign -- sign "dist/cairn-$env:VERSION-windows-x64.zip" "dist/cairn-$env:VERSION-setup.exe"
-          if ($LASTEXITCODE -ne 0) { throw "Signing failed." }
+          [ -n "$MINISIGN_SECRET_KEY" ] || { echo "The MINISIGN_SECRET_KEY secret is missing, so the downloads can't be signed."; exit 1; }
+          files=$(ls dist/cairn-"$VERSION"-* | grep -v '\.minisig$')
+          cargo run --release --locked --example release_sign -- sign $files
+          cd dist
+          for f in $(ls cairn-"$VERSION"-* | grep -v -e '\.minisig$' -e '\.sha256$'); do
+            sha256sum "$f" > "$f.sha256"
+          done
+
+      - name: Write the release notes
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## " v "([^0-9.-]|$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > dist/notes.md
+          [ -s dist/notes.md ] || echo "See CHANGELOG.md." > dist/notes.md
+          v="$VERSION"
+          cat >> dist/notes.md <<NOTES
+
+          ## Download
+
+          - **Windows:** \`cairn-$v-setup.exe\`. No administrator password is needed; Cairn is installed just for you and can update itself. (Or \`cairn-$v-windows-x64.zip\`: unzip it and double-click \`cairn.exe\`.)
+          - **Mac:** \`cairn-$v-macos-universal.zip\`. Unzip it and move **Cairn** to your Applications folder. The first time, open it from there, then choose **Open Anyway** in System Settings → Privacy & Security.
+          - **Linux:** \`cairn-$v-linux-x86_64.AppImage\`. Double-click it (or make it executable first). Or \`cairn-$v-linux-x86_64.tar.gz\` to run \`cairn\` from a terminal.
+
+          Instructions are in \`docs/getting-started.md\`.
+          NOTES
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           name: Cairn ${{ env.VERSION }}
           body_path: dist/notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
-            dist/cairn-${{ env.VERSION }}-setup.exe
-            dist/cairn-${{ env.VERSION }}-setup.exe.minisig
-            dist/cairn-${{ env.VERSION }}-setup.exe.sha256
-            dist/cairn-${{ env.VERSION }}-windows-x64.zip
-            dist/cairn-${{ env.VERSION }}-windows-x64.zip.minisig
-            dist/cairn-${{ env.VERSION }}-windows-x64.zip.sha256
+            dist/cairn-${{ env.VERSION }}-*
