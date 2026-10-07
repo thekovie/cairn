@@ -4,7 +4,20 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Added
+
+- **Cairn for Mac and Linux.** Cairn now runs on macOS 11 or newer (one download for Apple silicon and Intel Macs) and on 64-bit Linux (an AppImage to double-click, or a `.tar.gz`), as well as Windows. People on different systems can share one documentation folder. See [Getting started](docs/getting-started.md).
+- **Updates on every system.** **Update and restart** works on a Mac and on Linux too, with the same signature check and **Go back to** the version before. On a Mac and Linux, Cairn keeps running in the same Terminal window.
+- **The Cairn logo** on the program, its shortcuts, the taskbar, and the installer on Windows, and as the app icon on a Mac and Linux.
+- **One-click PDFs on a Mac and Linux**, made with Google Chrome, Microsoft Edge, or Chromium.
+
 ### Fixed
+
+- **Renaming a page to change only its capitals** (`printer` to `Printer`) now updates the links to it and its pictures. They kept the old capitals, which broke them on Linux.
+- **On disks where capitals matter (Linux),** renaming a page or folder onto another whose name differs only in capitals is refused instead of overwriting it.
+- **Two people setting up the same folder at the same moment** both end up in the same documentation; one of them used to get an error.
+- **A page that's gone** ("no longer exists") offers **Go to the home page** and **Search** instead of a **Try again** that couldn't work.
+- **"… is editing"** messages name the page by its title instead of its file name, and after a rename or move Cairn says how many other pages had their links updated.
 
 - **Your changes are no longer lost when they can't be saved.** If the shared folder doesn't answer, **Close editor** (or leaving for another screen) now keeps the editor open and says so, instead of closing and unlocking the page without your words.
 - **Closing the Cairn window gives back the pages you were editing**, as quitting from Settings already did. Before, closing the window, signing out, or shutting down the computer left them showing "Being edited by…" until someone released them by hand.

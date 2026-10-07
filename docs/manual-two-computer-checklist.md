@@ -4,10 +4,10 @@ Automated tests cover the file operations on one machine (`cargo test`). This ch
 
 ## Setup
 
-- **Computer A** and **Computer B**, both Windows 10/11, with different Windows user accounts.
+- **Computer A** and **Computer B**, with different user accounts. Run it with two Windows 10/11 computers; for a release that changes how Cairn works on a Mac or Linux, run it again with a Mac or Linux computer as B (see [Mac and Linux](#mac-and-linux)).
 - A Windows file share (SMB 2/3) both can reach, for example `\\fileserver\team`. Both users need **Modify** permission.
 - A subfolder that user B can **read but not write** (for step 10), for example `…\Documentation\Protected` with B denied *Write*.
-- The same `cairn.exe` build on both computers.
+- The same Cairn build on both computers.
 - In **Settings → Your name**, set A to “Alex” and B to “Sam”.
 
 Record the build version (`cairn --version`), the share type, and the date. Mark each step Pass or Fail.
@@ -41,3 +41,26 @@ Record the build version (`cairn --version`), the share type, and the date. Mark
 | **A:** edit a page, type, then end `cairn.exe` in Task Manager. **B:** open the page within 5 minutes, and again after 5 minutes. | B sees “Being edited by Alex…”, then “…but they haven't been active for a while”. B still can't edit. | ☐ |
 | **Maintainer:** `cairn locks list <share>`, then `cairn locks release <share> <page> --session <id>`. | Released; a record appears in `_system/locks/released/`. B can edit. | ☐ |
 | **A:** start Cairn again and edit the page. | A is offered their unsaved changes. If B published meanwhile, A is shown both versions before publishing. | ☐ |
+
+## Mac and Linux
+
+Run steps 1–14 with B on a Mac or Linux computer that has the same share mounted (on a Mac, **Go → Connect to Server** with `smb://fileserver/team`; on Linux, mounted with CIFS). Then:
+
+| Step | Expected result | Pass |
+| --- | --- | --- |
+| **Mac:** download the release zip in Safari, open it, drag **Cairn** to Applications, and open it. | The Mac says it can't check Cairn. After **Open Anyway** in System Settings → Privacy & Security, Cairn opens in a Terminal window and the browser shows it. | ☐ |
+| **Mac:** **Choose folder…** in setup. | Finder's folder window appears in front; the chosen folder is used. | ☐ |
+| **Mac:** edit a page, then close the Terminal window (confirm **Terminate**). **A:** open the page. | A can edit it straight away: closing the window unlocked it. | ☐ |
+| **Linux desktop:** double-click the AppImage (make it executable first if needed). | A terminal opens with Cairn running, and the browser shows it. | ☐ |
+| **Linux desktop:** **Choose folder…** in setup. | The desktop's folder window appears (or, without one, typing the location works). | ☐ |
+| **Linux:** with pages `Guides/printer.md` and `Guides/Printer.md` both there (make the second in a file manager), rename one onto the other in Cairn. Then rename a page changing only its capitals. | The first is refused and both pages stay; the second works, and links and pictures follow. | ☐ |
+| **Windows:** look at the Start menu shortcut, the taskbar while Cairn runs, and **Settings → Apps → Cairn**. | All show the Cairn logo, not a blank program icon. | ☐ |
+
+## Updates on each system (before a release)
+
+Publish a pre-release (tag `vX.Y.Z-rc.1`) and check that no copy offers it as an update. Then, on each system, with the previous release installed:
+
+| Step | Expected result | Pass |
+| --- | --- | --- |
+| **Settings → Updates → Check now**, then **Update and restart**. | The tab reconnects by itself; Settings shows the new version and **Go back to** the old one. On a Mac and Linux, Cairn keeps running in the same Terminal window. | ☐ |
+| **Go back to …** | The old version runs again, and **Go back to** the new one is offered. | ☐ |
