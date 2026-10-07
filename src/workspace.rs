@@ -131,6 +131,29 @@ fn boundary_of(path: &Path) -> PathBuf {
     boundary
 }
 
+/// Whether `dir` is where another disk or network share is mounted (on a
+/// Mac or Linux, shares appear inside the one file tree, so the top of a
+/// share is where the device changes, not a drive letter).
+#[cfg(unix)]
+fn is_mount_point(dir: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (dir.parent().map(fs::metadata), fs::metadata(dir)) {
+        (Some(Ok(parent)), Ok(here)) => parent.dev() != here.dev(),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn is_mount_point(_: &Path) -> bool {
+    false
+}
+
+/// Files a Mac's Finder leaves in any folder it shows; they don't make a
+/// folder "not empty".
+fn is_finder_litter(name: &str) -> bool {
+    name == ".DS_Store" || name.starts_with("._")
+}
+
 /// Look for a marker in `start` and each ancestor, stopping at the
 /// filesystem or network-share boundary. Never scans sideways or downward.
 pub fn discover(start: &Path) -> Result<Discovery> {
@@ -168,7 +191,7 @@ pub fn discover(start: &Path) -> Result<Discovery> {
             }
             MarkerStatus::Missing => {}
         }
-        if dir == boundary || searched.len() > 64 {
+        if dir == boundary || searched.len() > 64 || is_mount_point(dir) {
             break;
         }
         current = dir.parent();
@@ -191,7 +214,9 @@ pub fn schema_message(marker: &Marker) -> String {
 
 fn is_dir_empty(dir: &Path) -> bool {
     fs::read_dir(dir)
-        .map(|mut it| it.next().is_none())
+        .map(|mut it| {
+            it.all(|e| e.is_ok_and(|e| is_finder_litter(&e.file_name().to_string_lossy())))
+        })
         .unwrap_or(false)
 }
 
@@ -418,6 +443,7 @@ fn check_only_expected_entries(dir: &Path, allowed: &[String]) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let name = entry?.file_name().to_string_lossy().into_owned();
         let ok = name == INIT_JOURNAL
+            || is_finder_litter(&name)
             || name.contains(".cairn-tmp-")
             || allowed.iter().any(|a| a.eq_ignore_ascii_case(&name));
         if !ok {
@@ -532,6 +558,7 @@ const SYNC_MARKERS: &[&str] = &[
     "googledrive",
     "my drive",
     "icloud",
+    "mobile documents", // iCloud Drive on a Mac: ~/Library/Mobile Documents
     "box sync",
 ];
 

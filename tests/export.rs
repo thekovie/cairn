@@ -110,21 +110,30 @@ fn folder_exports_skip_system_hidden_and_temporary_files() {
     assert!(!pages.iter().any(|p| p.contains(".assets/")));
 }
 
-#[cfg(windows)]
+/// A folder link pointing outside the documentation: a junction on
+/// Windows, a symbolic link elsewhere.
+fn link_folder(link: &std::path::Path, target: &std::path::Path) {
+    #[cfg(windows)]
+    {
+        let out = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+}
+
 #[test]
-fn folder_exports_never_follow_junctions() {
+fn folder_exports_never_follow_folder_links() {
     let ws = common::workspace();
     sample(&ws);
     let outside = tempfile::tempdir().unwrap();
     common::write(&outside.path().join("secret.md"), "# Secret\n");
-    let link = ws.path.join("Guides").join("linked");
-    let out = std::process::Command::new("cmd")
-        .args(["/C", "mklink", "/J"])
-        .arg(&link)
-        .arg(outside.path())
-        .output()
-        .unwrap();
-    assert!(out.status.success());
+    link_folder(&ws.path.join("Guides").join("linked"), outside.path());
     let files = folder_files(&ws.root, "").unwrap();
     assert!(!files.iter().any(|p| p.contains("secret")), "{files:?}");
 }

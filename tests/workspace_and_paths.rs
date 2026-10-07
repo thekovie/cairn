@@ -128,6 +128,22 @@ fn populated_unmarked_folder_is_refused_and_untouched() {
 }
 
 #[test]
+fn a_folder_with_only_finder_files_counts_as_empty() {
+    // A Mac's Finder leaves .DS_Store (and ._ files on shared drives) in
+    // any folder it has shown.
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(".DS_Store"), "finder").unwrap();
+    fs::write(dir.path().join("._README"), "finder").unwrap();
+    match discover(dir.path()).unwrap() {
+        Discovery::NotFound { is_empty, .. } => assert!(is_empty),
+        other => panic!("unexpected: {other:?}"),
+    }
+    let out = initialize(&InitTarget::Here(dir.path().to_path_buf()), "Docs").unwrap();
+    assert!(out.created);
+    assert!(dir.path().join(MARKER_FILE).exists());
+}
+
+#[test]
 fn existing_marker_is_never_overwritten() {
     let ws = common::workspace();
     let before = fs::read(ws.path.join(MARKER_FILE)).unwrap();

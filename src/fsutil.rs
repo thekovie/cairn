@@ -105,6 +105,20 @@ pub fn read_optional(path: &Path) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
+/// Create `dir` (and any missing parents) so only this user can open it.
+/// Windows already keeps a user's app-data folder private; on a Mac or
+/// Linux new folders are often readable by everyone unless asked.
+pub fn create_private_dir_all(dir: &Path) -> io::Result<()> {
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(dir)
+}
+
 /// Whether the current user can create files in `dir`, tested by actually
 /// creating and removing a probe file. Filesystem permissions are the only
 /// authority Cairn trusts.

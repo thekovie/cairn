@@ -57,7 +57,31 @@ impl Drop for DenyWrite {
     }
 }
 
-#[cfg(windows)]
+/// On a Mac or Linux: the folder is made read-only for everyone.
+#[cfg(unix)]
+struct DenyWrite {
+    dir: std::path::PathBuf,
+}
+
+#[cfg(unix)]
+impl DenyWrite {
+    fn apply(dir: &std::path::Path) -> DenyWrite {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        DenyWrite {
+            dir: dir.to_path_buf(),
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for DenyWrite {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.dir, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
 #[test]
 fn a_user_without_write_permission_cannot_publish_into_a_protected_folder() {
     use cairn::error::CairnError;
@@ -73,6 +97,10 @@ fn a_user_without_write_permission_cannot_publish_into_a_protected_folder() {
     locks::acquire(&ws.root, page, &alex).unwrap();
 
     let guard = DenyWrite::apply(&ws.path.join("Protected"));
+    if cfg!(unix) && can_write_dir(&ws.path.join("Protected")) {
+        eprintln!("skipped: running as root, which ignores folder permissions");
+        return;
+    }
     assert!(
         !can_write_dir(&ws.path.join("Protected")),
         "the deny rule should be in effect"

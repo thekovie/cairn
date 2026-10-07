@@ -739,3 +739,16 @@ fn the_same_user_name_on_another_computer_cannot_reclaim_a_lock() {
         Acquire::Acquired(_) => panic!("another computer must not take the lock"),
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn unsaved_changes_are_kept_where_only_this_user_can_read_them() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = tempfile::tempdir().unwrap();
+    let drafts = home.path().join("Cairn").join("drafts");
+    let _store = DraftStore::new(Some(drafts.clone()));
+    for dir in [home.path().join("Cairn"), drafts] {
+        let mode = fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "{} is {mode:o}", dir.display());
+    }
+}

@@ -167,7 +167,7 @@ pub fn load(dir: &Path) -> (AppConfig, Option<String>) {
 
 pub fn save(dir: &Path, cfg: &AppConfig) -> Result<()> {
     cfg.validate()?;
-    std::fs::create_dir_all(dir)?;
+    crate::fsutil::create_private_dir_all(dir)?;
     let bytes = serde_json::to_vec_pretty(cfg).expect("config serializes");
     write_atomic(&dir.join(CONFIG_FILE), &bytes)?;
     Ok(())

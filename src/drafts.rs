@@ -2,7 +2,8 @@
 //!
 //! Drafts are never written into the shared workspace. When persistent drafts
 //! are enabled they are saved under the user's own local app-data folder
-//! (`%LOCALAPPDATA%\Cairn\drafts` on Windows, which only that user can read),
+//! (`%LOCALAPPDATA%\Cairn\drafts` on Windows, which only that user can read;
+//! on a Mac or Linux the folder is created so only that user can open it),
 //! including staged pictures that have not been published yet. When disabled
 //! or unavailable, drafts live only in this running session.
 
@@ -85,7 +86,7 @@ impl DraftStore {
     /// `dir = None` disables persistent drafts. If the folder can't be
     /// created, drafts fall back to session-only.
     pub fn new(dir: Option<PathBuf>) -> DraftStore {
-        let dir = dir.filter(|d| fs::create_dir_all(d).is_ok());
+        let dir = dir.filter(|d| crate::fsutil::create_private_dir_all(d).is_ok());
         DraftStore {
             dir,
             mem: Mutex::new(HashMap::new()),
