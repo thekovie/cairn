@@ -36,16 +36,18 @@ fn start(workspace: &std::path::Path, home: &std::path::Path) -> Running {
         .stderr(Stdio::null())
         .spawn()
         .expect("start cairn");
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    let url = stdout
+    let mut lines = BufReader::new(child.stdout.take().unwrap())
         .lines()
-        .map_while(Result::ok)
+        .map_while(Result::ok);
+    let url = lines
         .find_map(|l| {
             l.trim()
                 .starts_with("http://")
                 .then(|| l.trim().to_string())
         })
         .expect("cairn printed its address");
+    // Keep reading what it prints: a closed pipe would stop it.
+    std::thread::spawn(move || lines.for_each(drop));
     let (base, token) = url.split_once("/#t=").unwrap();
     Running {
         child,

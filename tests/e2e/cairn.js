@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const BIN = join(ROOT, 'target', 'debug', process.platform === 'win32' ? 'cairn.exe' : 'cairn');
+const TARGET = process.env.CARGO_TARGET_DIR || join(ROOT, 'target');
+const BIN = join(TARGET, 'debug', process.platform === 'win32' ? 'cairn.exe' : 'cairn');
 
 export const PRINTER = `# Printer setup
 
