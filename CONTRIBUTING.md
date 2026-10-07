@@ -63,6 +63,20 @@ cargo clippy --all-targets -- -D warnings
 | `tests/content.rs` | Picture validation and publishing, rendering and sanitizing, search |
 | `tests/security.rs` | Write permissions (uses `icacls` on Windows); token, origin, and host checks; loopback-only binding |
 | `tests/ui_quality.rs` | Color contrast in every theme, labels, focus styles, no remote assets |
+| `tests/shutdown.rs` | Stopping Cairn without Ctrl+C still gives back edit locks (runs the real program; Unix only) |
+
+### Browser tests (optional)
+
+`tests/e2e/` drives the real program in a browser with [Playwright](https://playwright.dev): unsaved changes survive a failed save, and closing, leaving, or reloading is held back while Cairn is publishing, adding a picture, or preparing a download. They need **Node.js** 22 or newer; `cargo test` doesn't need them. CI doesn't run them, so run them yourself before a release or after changing the editor, leaving, or download code.
+
+```powershell
+cd tests\e2e
+npm ci
+npx playwright install chromium
+npm test
+```
+
+Each test starts its own Cairn on a fresh temporary folder. A slow or failing shared folder is imitated by holding or failing requests in the browser.
 
 Network-share behavior is checked by hand with [docs/manual-two-computer-checklist.md](docs/manual-two-computer-checklist.md).
 

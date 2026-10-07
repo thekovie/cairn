@@ -1,0 +1,13 @@
+{
+  "name": "cairn-browser-tests",
+  "private": true,
+  "description": "Browser tests that drive the real cairn program. Optional: cargo test does not need them. Run: npm ci && npx playwright install chromium && npm test",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

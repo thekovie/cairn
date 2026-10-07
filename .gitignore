@@ -7,3 +7,5 @@ node_modules/
 /*.local.json
 .cairn-*
 /.impeccable/hook.cache.json
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/
