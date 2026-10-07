@@ -1,6 +1,6 @@
 [package]
 name = "cairn"
-version = "0.9.2"
+version = "1.0.0-rc.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Local-first shared Markdown documentation in a folder you control"
