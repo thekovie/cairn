@@ -7,7 +7,7 @@ On any page, choose **Edit this page**. While you edit:
 - The page is **locked for you**. Others can still read it, and they see “Being edited by *your name* since *time*”.
 - If someone else is already editing, the button is greyed out and a note under it says who, since when, and that the page opens for editing when they finish (or by itself if they stop typing for a while). You can keep reading.
 
-Your name comes from **Settings → Your name**. If you leave it empty, your Windows user name is used.
+Your name comes from **Settings → Your name**. If you leave it empty, your user name on this computer is used.
 
 ## The editor
 
@@ -23,7 +23,7 @@ The editor opens on the page **as it will look**: click anywhere and type, like 
 
 ### Editing the page as it will look
 
-You can use the toolbar, or type these shortcuts and the formatting appears as you type. To tick an item in a checklist, click its box (or press **Ctrl+Enter** in it).
+You can use the toolbar, or type these shortcuts and the formatting appears as you type. To tick an item in a checklist, click its box (or press **Ctrl+Enter**, **⌘+Return** on a Mac, in it).
 
 | Type | To get |
 | --- | --- |
@@ -82,7 +82,7 @@ Every toolbar button shows its name. For a more compact toolbar, choose **Settin
 | **Code** | Mark text as a command or exact text to type. |
 | **Insert picture…** | Add a picture from your computer. |
 
-Optional keyboard shortcuts: **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+H** replace, **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. Everything a shortcut does is also available as a button.
+Optional keyboard shortcuts: **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+H** replace, **Ctrl+B** bold, **Ctrl+I** italic, **Ctrl+S** save now. On a Mac use **⌘** instead of Ctrl, except redo is **⇧⌘Z** and replace is **⇧⌘H**. Everything a shortcut does is also available as a button.
 
 ### Markdown, if you want it
 
@@ -271,7 +271,7 @@ Choose **Download** on any page:
 
 On a folder, **Download this folder** saves all its pages (and folders inside it) as one .zip, either as Markdown with pictures or as one PDF per page. **Settings → Download everything** does the same for the whole documentation, including templates. A progress bar shows how far along it is, and **Close** stops it.
 
-PDFs are made on your own computer by Microsoft Edge or Google Chrome; nothing is uploaded. If neither works on your computer, Cairn offers to **open the print window instead**: choose **Save as PDF** (or **Microsoft Print to PDF**) as the printer.
+PDFs are made on your own computer by Microsoft Edge, Google Chrome, or Chromium; nothing is uploaded. If none works on your computer, Cairn offers to **open the print window instead**: choose **Save as PDF** (or, on Windows, **Microsoft Print to PDF**) as the printer.
 
 ## Times and timezones
 

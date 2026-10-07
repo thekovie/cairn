@@ -1,8 +1,8 @@
-# Building cairn.exe on another computer
+# Building Cairn
 
-This guide takes a Windows 10 or 11 computer with nothing installed to a working `cairn.exe` built from the source code. It takes about 20–40 minutes, mostly waiting for downloads.
+This guide takes a Windows 10 or 11 computer with nothing installed to a working `cairn.exe` built from the source code. It takes about 20–40 minutes, mostly waiting for downloads. On a Mac or Linux it's shorter: see [On a Mac or Linux](#on-a-mac-or-linux).
 
-If you only want to *use* Cairn, you don't need any of this: download the ready-made zip from the [Releases page](https://github.com/thekovie/cairn/releases/latest) instead.
+If you only want to *use* Cairn, you don't need any of this: download it from the [Releases page](https://github.com/thekovie/cairn/releases/latest) instead.
 
 ## What you need
 
@@ -126,9 +126,30 @@ pwsh installer\build.ps1 -Version $v -SourceDir "dist\$name" -OutDir dist
 
 A Cairn you build yourself tells you when an official release is newer, and can install it, because official releases are signed with the project's key.
 
+## On a Mac or Linux
+
+1. Install the tools:
+   - **Mac:** open Terminal and run `xcode-select --install` (Apple's command-line tools, which include Git and the linker).
+   - **Linux:** install Git and a C toolchain, for example `sudo apt install git build-essential` on Ubuntu or Debian.
+2. Install Rust from <https://rustup.rs> (the command on that page), then open a new terminal.
+3. Get the code and build it:
+
+   ```sh
+   git clone https://github.com/thekovie/cairn.git
+   cd cairn
+   cargo build --release --locked
+   ```
+
+The program is `target/release/cairn`. Start it with `./target/release/cairn`; your browser opens Cairn, and closing the terminal window (or Ctrl+C) stops it. `cargo test` runs the tests; the PDF test uses Google Chrome, Microsoft Edge, or Chromium if one is installed.
+
+To make the same downloads the Releases page offers:
+
+- **Mac app:** `installer/macos/build-app.sh <version> <Apple silicon cairn> <Intel cairn> dist` makes `Cairn.app` in a zip. It needs both builds (`cargo build --release --target aarch64-apple-darwin` and `--target x86_64-apple-darwin`, after `rustup target add` for each).
+- **Linux:** `installer/linux/build-linux.sh <version> target/release/cairn dist` makes the AppImage and the `.tar.gz`. It needs [appimagetool](https://github.com/AppImage/appimagetool) on your PATH.
+
 ## Updating later
 
-To build a newer version on the same computer:
+To build a newer version on the same computer (in PowerShell on Windows; the same commands work in a terminal on a Mac or Linux):
 
 ```powershell
 cd $HOME\Documents\cairn

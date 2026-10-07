@@ -282,7 +282,7 @@ fn downloads_not_signed_by_the_right_key_are_refused() {
     ));
     // Right key, but the zip was changed after signing.
     let mut tampered = zip.clone();
-    let at = tampered.len() - 30;
+    let at = tampered.len() / 2;
     tampered[at] ^= 0xFF;
     refused(&FakeGitHub::start(
         "v0.9.0",

@@ -308,16 +308,27 @@ pub fn initialize(target: &InitTarget, display_name: &str) -> Result<InitOutcome
     // initializer may finish (writing the marker and removing its journal)
     // at any point, so every "someone else got here first" path re-checks
     // for a finished workspace before failing.
-    let existing_journal = read_journal(&journal_path)?;
-    let allowed = match &existing_journal {
-        Some(j) => j.entries.clone(),
-        None => Vec::new(),
-    };
-    if let Err(err) = check_only_expected_entries(&dir, &allowed) {
-        return match adopt_existing(&dir)? {
-            Some(done) => Ok(done),
-            None => Err(err),
+    let mut existing_journal = read_journal(&journal_path)?;
+    loop {
+        let allowed = match &existing_journal {
+            Some(j) => j.entries.clone(),
+            None => Vec::new(),
         };
+        let Err(err) = check_only_expected_entries(&dir, &allowed) else {
+            break;
+        };
+        if let Some(done) = adopt_existing(&dir)? {
+            return Ok(done);
+        }
+        // Someone may have started setting this folder up after we looked
+        // for a journal: what we saw is theirs, so join them.
+        if existing_journal.is_none()
+            && let Some(theirs) = read_journal(&journal_path)?
+        {
+            existing_journal = Some(theirs);
+            continue;
+        }
+        return Err(err);
     }
 
     let journal = match existing_journal {

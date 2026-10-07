@@ -1,8 +1,10 @@
 # Contributing
 
-## Prerequisites (Windows)
+## Prerequisites
 
-Setting up a new computer? [docs/building.md](docs/building.md) walks through every step, from installing the tools to a finished `cairn.exe`.
+Windows is described here; on a Mac or Linux you need Rust, Git, and the system's C tools (see [docs/building.md](docs/building.md#on-a-mac-or-linux)).
+
+Setting up a new computer? [docs/building.md](docs/building.md) walks through every step, from installing the tools to a finished build (Windows, Mac, or Linux).
 
 1. **Rust** 1.88 or newer (the project uses the 2024 edition). Install from <https://rustup.rs>. `rustup` installs `cargo`, `rustfmt`, and `clippy`.
 2. **Microsoft C++ Build Tools**, which Rust needs to link Windows programs:
@@ -14,7 +16,7 @@ Setting up a new computer? [docs/building.md](docs/building.md) walks through ev
    Or install **Visual Studio Build Tools** and select **Desktop development with C++**.
 3. **Git**.
 
-Nothing else is needed: no Node.js, no database. The browser interface is plain HTML, CSS, and JavaScript in `assets/`, embedded into the program when it's built.
+Nothing else is needed: no Node.js (except for the optional browser tests), no database. The browser interface is plain HTML, CSS, and JavaScript in `assets/`, embedded into the program when it's built.
 
 > **Git Bash users:** run cargo from PowerShell or Command Prompt. Git Bash ships a Unix `link` command that shadows the Microsoft linker (`link.exe`), and builds fail with `link: extra operand`.
 
@@ -63,7 +65,8 @@ cargo clippy --all-targets -- -D warnings
 | `tests/content.rs` | Picture validation and publishing, rendering and sanitizing, search |
 | `tests/security.rs` | Write permissions (uses `icacls` on Windows); token, origin, and host checks; loopback-only binding |
 | `tests/ui_quality.rs` | Color contrast in every theme, labels, focus styles, no remote assets |
-| `tests/shutdown.rs` | Stopping Cairn without Ctrl+C still gives back edit locks (runs the real program; Unix only) |
+| `tests/shutdown.rs` | Stopping Cairn without Ctrl+C (SIGTERM, or closing the Terminal window) still gives back edit locks (runs the real program; Mac and Linux) |
+| `tests/app_icon.rs` | `cairn.exe` carries the Cairn logo (Windows only) |
 
 ### Browser tests (optional)
 
@@ -108,9 +111,17 @@ Use short, conventional messages such as `feat: …`, `fix: …`, `docs: …`, `
 
 ## Releases and updates
 
-Pushing a tag such as `v0.5.0` (matching `Cargo.toml`) runs `.github/workflows/release.yml`. It builds `cairn.exe`, the zip, and the installer (`installer/cairn.iss`, built with the free Inno Setup by `installer/build.ps1`), signs the zip and the installer, and publishes them.
+Pushing a tag such as `v1.0.0` (matching `Cargo.toml`) runs `.github/workflows/release.yml`:
 
-**Signing.** Cairn installs an update only if the zip is signed with the release key, whose public half is `PUBLIC_KEY` in `src/update.rs`. The secret half is the `MINISIGN_SECRET_KEY` repository secret; the release fails without it. The key was made with:
+- **Windows:** `cairn.exe`, the zip, and the installer (`installer/cairn.iss`, built with the free Inno Setup by `installer/build.ps1`).
+- **macOS:** a universal program for Apple silicon and Intel in `Cairn.app`, zipped (`installer/macos/build-app.sh`).
+- **Linux:** the AppImage, the `.tar.gz`, and the bare program the updater downloads (`installer/linux/build-linux.sh`).
+
+Only when all three have built does the last job sign every download and publish them together, so a release always has every system's update. A tag with a `-`, such as `v1.0.0-rc.1`, is published as a pre-release: a trial run that no copy of Cairn offers as an update.
+
+The app icons are made from `assets/favicon.svg` by `installer/icons/make-icons.sh`; run it after changing the logo and commit the results.
+
+**Signing.** Cairn installs an update only if its download is signed with the release key, whose public half is `PUBLIC_KEY` in `src/update.rs`. The secret half is the `MINISIGN_SECRET_KEY` repository secret; the release fails without it. The key was made with:
 
 ```
 cargo run --example release_sign -- keygen <folder outside the repository>

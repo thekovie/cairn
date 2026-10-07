@@ -26,8 +26,13 @@ Cairn is designed to be easy for everyone on a team, including people who don't 
 
 ## Quick start
 
-1. Download the latest `cairn-…-setup.exe` from the [Releases page](https://github.com/thekovie/cairn/releases/latest) and run it. No administrator password is needed: Cairn is installed just for you, and can update itself. (Or download the `.zip`, unzip it, and run `cairn.exe` from there. Or build it yourself: see [Building cairn.exe](docs/building.md).)
-2. Start **Cairn** from the Start menu. A small window opens and your browser shows Cairn.
+1. Download Cairn from the [Releases page](https://github.com/thekovie/cairn/releases/latest):
+   - **Windows:** `cairn-…-setup.exe`. Run it; no administrator password is needed.
+   - **Mac:** `cairn-…-macos-universal.zip`. Open it and drag **Cairn** to your Applications folder. The first time, choose **Open Anyway** in System Settings → Privacy & Security ([how](docs/getting-started.md#mac)).
+   - **Linux:** `cairn-…-linux-x86_64.AppImage`. Double-click it, or run it from a terminal.
+
+   Cairn is installed just for you and can update itself. (Or build it yourself: see [Building Cairn](docs/building.md).)
+2. Start **Cairn**. A small window opens (a Terminal window on a Mac or Linux) and your browser shows Cairn.
 3. Choose **Create a new documentation folder** (or **Open a documentation folder we already use**).
 4. Choose **New page**, give it a title, and start writing. Choose **Publish changes** when you're done.
 
@@ -83,7 +88,7 @@ The screenshots use made-up sample content.
 | [Configuration](docs/configuration.md) | Settings and the workspace file format |
 | [Troubleshooting](docs/troubleshooting.md) | Shared-folder access, failed publishing, abandoned locks, restoring unsaved changes |
 | [Two-computer test checklist](docs/manual-two-computer-checklist.md) | Manual checks for network-share behavior |
-| [Building cairn.exe](docs/building.md) | Step by step: from a new Windows computer to your own `cairn.exe` |
+| [Building Cairn](docs/building.md) | Step by step: from a new computer to your own build of Cairn |
 | [Contributing](CONTRIBUTING.md) | Running, testing, and working on the code |
 | [Changelog](CHANGELOG.md) | What changed in each release |
 
@@ -93,13 +98,13 @@ Found a problem, have an idea, or got stuck? [Open an issue](https://github.com/
 
 ## Limitations
 
-- **Windows first.** This release is built and tested on Windows 10/11. The code is written to be portable, but other systems are untested.
-- **Edit locks need suitable storage.** Locks and safe replacement rely on exclusive file creation and atomic rename, which Windows (NTFS) and SMB2/SMB3 network shares provide. Cloud-synced folders (OneDrive, Dropbox, Google Drive) and some network storage do not. Cairn checks the storage when a folder is opened and warns when editing by several people at once is not safe. See [storage and concurrency](docs/storage-and-concurrency.md).
+- **Systems.** Cairn runs on Windows 10/11 (x64), macOS 11 or newer (Apple silicon and Intel), and 64-bit Linux (x86_64). On other systems it can be built from source, but it doesn't update itself there.
+- **Edit locks need suitable storage.** Locks and safe replacement rely on exclusive file creation and atomic rename, which local disks (NTFS, APFS, ext4) and SMB2/SMB3 network shares provide. Cloud-synced folders (OneDrive, Dropbox, Google Drive) and some network storage do not. Cairn checks the storage when a folder is opened and warns when editing by several people at once is not safe. See [storage and concurrency](docs/storage-and-concurrency.md).
 - **Cairn only knows about Cairn.** If someone edits a `.md` file directly in another program, Cairn can't show them as the editor. It does notice the change when someone tries to publish, and shows a comparison instead of overwriting.
 - **Access control is the filesystem's job.** Cairn hides editing where you can't write, but the real protection is the shared folder's own permissions.
 - **Pictures:** PNG, JPEG, WebP, and GIF only. SVG is not accepted.
 - **No viewer presence.** Cairn does not show who is currently reading a page.
-- **Unsigned download.** `cairn.exe` is not code-signed, so Windows SmartScreen may warn the first time you run it. Choose **More info → Run anyway**, or check the file against the `.sha256` published next to it.
+- **Unsigned download.** Cairn isn't signed with a paid certificate, so Windows SmartScreen may warn the first time you run it (choose **More info → Run anyway**), and a Mac asks you to allow it once in System Settings → Privacy & Security. Each download has a `.sha256` next to it to check it against.
 
 ## License
 

@@ -16,7 +16,7 @@ Cairn is the team's handbook. It lets anyone read, search, write and publish doc
 
 ## Positioning
 
-Cairn is local-first and needs no server. It is a single Windows program that each person runs on their own computer, pointed at a shared folder. The documentation stays ordinary Markdown files and folders that outlive the app. Several people coordinate through edit locks and earlier versions kept in the folder itself, with no database and no cloud account.
+Cairn is local-first and needs no server. It is a single program (for Windows, Mac, or Linux) that each person runs on their own computer, pointed at a shared folder. The documentation stays ordinary Markdown files and folders that outlive the app. Several people coordinate through edit locks and earlier versions kept in the folder itself, with no database and no cloud account.
 
 ## Operating Context
 

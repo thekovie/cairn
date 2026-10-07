@@ -5,20 +5,20 @@ Cairn is one Rust program per user plus a folder of files. There is no central s
 ```
  Alex's computer                           Shared folder (local or \\server\share)
  ┌────────────────────────────────┐        ┌───────────────────────────────────┐
- │ Browser ──HTTP──▶ cairn.exe    │─files─▶│ shared-docs.json                  │
+ │ Browser ──HTTP──▶ cairn        │─files─▶│ shared-docs.json                  │
  │           (127.0.0.1 only)     │        │ Guides/page.md                    │
  │                                │        │ Guides/page.assets/pic-1a2b3c4d.png│
- │ %LOCALAPPDATA%\Cairn\          │        │ _system/locks/  _system/history/  │
+ │ settings folder (private)      │        │ _system/locks/  _system/history/  │
  │   config.json, drafts\         │        └───────────────────────────────────┘
  └────────────────────────────────┘                        ▲
  Sam's computer: the same program, the same folder ────────┘
 ```
 
-Coordination between people happens entirely through files in the shared folder, using each person's own Windows permissions.
+Coordination between people happens entirely through files in the shared folder, using each person's own permissions on it. The same program runs on Windows, macOS, and Linux; people on different systems can share one folder.
 
 ## The local program
 
-`cairn.exe` (`src/main.rs`) loads the user's settings, reopens the last documentation folder, binds an HTTP server to **127.0.0.1 on a random free port**, opens the default browser, and runs until its window is closed, Ctrl+C is pressed, or **Quit Cairn** is chosen. On exit it releases any edit locks it holds.
+The program (`cairn.exe` on Windows, `cairn` elsewhere; `src/main.rs`) loads the user's settings, reopens the last documentation folder, binds an HTTP server to **127.0.0.1 on a random free port**, opens the default browser, and runs until its window is closed (the console on Windows, the Terminal window on a Mac or Linux), Ctrl+C is pressed, the computer signs out or shuts down, or **Quit Cairn** is chosen. On exit it releases any edit locks it holds.
 
 The server is [axum](https://github.com/tokio-rs/axum) on tokio. Every filesystem operation runs on the blocking thread pool, so a slow network share never freezes the server.
 
@@ -81,7 +81,7 @@ Text from files is always inserted as text, never as HTML. The only HTML inserte
 | `config.rs` | Per-user settings. |
 | `timefmt.rs` | Timezones: validation, the user's zone, "GMT+8" labels, today's date. Stored times are always UTC. |
 | `templates.rs` | Built-in and team templates, filling in `{{…}}` fields, finding deleted templates. |
-| `export/` | Choosing files and zipping them (`archive.rs`), self-contained printable HTML (`html.rs`), PDFs via headless Edge or Chrome (`pdf.rs`). |
+| `export/` | Choosing files and zipping them (`archive.rs`), self-contained printable HTML (`html.rs`), PDFs via headless Edge, Chrome, or Chromium (`pdf.rs`). |
 | `server/` | HTTP routes (`api.rs`, `api_templates.rs`, `api_export.rs`, `api_manage.rs`), security, idle time-outs. |
 
 ## Files on disk
@@ -101,7 +101,7 @@ _system/trash/<id>/item.json                      a deleted page or folder: wher
 _system/trash/<id>/content/                       the deleted page (with its .assets) or folder
 ```
 
-**On each person's computer** (private, under `%LOCALAPPDATA%\Cairn`, which Windows restricts to that user by default):
+**On each person's computer** (private, in the [settings folder](configuration.md#settings-file): `%LOCALAPPDATA%\Cairn` on Windows, which Windows restricts to that user; on a Mac or Linux it is created so only that user can open it):
 
 ```
 config.json
