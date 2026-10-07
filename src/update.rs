@@ -2,14 +2,16 @@
 //!
 //! 1. Ask GitHub for the latest release (a small JSON request). Nothing
 //!    about the person or their documentation is sent.
-//! 2. Download `cairn-<version>-windows-x64.zip` and its `.minisig`
+//! 2. Download this system's file (see [`Platform`]) and its `.minisig`
 //!    signature, and check the signature against the public key built into
 //!    this program. Only files signed by the release workflow pass.
-//! 3. Take `cairn.exe` out of the zip, and ask it for its version to make
-//!    sure it runs and is the expected, newer version.
-//! 4. Keep the current program as `cairn.previous.exe` (to go back), then
-//!    put the new one in its place (Windows allows renaming a running
-//!    program, which is how it can be replaced while running).
+//! 3. Take the program out of it (from the zip on Windows and macOS; on
+//!    Linux the download is the program), and ask it for its version to
+//!    make sure it runs and is the expected, newer version.
+//! 4. Keep the current program as `cairn.previous` (to go back), then put
+//!    the new one in its place. Windows allows renaming a running program;
+//!    elsewhere the new file is renamed over the old one, and the running
+//!    program keeps the old file until it restarts.
 //!
 //! A copy of Cairn on a network drive, in a folder the person can't change,
 //! or run from inside a zip doesn't replace itself; see [`install_blocker`].
@@ -34,8 +36,84 @@ pub const RELEASES_PAGE: &str = "https://github.com/thekovie/cairn/releases/late
 /// (made by `cargo run --example release_sign -- keygen`).
 pub const PUBLIC_KEY: &str = "RWQlB4K4jmDHW+uKZF2cUKQtuiQjEUC1kohGcVNbczB/Ej6IbyD2lCCm";
 /// The program kept from before the last update, for going back.
-pub const PREVIOUS_EXE: &str = "cairn.previous.exe";
+pub const PREVIOUS_EXE: &str = if cfg!(windows) {
+    "cairn.previous.exe"
+} else {
+    "cairn.previous"
+};
 const PREVIOUS_VERSION: &str = "cairn.previous.version";
+/// Ending of program files: kept beside the program, so they look alike.
+const EXE_SUFFIX: &str = std::env::consts::EXE_SUFFIX;
+
+/// How a release brings the program to this kind of computer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    /// `cairn-<v>-windows-x64.zip`, holding `cairn.exe`.
+    Windows,
+    /// `cairn-<v>-macos-universal.zip`, holding `Cairn.app` (whose
+    /// `Contents/MacOS/cairn` is the program).
+    Mac,
+    /// `cairn-<v>-linux-x86_64.AppImage`: the AppImage file is the program.
+    LinuxAppImage,
+    /// `cairn-<v>-linux-x86_64`: the program itself, for copies unpacked
+    /// from the `.tar.gz`.
+    Linux,
+}
+
+impl Platform {
+    /// This computer, or `None` where no release is built for it.
+    pub fn current() -> Option<Platform> {
+        match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("windows", "x86_64") => Some(Platform::Windows),
+            ("macos", "x86_64" | "aarch64") => Some(Platform::Mac),
+            ("linux", "x86_64") if appimage_path().is_some() => Some(Platform::LinuxAppImage),
+            ("linux", "x86_64") => Some(Platform::Linux),
+            _ => None,
+        }
+    }
+
+    /// The release file for `version`.
+    pub fn asset_name(self, version: &Version) -> String {
+        match self {
+            Platform::Windows => format!("cairn-{version}-windows-x64.zip"),
+            Platform::Mac => format!("cairn-{version}-macos-universal.zip"),
+            Platform::LinuxAppImage => format!("cairn-{version}-linux-x86_64.AppImage"),
+            Platform::Linux => format!("cairn-{version}-linux-x86_64"),
+        }
+    }
+
+    /// The program's file name inside the zip, or `None` when the download
+    /// is the program itself.
+    pub fn program_in_zip(self) -> Option<&'static str> {
+        match self {
+            Platform::Windows => Some("cairn.exe"),
+            Platform::Mac => Some("cairn"),
+            Platform::LinuxAppImage | Platform::Linux => None,
+        }
+    }
+}
+
+/// The AppImage file this program was started from, if it was: the running
+/// program is then a read-only copy inside it, and the AppImage file is
+/// what gets updated.
+fn appimage_path() -> Option<PathBuf> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .filter(|p| p.is_file())
+}
+
+/// The program file an update replaces: the AppImage when started from one,
+/// otherwise this program.
+pub fn program_path() -> Result<PathBuf> {
+    match appimage_path() {
+        Some(path) => Ok(path),
+        None => std::env::current_exe()
+            .map_err(|_| CairnError::Io("Cairn's program file couldn't be found.".into())),
+    }
+}
 
 const MAX_JSON_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_ZIP_BYTES: u64 = 300 * 1024 * 1024;
@@ -124,10 +202,11 @@ pub struct Release {
     pub notes: String,
     pub page_url: String,
     pub published_at: Option<String>,
+    /// This computer's download; empty where none is built.
     #[serde(skip)]
-    pub zip_name: String,
+    pub asset_name: String,
     #[serde(skip)]
-    pub zip_url: String,
+    pub asset_url: String,
     #[serde(skip)]
     pub sig_url: String,
 }
@@ -155,9 +234,10 @@ struct GhAsset {
     browser_download_url: String,
 }
 
-/// The download for a version: `cairn-0.5.0-windows-x64.zip`.
-pub fn zip_name(version: &Version) -> String {
-    format!("cairn-{version}-windows-x64.zip")
+/// This computer's download for a version, e.g. `cairn-0.5.0-windows-x64.zip`,
+/// or `None` where no release is built for it.
+pub fn asset_name(version: &Version) -> Option<String> {
+    Platform::current().map(|p| p.asset_name(version))
 }
 
 /// This program's version.
@@ -176,18 +256,25 @@ pub fn parse_release(json: &[u8], current: &Version) -> Result<Option<Release>> 
     if gh.draft || gh.prerelease || !version.pre.is_empty() || version <= *current {
         return Ok(None);
     }
-    let zip = zip_name(&version);
-    let sig = format!("{zip}.minisig");
     let url_of = |name: &str| {
         gh.assets
             .iter()
             .find(|a| a.name == name)
             .map(|a| a.browser_download_url.clone())
     };
-    let (Some(zip_url), Some(sig_url)) = (url_of(&zip), url_of(&sig)) else {
-        return Err(CairnError::Io(format!(
-            "Cairn {version} is out, but its download isn't ready yet. Try again later."
-        )));
+    // On a computer releases aren't built for, say a new version is out
+    // anyway; `install_blocker` explains that it's installed by hand.
+    let (asset, asset_url, sig_url) = match asset_name(&version) {
+        None => (String::new(), String::new(), String::new()),
+        Some(asset) => {
+            let sig = format!("{asset}.minisig");
+            let (Some(asset_url), Some(sig_url)) = (url_of(&asset), url_of(&sig)) else {
+                return Err(CairnError::Io(format!(
+                    "Cairn {version} is out, but its download isn't ready yet. Try again later."
+                )));
+            };
+            (asset, asset_url, sig_url)
+        }
     };
     Ok(Some(Release {
         version: version.to_string(),
@@ -198,8 +285,8 @@ pub fn parse_release(json: &[u8], current: &Version) -> Result<Option<Release>> 
             gh.html_url
         },
         published_at: gh.published_at,
-        zip_name: zip,
-        zip_url,
+        asset_name: asset,
+        asset_url,
         sig_url,
     }))
 }
@@ -317,19 +404,24 @@ pub fn verify_signature(
     Ok(())
 }
 
-/// The `cairn.exe` inside a release zip.
-pub fn extract_exe(zip: &[u8]) -> Result<Vec<u8>> {
+/// The program called `program` inside a release zip: at most three
+/// folders down, as in `Cairn.app/Contents/MacOS/cairn`. The name must
+/// match exactly off Windows, where `Cairn` and `cairn` are different files.
+pub fn extract_program(zip: &[u8], program: &str) -> Result<Vec<u8>> {
     let bad = || CairnError::Io("The download doesn't contain Cairn. Try again later.".into());
     let mut archive = zip::ZipArchive::new(Cursor::new(zip)).map_err(|_| bad())?;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|_| bad())?;
         let name = file.name().replace('\\', "/");
         let depth = name.matches('/').count();
-        let is_exe = name
-            .rsplit('/')
-            .next()
-            .is_some_and(|n| n.eq_ignore_ascii_case("cairn.exe"));
-        if !is_exe || depth > 1 || file.size() > MAX_EXE_BYTES {
+        let is_program = name.rsplit('/').next().is_some_and(|n| {
+            if cfg!(windows) {
+                n.eq_ignore_ascii_case(program)
+            } else {
+                n == program
+            }
+        });
+        if !is_program || depth > 3 || file.is_dir() || file.size() > MAX_EXE_BYTES {
             continue;
         }
         let mut out = Vec::new();
@@ -343,15 +435,36 @@ pub fn extract_exe(zip: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Download a release, check it, and save its program in `dest_dir` as
-/// `cairn-<version>.new.exe`. Returns that path.
+/// `cairn-<version>.new` (`.new.exe` on Windows). Returns that path.
 pub fn download(source: &UpdateSource, release: &Release, dest_dir: &Path) -> Result<PathBuf> {
-    let zip = fetch(source, &release.zip_url, MAX_ZIP_BYTES, DOWNLOAD_TIMEOUT)?;
+    let Some(platform) = Platform::current().filter(|_| !release.asset_url.is_empty()) else {
+        return Err(CairnError::Io(format!(
+            "There's no automatic update for this kind of computer. Download Cairn {} from {}.",
+            release.version, release.page_url
+        )));
+    };
+    let file = fetch(source, &release.asset_url, MAX_ZIP_BYTES, DOWNLOAD_TIMEOUT)?;
     let sig = fetch(source, &release.sig_url, MAX_SIG_BYTES, CHECK_TIMEOUT)?;
-    verify_signature(&source.public_key, &zip, &sig, &release.zip_name)?;
-    let exe = extract_exe(&zip)?;
-    let path = dest_dir.join(format!("cairn-{}.new.exe", release.version));
-    write_atomic(&path, &exe)?;
+    verify_signature(&source.public_key, &file, &sig, &release.asset_name)?;
+    let program = match platform.program_in_zip() {
+        Some(name) => extract_program(&file, name)?,
+        None => file,
+    };
+    let path = dest_dir.join(format!("cairn-{}.new{EXE_SUFFIX}", release.version));
+    write_atomic(&path, &program)?;
+    make_runnable(&path)?;
     Ok(path)
+}
+
+/// Let a program file run (a written file can't, off Windows).
+fn make_runnable(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755))?;
+    }
+    let _ = path;
+    Ok(())
 }
 
 /// The version a Cairn program reports (`cairn.exe --version`).
@@ -361,6 +474,8 @@ pub fn program_version(exe: &Path) -> Result<Version> {
     let mut command = Command::new(exe);
     command
         .arg("--version")
+        // An AppImage can then run without FUSE, which not every Linux has.
+        .env("APPIMAGE_EXTRACT_AND_RUN", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -414,12 +529,32 @@ pub fn install_blocker(exe: &Path) -> Option<String> {
                 .into(),
         );
     }
+    // A Mac runs an app straight from Downloads from a hidden, read-only copy.
+    if lower.contains("/apptranslocation/") {
+        return Some(
+            "Cairn is running from your Downloads in a way that can't be changed. Move Cairn to \
+             your Applications folder, open it from there, and then it can update itself."
+                .into(),
+        );
+    }
+    if Platform::current().is_none() {
+        return Some(format!(
+            "Cairn doesn't update itself on this kind of computer. Download new versions from \
+             {RELEASES_PAGE}."
+        ));
+    }
     let dir = exe.parent()?;
     if !can_write_dir(dir) {
+        let advice = if cfg!(windows) {
+            "Install Cairn with the installer, which puts it in a folder of your own"
+        } else if cfg!(target_os = "macos") {
+            "Move Cairn to your Applications folder (or another folder of your own)"
+        } else {
+            "Put Cairn in a folder of your own, such as your home folder"
+        };
         return Some(format!(
-            "You don't have permission to change the folder Cairn is in ({}). Install Cairn with \
-             the installer, which puts it in a folder of your own, or ask whoever looks after \
-             this computer.",
+            "You don't have permission to change the folder Cairn is in ({}). {advice}, or ask \
+             whoever looks after this computer.",
             crate::paths::display_path(dir)
         ));
     }
@@ -452,6 +587,7 @@ fn is_remote_drive(_path: &Path) -> bool {
 /// Replace `target` with the program at `new_exe`. When `target` is this
 /// running program, it is swapped out safely (it can't simply be
 /// overwritten on Windows).
+#[cfg(windows)]
 fn replace(target: &Path, new_exe: &Path) -> Result<()> {
     let running = std::env::current_exe()
         .and_then(fs::canonicalize)
@@ -467,6 +603,26 @@ fn replace(target: &Path, new_exe: &Path) -> Result<()> {
         CairnError::Io(format!(
             "Cairn couldn't replace its program file ({e}). Nothing was changed."
         ))
+    })
+}
+
+/// Replace `target` with a copy of `new_exe`, renamed into place in one
+/// step. A running program (or a mounted AppImage) keeps reading its old
+/// file, which stays until it stops; writing over it would break it.
+#[cfg(not(windows))]
+fn replace(target: &Path, new_exe: &Path) -> Result<()> {
+    let failed = |e: std::io::Error| {
+        CairnError::Io(format!(
+            "Cairn couldn't replace its program file ({e}). Nothing was changed."
+        ))
+    };
+    let dir = dir_of(target)?;
+    let temp = dir.join(format!(".cairn-replace-{}", uuid::Uuid::new_v4().simple()));
+    fs::copy(new_exe, &temp).map_err(failed)?;
+    make_runnable(&temp)?;
+    fs::rename(&temp, target).map_err(|e| {
+        let _ = fs::remove_file(&temp);
+        failed(e)
     })
 }
 
@@ -504,7 +660,7 @@ pub fn rollback(target: &Path, current: &Version) -> Result<String> {
         CairnError::NotFound("There is no earlier version of Cairn to go back to.".into())
     })?;
     let kept = dir.join(PREVIOUS_EXE);
-    let swap = dir.join(format!("cairn-{current}.swap.exe"));
+    let swap = dir.join(format!("cairn-{current}.swap{EXE_SUFFIX}"));
     fs::copy(target, &swap)?;
     if let Err(e) = replace(target, &kept) {
         let _ = fs::remove_file(&swap);
@@ -533,18 +689,22 @@ mod tests {
         .unwrap()
     }
 
+    /// This computer's download for 0.5.0 and its signature.
+    fn this_computers_files() -> [String; 2] {
+        let asset = asset_name(&Version::parse("0.5.0").unwrap()).expect("a supported computer");
+        [asset.clone(), format!("{asset}.minisig")]
+    }
+
     #[test]
     fn only_newer_stable_releases_count() {
         let current = Version::parse("0.4.0").unwrap();
-        let files = [
-            "cairn-0.5.0-windows-x64.zip",
-            "cairn-0.5.0-windows-x64.zip.minisig",
-        ];
+        let [asset, sig] = this_computers_files();
+        let files = [asset.as_str(), sig.as_str()];
         let r = parse_release(&release_json("v0.5.0", &files), &current)
             .unwrap()
             .unwrap();
         assert_eq!(r.version, "0.5.0");
-        assert_eq!(r.zip_url, "https://x.test/cairn-0.5.0-windows-x64.zip");
+        assert_eq!(r.asset_url, format!("https://x.test/{asset}"));
         assert!(
             parse_release(&release_json("v0.4.0", &files), &current)
                 .unwrap()
@@ -587,6 +747,38 @@ mod tests {
         ] {
             assert!(normalize_proxy(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn each_computer_has_its_own_download() {
+        let v = Version::parse("1.2.3").unwrap();
+        let names = [
+            Platform::Windows,
+            Platform::Mac,
+            Platform::LinuxAppImage,
+            Platform::Linux,
+        ]
+        .map(|p| p.asset_name(&v));
+        assert_eq!(
+            names,
+            [
+                "cairn-1.2.3-windows-x64.zip",
+                "cairn-1.2.3-macos-universal.zip",
+                "cairn-1.2.3-linux-x86_64.AppImage",
+                "cairn-1.2.3-linux-x86_64",
+            ]
+        );
+        // Windows keeps the name 0.9 copies look for.
+        assert_eq!(Platform::Windows.program_in_zip(), Some("cairn.exe"));
+    }
+
+    #[test]
+    fn a_mac_app_run_from_downloads_does_not_self_update() {
+        let reason = install_blocker(Path::new(
+            "/private/var/folders/x/T/AppTranslocation/ABC/d/Cairn.app/Contents/MacOS/cairn",
+        ))
+        .unwrap();
+        assert!(reason.contains("Applications folder"));
     }
 
     #[test]

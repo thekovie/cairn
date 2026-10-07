@@ -92,6 +92,9 @@ pub struct AppState {
     /// New versions of Cairn: the last check and any install in progress.
     pub updates: api_update::Updates,
     pub shutdown: tokio::sync::Notify,
+    /// After an update on a Mac or Linux: the program this one becomes once
+    /// the server has stopped (see `api_update::restart`).
+    pub restart_into: Mutex<Option<PathBuf>>,
 }
 
 fn random_secret() -> String {
@@ -150,6 +153,7 @@ impl AppState {
             exports: Default::default(),
             updates: Default::default(),
             shutdown: tokio::sync::Notify::new(),
+            restart_into: Mutex::new(None),
         })
     }
 

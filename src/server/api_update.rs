@@ -99,8 +99,7 @@ pub fn run_check(st: &AppState) {
 }
 
 fn exe_path() -> Result<PathBuf> {
-    std::env::current_exe()
-        .map_err(|_| CairnError::Io("Cairn's program file couldn't be found.".into()))
+    update::program_path()
 }
 
 fn status_view(st: &AppState) -> Value {
@@ -281,6 +280,14 @@ fn restart(st: &AppState, exe: &Path) -> Result<()> {
         &serde_json::to_vec(&handoff).expect("handoff serializes"),
     )?;
     st.release_all_locks();
+    // On a Mac or Linux this same process becomes the new program once the
+    // server stops (`main` does it), so it stays in its Terminal window: a
+    // separate new process would be stopped when the window's shell exits.
+    if cfg!(unix) {
+        *st.restart_into.lock().expect("restart lock") = Some(exe.to_path_buf());
+        st.shutdown.notify_one();
+        return Ok(());
+    }
     let spawned = Command::new(exe)
         .args([
             "--no-browser",

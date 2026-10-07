@@ -9,6 +9,7 @@
 //! cairn locks release <workspace> <page> --session <id>
 //! ```
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -136,6 +137,7 @@ fn cmd_run(args: RunArgs) -> ExitCode {
         .as_ref()
         .map(|h| (h.token.clone(), h.read_key.clone()));
     let state = AppState::with_secrets(dir, cfg, warning, secrets);
+    let after_stop = state.clone();
 
     // Open the requested workspace, or the one used last time.
     if let Some(path) = args.workspace.clone().or(last) {
@@ -149,7 +151,7 @@ fn cmd_run(args: RunArgs) -> ExitCode {
         Ok(rt) => rt,
         Err(e) => return fail(format!("could not start: {e}")),
     };
-    runtime.block_on(async move {
+    let code = runtime.block_on(async move {
         // After an update the old program is still letting go of the port.
         let deadline = Instant::now() + HANDOFF_BIND_WAIT;
         let listener = loop {
@@ -171,13 +173,38 @@ fn cmd_run(args: RunArgs) -> ExitCode {
             eprintln!("  (Could not open the browser automatically: {e})");
         }
         match server::run(state, listener).await {
-            Ok(()) => {
-                println!("Cairn has stopped.");
-                ExitCode::SUCCESS
-            }
+            Ok(()) => ExitCode::SUCCESS,
             Err(e) => fail(e),
         }
-    })
+    });
+    let restart_into = after_stop.restart_into.lock().expect("restart lock").take();
+    match restart_into {
+        Some(exe) if code == ExitCode::SUCCESS => become_new_version(&exe, after_stop.port()),
+        _ => {
+            // The window may already be closed, so a failed print is fine.
+            let _ = writeln!(std::io::stdout(), "Cairn has stopped.");
+            code
+        }
+    }
+}
+
+/// After an update on a Mac or Linux: turn this process into the new
+/// program, in the same Terminal window, handing over the same port.
+#[cfg(unix)]
+fn become_new_version(exe: &Path, port: u16) -> ExitCode {
+    use std::os::unix::process::CommandExt;
+    println!("Starting the new version of Cairn…");
+    let err = std::process::Command::new(exe)
+        .args(["--no-browser", "--handoff", "--port", &port.to_string()])
+        .exec();
+    fail(format!(
+        "the new version couldn't be started ({err}). Start Cairn again."
+    ))
+}
+
+#[cfg(not(unix))]
+fn become_new_version(_: &Path, _: u16) -> ExitCode {
+    ExitCode::SUCCESS
 }
 
 fn cmd_init(args: &[String]) -> ExitCode {

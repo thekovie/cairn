@@ -16,17 +16,43 @@ use semver::Version;
 use zip::write::SimpleFileOptions;
 
 const NEW_EXE: &[u8] = b"MZ pretend program for 0.9.0";
-const ZIP_NAME: &str = "cairn-0.9.0-windows-x64.zip";
 
-fn release_zip(exe: &[u8]) -> Vec<u8> {
+/// This computer's download for `version`, as the release workflow names it.
+fn asset(version: &str) -> String {
+    update::asset_name(&v(version)).expect("releases are built for this computer")
+}
+
+/// Where a downloaded program waits beside the current one.
+fn new_program_name(version: &str) -> String {
+    format!("cairn-{version}.new{}", std::env::consts::EXE_SUFFIX)
+}
+
+/// This computer's release file holding `exe`: a zip with `cairn.exe` on
+/// Windows, a zip with `Cairn.app` on a Mac, the program itself on Linux.
+fn release_file(exe: &[u8]) -> Vec<u8> {
+    let platform = update::Platform::current().unwrap();
+    let Some(program) = platform.program_in_zip() else {
+        return exe.to_vec();
+    };
     let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
     let opts = SimpleFileOptions::default();
-    w.start_file("README.md", opts).unwrap();
-    w.write_all(b"# Cairn").unwrap();
-    w.start_file("cairn.exe", opts).unwrap();
-    w.write_all(exe).unwrap();
-    w.start_file("docs/getting-started.md", opts).unwrap();
-    w.write_all(b"# Start").unwrap();
+    let mut add = |name: &str, data: &[u8]| {
+        w.start_file(name, opts).unwrap();
+        w.write_all(data).unwrap();
+    };
+    add("README.md", b"# Cairn");
+    if platform == update::Platform::Mac {
+        // The launcher sits beside the program; only `cairn` is the program.
+        add("Cairn.app/Contents/Info.plist", b"<plist/>");
+        add(
+            "Cairn.app/Contents/MacOS/start-cairn",
+            b"#!/bin/sh\nopen -a Terminal",
+        );
+        add(&format!("Cairn.app/Contents/MacOS/{program}"), exe);
+    } else {
+        add(program, exe);
+    }
+    add("docs/getting-started.md", b"# Start");
     w.finish().unwrap().into_inner()
 }
 
@@ -57,7 +83,7 @@ impl FakeGitHub {
             .unwrap();
         let addr = listener.local_addr().unwrap();
         let version = tag.trim_start_matches('v').to_string();
-        let name = format!("cairn-{version}-windows-x64.zip");
+        let name = asset(&version);
         let json = serde_json::json!({
             "tag_name": tag,
             "body": "## What's new\n\n- Something **better**.",
@@ -138,8 +164,8 @@ fn connect_proxy(target: SocketAddr) -> (SocketAddr, Arc<std::sync::atomic::Atom
 #[test]
 fn updates_go_through_the_proxy_set_in_settings() {
     let pair = KeyPair::generate_unencrypted_keypair().unwrap();
-    let zip = release_zip(NEW_EXE);
-    let sig = sign(&pair, &zip, ZIP_NAME);
+    let zip = release_file(NEW_EXE);
+    let sig = sign(&pair, &zip, &asset("0.9.0"));
     let github = FakeGitHub::start("v0.9.0", zip, sig);
     let (proxy, tunnels) = connect_proxy(github.addr);
     // A name that doesn't exist: only the proxy can reach it.
@@ -175,8 +201,8 @@ fn v(s: &str) -> Version {
 #[test]
 fn a_signed_newer_release_is_found_downloaded_and_unpacked() {
     let pair = KeyPair::generate_unencrypted_keypair().unwrap();
-    let zip = release_zip(NEW_EXE);
-    let sig = sign(&pair, &zip, ZIP_NAME);
+    let zip = release_file(NEW_EXE);
+    let sig = sign(&pair, &zip, &asset("0.9.0"));
     let gh = FakeGitHub::start("v0.9.0", zip, sig);
     let source = gh.source(&pair);
 
@@ -189,14 +215,40 @@ fn a_signed_newer_release_is_found_downloaded_and_unpacked() {
     let dir = tempfile::tempdir().unwrap();
     let path = update::download(&source, &release, dir.path()).unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), NEW_EXE);
-    assert_eq!(path.file_name().unwrap(), "cairn-0.9.0.new.exe");
+    assert_eq!(
+        path.file_name().unwrap().to_str().unwrap(),
+        new_program_name("0.9.0")
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o755, "the new program can run");
+    }
+}
+
+/// Off Windows, `Cairn` and `cairn` are different files: the Mac app's
+/// launcher must never be taken for the program.
+#[cfg(not(windows))]
+#[test]
+fn only_the_exact_program_name_is_taken_from_a_zip() {
+    let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let opts = SimpleFileOptions::default();
+    w.start_file("Cairn.app/Contents/MacOS/Cairn", opts)
+        .unwrap();
+    w.write_all(b"launcher").unwrap();
+    w.start_file("Cairn.app/Contents/MacOS/cairn", opts)
+        .unwrap();
+    w.write_all(NEW_EXE).unwrap();
+    let zip = w.finish().unwrap().into_inner();
+    assert_eq!(update::extract_program(&zip, "cairn").unwrap(), NEW_EXE);
 }
 
 #[test]
 fn plain_http_is_refused_outside_tests() {
     let pair = KeyPair::generate_unencrypted_keypair().unwrap();
-    let zip = release_zip(NEW_EXE);
-    let gh = FakeGitHub::start("v0.9.0", zip.clone(), sign(&pair, &zip, ZIP_NAME));
+    let zip = release_file(NEW_EXE);
+    let gh = FakeGitHub::start("v0.9.0", zip.clone(), sign(&pair, &zip, &asset("0.9.0")));
     let source = UpdateSource {
         allow_http: false,
         ..gh.source(&pair)
@@ -209,7 +261,7 @@ fn plain_http_is_refused_outside_tests() {
 fn downloads_not_signed_by_the_right_key_are_refused() {
     let right = KeyPair::generate_unencrypted_keypair().unwrap();
     let wrong = KeyPair::generate_unencrypted_keypair().unwrap();
-    let zip = release_zip(NEW_EXE);
+    let zip = release_file(NEW_EXE);
     let dir = tempfile::tempdir().unwrap();
     let refused = |gh: &FakeGitHub| {
         let source = gh.source(&right);
@@ -219,14 +271,14 @@ fn downloads_not_signed_by_the_right_key_are_refused() {
             matches!(err, CairnError::Io(ref m) if m.contains("safety check")),
             "{err}"
         );
-        assert!(!dir.path().join("cairn-0.9.0.new.exe").exists());
+        assert!(!dir.path().join(new_program_name("0.9.0")).exists());
     };
 
     // Signed with someone else's key.
     refused(&FakeGitHub::start(
         "v0.9.0",
         zip.clone(),
-        sign(&wrong, &zip, ZIP_NAME),
+        sign(&wrong, &zip, &asset("0.9.0")),
     ));
     // Right key, but the zip was changed after signing.
     let mut tampered = zip.clone();
@@ -235,13 +287,13 @@ fn downloads_not_signed_by_the_right_key_are_refused() {
     refused(&FakeGitHub::start(
         "v0.9.0",
         tampered,
-        sign(&right, &zip, ZIP_NAME),
+        sign(&right, &zip, &asset("0.9.0")),
     ));
     // Right key, but signed as a different file (an older release, say).
     refused(&FakeGitHub::start(
         "v0.9.0",
         zip.clone(),
-        sign(&right, &zip, "cairn-0.2.0-windows-x64.zip"),
+        sign(&right, &zip, &asset("0.2.0")),
     ));
     // No real signature at all.
     refused(&FakeGitHub::start(
