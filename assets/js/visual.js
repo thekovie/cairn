@@ -371,6 +371,13 @@ export async function createVisualEditor({ root, markdown, pagePath, readKey, st
     },
     /** Insert Markdown at the cursor, replacing any selection. */
     insert(md, inline = false) {
+      if (!inline) {
+        // Like the divider: a block (a picture) goes after the paragraph or
+        // heading the cursor is in, instead of splitting it in two.
+        const { state } = view();
+        const { $to } = state.selection;
+        if ($to.depth) view().dispatch(state.tr.setSelection(m.TextSelection.create(state.doc, $to.end(1))));
+      }
       editor.action(m.insert(md, inline));
       view().focus();
     },

@@ -404,11 +404,47 @@ pub async fn run(state: Arc<AppState>, listener: TcpListener) -> std::io::Result
         .with_graceful_shutdown(async move {
             tokio::select! {
                 _ = shutdown_state.shutdown.notified() => {}
-                _ = tokio::signal::ctrl_c() => {}
+                _ = stop_requested() => {}
             }
         })
         .await?;
     let st = state.clone();
     let _ = tokio::task::spawn_blocking(move || st.release_all_locks()).await;
     Ok(())
+}
+
+/// Ctrl+C, and the ways Cairn is usually stopped without it: closing the
+/// Cairn window, signing out, or shutting down on Windows; SIGTERM
+/// elsewhere. Without these, edit locks stayed behind for everyone.
+async fn stop_requested() {
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows;
+        let (Ok(mut close), Ok(mut logoff), Ok(mut down)) = (
+            windows::ctrl_close(),
+            windows::ctrl_logoff(),
+            windows::ctrl_shutdown(),
+        ) else {
+            let _ = tokio::signal::ctrl_c().await;
+            return;
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = close.recv() => {}
+            _ = logoff.recv() => {}
+            _ = down.recv() => {}
+        }
+    }
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let Ok(mut term) = signal(SignalKind::terminate()) else {
+            let _ = tokio::signal::ctrl_c().await;
+            return;
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = term.recv() => {}
+        }
+    }
 }

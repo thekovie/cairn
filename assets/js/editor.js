@@ -5,7 +5,8 @@
 // you type, and "Page details" edits the information block for you.
 
 import {
-  api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy,
+  api, get, post, h, clear, icon, button, linkButton, banner, href, toast, announce, whileBusy, guardAction,
+  actionInProgress,
   openDialog, confirmDialog, formDialog, errorText, diffView, formatTime, formatDateTime, todayYmd,
   iconButton, menuButton, toolbarKeys, formatSize, diffSummary, lineDiff,
 } from './core.js';
@@ -764,7 +765,8 @@ function mountEditor(ctx, path, start) {
     setSave(null, 'Adding picture…');
     try {
       const q = new URLSearchParams({ path, name: file.name || 'picture' });
-      const res = await api('POST', `/api/draft/image?${q}`, file, { raw: true });
+      // A big picture on a slow shared folder takes a while: don't let the tab close or the editor shut mid-way.
+      const res = await guardAction('Adding the picture…', () => api('POST', `/api/draft/image?${q}`, file, { raw: true }));
       const alt = (values.alt || 'Picture').replace(/[[\]]/g, '');
       if (vis) {
         vis.addStaged(res.link, res.name);
@@ -1523,16 +1525,30 @@ function mountEditor(ctx, path, start) {
   publishBtn.addEventListener('click', confirmPublish);
 
   // ------------------------------------------------------ leave / discard
+  /** Saves, unlocks, and stops. False (and the editor stays open) if the save failed. */
   async function closeEditor() {
-    await saveDraft();
+    if (!(await saveDraft())) {
+      toast('Your changes could not be saved, so the editor stayed open. Keep this window open and try again.', { error: true });
+      return false;
+    }
     try { await post('/api/edit/release', { path }); } catch { /* the lock times out anyway */ }
     s.closed = true;
     finish();
+    return true;
+  }
+
+  // Publishing or adding a picture is still going: closing now would cut it off.
+  function stillWorking() {
+    const working = actionInProgress();
+    if (working) toast(`${working.replace(/…$/, '')} is still going. Please wait for it to finish.`, { error: true });
+    return Boolean(working);
   }
 
   const discardBtn = button('Discard my changes', {
     icon: 'trash', kind: 'danger',
-    onClick: async () => {
+    onClick: async (e) => {
+      const btn = e.currentTarget;
+      if (stillWorking()) return;
       const ok = await confirmDialog({
         title: 'Discard your changes?',
         message: 'Everything you changed since you started editing will be removed. The published page stays as it is. This can’t be undone.',
@@ -1540,7 +1556,7 @@ function mountEditor(ctx, path, start) {
       });
       if (!ok) return;
       try {
-        await post('/api/draft/discard', { path });
+        await whileBusy(btn, 'Discarding…', () => post('/api/draft/discard', { path }));
         s.closed = true;
         finish();
         toast('Your changes were discarded.');
@@ -1552,8 +1568,9 @@ function mountEditor(ctx, path, start) {
   const closeBtn = button('Close editor', {
     icon: 'exit',
     onClick: async (e) => {
+      if (stillWorking()) return;
       const edited = hasChanges();
-      await whileBusy(e.currentTarget, 'Closing…', closeEditor);
+      if (!(await whileBusy(e.currentTarget, 'Closing…', closeEditor))) return;
       if (s.isNew && !isTemplate) {
         toast('Your new page isn’t published yet. Only you can see it, on this computer: find it under “Your unsaved changes” on the Home screen.');
       } else if (edited) {
@@ -1649,8 +1666,7 @@ function mountEditor(ctx, path, start) {
         ],
       });
       if (choice !== 'leave') return false;
-      await closeEditor();
-      return true;
+      return closeEditor();
     },
   };
 }

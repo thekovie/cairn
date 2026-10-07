@@ -9,7 +9,7 @@
 
 import {
   get, post, h, clear, button, linkButton, banner, href, toast, announce, openDialog,
-  errorText, downloadFile, statusChip, formatDay, relativeTime,
+  errorText, downloadFile, statusChip, formatDay, relativeTime, guardAction,
 } from './core.js';
 
 const POLL_MS = 700;
@@ -57,7 +57,8 @@ export async function openPageDownload(ctx, data) {
     working = true;
     setBusy(goBtn, true, 'Preparing…');
     try {
-      const name = await downloadFile('/api/export/page', { path: data.path, format }, `${data.title}.${format}`);
+      const name = await guardAction('Preparing the download…',
+        () => downloadFile('/api/export/page', { path: data.path, format }, `${data.title}.${format}`));
       status.append(doneMessage(name));
       toast(`${name} is in your Downloads folder.`);
     } catch (err) {
@@ -113,6 +114,7 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
   let dialog = null;
   let job = null; // { id, total, done }
   let timer = 0;
+  let endGuard = null; // ends the "keep this tab open" guard while a job runs
 
   const countLine = pageCount === undefined ? null
     : h('p', { class: 'help' },
@@ -127,6 +129,8 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
   function stop() {
     clearTimeout(timer);
     job = null;
+    endGuard?.();
+    endGuard = null;
   }
 
   async function poll(goBtn) {
@@ -153,7 +157,8 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     stop();
     if (s.state === 'finished') {
       try {
-        const saved = await downloadFile(`/api/export/jobs/${id}/file`, null, s.file_name);
+        const saved = await guardAction('Preparing the download…',
+          () => downloadFile(`/api/export/jobs/${id}/file`, null, s.file_name));
         clear(status).append(doneMessage(saved));
         toast(`${saved} is in your Downloads folder.`);
       } catch (err) {
@@ -173,6 +178,7 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     try {
       const res = await post('/api/export/jobs', { scope, path, format });
       job = { id: res.id, total: res.total, done: 0 };
+      guardAction('Preparing the download…', () => new Promise((resolve) => { endGuard = resolve; }));
       status.append(progressView(0, res.total));
       timer = setTimeout(() => poll(goBtn), POLL_MS);
     } catch (err) {

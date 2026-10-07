@@ -2,6 +2,18 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- **Your changes are no longer lost when they can't be saved.** If the shared folder doesn't answer, **Close editor** (or leaving for another screen) now keeps the editor open and says so, instead of closing and unlocking the page without your words.
+- **Closing the Cairn window gives back the pages you were editing**, as quitting from Settings already did. Before, closing the window, signing out, or shutting down the computer left them showing "Being edited by…" until someone released them by hand.
+- **A picture added at the page title goes below the title**, instead of splitting it and leaving an empty heading. In the middle of a sentence it goes after the paragraph.
+- **While a picture is being added, publishing, or a download is being prepared**, closing or reloading the tab asks first, and **Close editor** and **Discard my changes** wait until it's done.
+- **Opening a different documentation folder** says what went wrong if it can't, instead of doing nothing.
+- **"The shared folder is responding slowly"** no longer appears behind a question Cairn is asking you.
+- **A screen that can't be shown** has its own title in the browser tab, instead of the previous screen's.
+
 ## 0.9.2 (2026-10-01)
 
 ### Added

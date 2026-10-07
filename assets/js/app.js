@@ -357,7 +357,8 @@ function routeLoader(main, route) {
       slow);
     main.setAttribute('aria-busy', 'true');
     Element.prototype.prepend.call(main, loader);
-    timers.push(setTimeout(() => { slow.hidden = false; }, SLOW_AFTER_MS - SHOW_LOADER_AFTER_MS));
+    // Not while a question is open: then Cairn is waiting for the person, not the folder.
+    timers.push(setTimeout(() => { slow.hidden = Boolean(document.querySelector('dialog[open]')); }, SLOW_AFTER_MS - SHOW_LOADER_AFTER_MS));
   }, SHOW_LOADER_AFTER_MS)];
   return () => {
     timers.forEach(clearTimeout);
@@ -461,6 +462,7 @@ async function onRoute() {
     if (result?.title) announce(`${result.title} opened`);
   } catch (err) {
     if (!isCurrent()) return;
+    document.title = ['Could not be shown', app.state.workspace?.name, 'Cairn'].filter(Boolean).join(' – ');
     main.append(banner({
       tone: 'danger', title: 'This screen could not be shown', text: errorText(err),
       actions: [button('Try again', { icon: 'refresh', onClick: () => onRoute() })],

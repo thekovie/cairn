@@ -767,9 +767,11 @@ function workspaceSection(ctx, ws) {
         confirmLabel: 'Choose another folder', cancelLabel: 'Stay here', iconName: 'folder',
       });
       if (!ok) return;
-      await post('/api/workspace/close');
-      await ctx.refreshState();
-      ctx.navigate(href.setup());
+      try {
+        await guardAction('Closing this documentation folder…', () => post('/api/workspace/close'));
+        await ctx.refreshState();
+        ctx.navigate(href.setup());
+      } catch (err) { toast(errorText(err), { error: true }); }
     },
   });
 
