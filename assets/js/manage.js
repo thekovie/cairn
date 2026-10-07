@@ -22,8 +22,8 @@ async function folderChoices(exclude) {
 /** After a rename or move: say how many links were updated, and list any
  *  page that couldn't be (usually because someone is editing it). */
 async function reportLinks(res, done) {
-  const n = res.links_updated;
-  const also = n === 0 ? '' : n === 1 ? ' 1 link in another page was updated.' : ` ${n} links in other pages were updated.`;
+  const n = res.links_updated; // pages, not links: one page can have several
+  const also = n === 0 ? '' : n === 1 ? ' Links in 1 other page were updated.' : ` Links in ${n} other pages were updated.`;
   toast(`${done}${also}`);
   const skipped = res.links_skipped || [];
   if (!skipped.length) return;

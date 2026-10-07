@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use walkdir::WalkDir;
 
-use crate::article::title_from_filename;
+use crate::article::{extract_title, parse_front_matter, title_from_filename};
 use crate::editors;
 use crate::error::{CairnError, Result};
 use crate::fsutil::{
@@ -92,7 +92,7 @@ impl<'a> HeldLocks<'a> {
                 return Err(CairnError::Conflict(format!(
                     "You have “{}” open in the editor. Publish your changes or close the editor \
                      first, then try again.",
-                    title_from_filename(p)
+                    page_title(root, p)
                 )));
             }
             match locks::acquire(root, p, me)? {
@@ -102,13 +102,22 @@ impl<'a> HeldLocks<'a> {
                         "{} is editing “{}”, so this can't be {verb} right now. Try again when \
                          they have finished.",
                         v.info.display_name,
-                        title_from_filename(p)
+                        page_title(root, p)
                     )));
                 }
             }
         }
         Ok(held)
     }
+}
+
+/// A page's title as people see it: its first heading, else its file name.
+fn page_title(root: &Root, rel: &str) -> String {
+    root.resolve(rel)
+        .ok()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| extract_title(parse_front_matter(&text).1))
+        .unwrap_or_else(|| title_from_filename(rel))
 }
 
 impl Drop for HeldLocks<'_> {

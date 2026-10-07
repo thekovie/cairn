@@ -12,7 +12,7 @@
 
 import {
   bootstrapToken, hasToken, get, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
-  appendChildren, actionInProgress, toast,
+  appendChildren, actionInProgress, toast, linkButton,
 } from './core.js';
 import * as views from './views.js';
 import { setupView } from './setup.js';
@@ -463,9 +463,14 @@ async function onRoute() {
   } catch (err) {
     if (!isCurrent()) return;
     document.title = ['Could not be shown', app.state.workspace?.name, 'Cairn'].filter(Boolean).join(' – ');
+    // A page that is gone won't come back by trying again: offer ways to find it.
+    const gone = ['not_found', 'path_rejected'].includes(err?.code);
     main.append(banner({
       tone: 'danger', title: 'This screen could not be shown', text: errorText(err),
-      actions: [button('Try again', { icon: 'refresh', onClick: () => onRoute() })],
+      actions: gone
+        ? [linkButton('Go to the home page', href.home(), { icon: 'home' }),
+          linkButton('Search all pages', href.search(''), { icon: 'search' })]
+        : [button('Try again', { icon: 'refresh', onClick: () => onRoute() })],
     }));
   }
 }

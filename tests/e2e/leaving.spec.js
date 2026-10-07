@@ -149,6 +149,10 @@ test('a screen that can’t be shown gets its own tab title', async ({ page }) =
   await page.evaluate(() => { location.hash = '#/folder/NoSuch'; });
   await expect(page.getByText('This screen could not be shown')).toBeVisible();
   await expect(page).toHaveTitle(/^Could not be shown/);
+  // Gone for good: trying again can't help, so offer ways to find it.
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Go to the home page' }).click();
+  await expect(page).toHaveURL(/#\/$/);
 });
 
 test('while Cairn asks a question, it doesn’t say the folder is slow', async ({ page }) => {

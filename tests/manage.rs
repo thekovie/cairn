@@ -150,7 +150,10 @@ fn a_page_being_edited_is_not_moved_and_nothing_changes() {
         None,
     )
     .unwrap_err();
-    assert!(matches!(err, CairnError::Locked(ref m) if m.contains("Alex is editing")));
+    assert!(
+        matches!(err, CairnError::Locked(ref m) if m.contains("Alex is editing “Printer”")),
+        "names the page by its title: {err:?}"
+    );
     assert!(exists(&ws, "Guides/printer.md"));
     assert!(!exists(&ws, "Hardware/printer.md"));
     assert_eq!(read(&ws, "index.md"), before);
@@ -448,4 +451,28 @@ fn changing_only_the_capitals_of_a_page_name_works() {
     assert!(text.contains("(Printer.assets/tray.png)"), "{text}");
     // Other pages' links follow the new capitals too.
     assert!(read(&ws, "Guides/setup.md").contains("(Printer.md)"));
+}
+
+#[test]
+fn a_page_being_edited_is_named_by_its_title_when_a_change_is_refused() {
+    let ws = common::workspace();
+    common::write(&ws.path.join("Guides/prn-01.md"), "# Office printer\n");
+    let alex = common::identity("Alex");
+    let sam = common::identity("Sam");
+    locks::acquire(&ws.root, "Guides/prn-01.md", &alex).unwrap();
+
+    let err = move_page(
+        &ws.root,
+        &sam,
+        &all(&ws),
+        "Guides/prn-01.md",
+        "prn-01.md",
+        None,
+    )
+    .unwrap_err();
+
+    assert!(
+        matches!(err, CairnError::Locked(ref m) if m.contains("Alex is editing “Office printer”")),
+        "{err:?}"
+    );
 }

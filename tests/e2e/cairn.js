@@ -106,7 +106,7 @@ export async function openEditor(page, path) {
 }
 
 /** The page's Markdown, as the editor will save it. */
-export const editorText = (page) => page.locator('textarea').inputValue();
+export const editorText = (page) => page.locator('#md-text').inputValue();
 
 /** Type at the end of the page in the visual editor. */
 export async function typeAtEnd(page, text) {
