@@ -38,6 +38,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile=icons\cairn.ico
 UninstallDisplayIcon={app}\cairn.exe
 UninstallDisplayName=Cairn
 CloseApplications=yes
