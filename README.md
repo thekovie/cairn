@@ -1,10 +1,65 @@
-# Cairn
+<p align="center">
+  <img src="assets/favicon.svg" alt="Cairn logo: a stack of four blue stones" width="112">
+</p>
 
-Shared documentation in a folder you control.
+<h1 align="center">Cairn</h1>
 
-Cairn lets a team keep documentation as ordinary Markdown files in a folder on a computer or a shared network drive. Each person runs Cairn on their own computer; it opens the documentation in their normal web browser. There is no server to maintain, no accounts, and no cloud service. Your documentation never leaves your folder; the only thing Cairn fetches from the internet is news of a new version of itself, once a day (you can turn that off). If you stop using Cairn, your documentation is still just a folder of `.md` files and pictures that any text editor can open.
+<p align="center">
+  <strong>Stop opening Word files one by one.<br>Search your team's documentation, right on the shared drive you already have.</strong>
+</p>
 
-Cairn is designed to be easy for everyone on a team, including people who don't use much software:
+<p align="center">
+  <a href="https://github.com/thekovie/cairn/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/thekovie/cairn?color=2563eb"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/thekovie/cairn?color=2563eb"></a>
+  <img alt="Windows, macOS, and Linux" src="https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-2563eb">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Download</a> ·
+  <a href="docs/getting-started.md">Getting started</a> ·
+  <a href="#why-cairn">Why Cairn</a> ·
+  <a href="#documentation">Docs</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Cairn home screen with the page tree, search, folders, and recently changed pages" width="860">
+</p>
+
+Cairn is a documentation app for teams that keep their files on a **shared network drive**. Point it at a folder, and everyone on the team can read, search, and write pages in their normal web browser: no server to run, no accounts to manage, and no cloud service. The pages are ordinary Markdown files in your folder, so your documentation stays yours.
+
+## Why Cairn
+
+Many companies still keep their documentation on a shared drive as a tree of Word files. It works, until you need an answer in a hurry:
+
+- **Finding something is slow.** To learn which file mentions "VPN" or "month-end close", you open files one by one, and each large Word file takes a moment to load.
+- **Searching doesn't reach inside the files.** The drive can find a file *name*, but looking for the words *in* your documents usually means opening Word.
+- **Editing gets in each other's way.** Someone has the file open, someone else saves a copy called `final_v2`, and nobody is sure which is current.
+- **Not everyone is comfortable with the tools.** The people who most need the answer are often the least likely to fight with software to find it.
+
+Cairn keeps the shared drive you already have and puts a simple, searchable handbook on top of it:
+
+| On a shared drive of Word files | With Cairn |
+| --- | --- |
+| Open files one at a time to find a keyword | Type a word in the search box and see every page that mentions it |
+| Wait for each document to open | Pages open right in your browser, with a table of contents |
+| "The file is locked for editing by someone" | One person edits a page at a time, and others can keep reading it, with their name shown |
+| `Policy_final_v2_REAL.docx` | Every page keeps its earlier versions, and you can bring one back |
+| Broken links when someone renames or moves a file | Rename or move a page and the links to it are updated for you |
+| Documents tied to one program | Plain `.md` files and pictures that any text editor can open |
+
+You don't need to be technical to use it. Every button has words on it, you can format a page without knowing Markdown, and the text can be made larger in Settings.
+
+## How it works
+
+1. **Pick a folder.** Choose a folder on your shared drive (or create a new one). That folder *is* your documentation.
+2. **Everyone runs Cairn on their own computer.** It opens the documentation in their usual browser. Nothing is installed on the drive and nothing leaves it.
+3. **Read, search, and write.** Cairn coordinates people through small files in the folder itself, using the permissions the drive already has.
+
+If you stop using Cairn, your documentation is still just a folder of `.md` files and pictures. The only thing Cairn fetches from the internet is news of a new version of itself, once a day (you can turn that off).
+
+> **Moving from Word?** Cairn doesn't import `.docx` files automatically. Start new pages in Cairn and bring over the ones people use most; the old files can stay on the drive for as long as you like.
+
+## Made for everyone on the team
 
 - Every button has words on it. Nothing is hidden behind icons, hamburger menus, or keyboard shortcuts.
 - You can write and format a page without knowing Markdown: toolbar buttons such as **Heading**, **Bullet list**, **Link…**, and **Insert picture…** do it for you, and a live preview shows how the page will look.
