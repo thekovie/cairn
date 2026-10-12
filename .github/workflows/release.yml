@@ -222,3 +222,24 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             dist/cairn-${{ env.VERSION }}-*
+
+  # Tell the website a release is out, so its version, download buttons and
+  # PDF brief change now instead of within the hour. A separate job, so a
+  # problem here never touches the release itself.
+  website:
+    name: Refresh the website
+    needs: publish
+    # Trial releases (a tag with a "-") are not what the website shows.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rebuild cairn.thekovie.com
+        env:
+          SITE_DEPLOY_HOOK: ${{ secrets.SITE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$SITE_DEPLOY_HOOK" ]; then
+            echo "::notice::SITE_DEPLOY_HOOK isn't set, so the website catches up on its own within an hour."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 30 -X POST "$SITE_DEPLOY_HOOK" > /dev/null
+          echo "The website is rebuilding."
