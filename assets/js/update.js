@@ -148,6 +148,22 @@ async function checkNow(btn) {
   }
 }
 
+const CONNECTION_NAMES = {
+  manual: 'the proxy from the box below',
+  environment: 'the proxy set on this computer',
+  windows: 'Windows’ proxy settings',
+  direct: 'a direct connection',
+};
+
+/** How the last check reached GitHub; never more than the proxy's address. */
+function connectionLine(network) {
+  const via = network && CONNECTION_NAMES[network.via];
+  if (!via) return null;
+  const proxy = network.proxy ? ` (${network.proxy})` : '';
+  const login = network.windows_login ? ', signed in with your Windows login' : '';
+  return `Last check went through ${via}${proxy}${login}.`;
+}
+
 function releaseNotes(next) {
   const notes = h('div', { class: 'details-body md-body release-notes', trustedHtml: next.notes_html });
   for (const a of notes.querySelectorAll('a[href^="http"]')) {
@@ -172,9 +188,11 @@ export function updatesSection(cfg, { radioGroup, save }) {
       return;
     }
     const line = statusLine(s);
+    const connection = connectionLine(s.network);
     appendChildren(body, [
       h('p', null, `This computer has Cairn ${s.current}.`),
       line ? h('p', { class: s.available ? 'update-available' : 'help' }, line) : null,
+      connection ? h('p', { class: 'help' }, connection) : null,
       s.error ? banner({ tone: 'warn', title: 'Couldn’t check for a new version', text: s.error }) : null,
     ]);
     if (s.available) {
@@ -213,7 +231,7 @@ export function updatesSection(cfg, { radioGroup, save }) {
     h('label', { for: 's-proxy' }, 'Proxy server (optional)'),
     proxyInput,
     h('p', { class: 'help', id: 's-proxy-help' },
-      `Only if your office reaches the internet through a proxy. Type its address and port, for example proxy.office.local:8080. ${IS_WINDOWS ? 'Leave it empty to use Windows’ proxy settings.' : 'Leave it empty if this computer reaches the internet directly.'}`)),
+      `Only if your office reaches the internet through a proxy. Type its address and port, for example proxy.office.local:8080. ${IS_WINDOWS ? 'Leave it empty to use Windows’ proxy settings. If the proxy asks for a sign-in, Cairn uses your Windows login. It never asks for a password.' : 'Leave it empty if this computer reaches the internet directly.'}`)),
   button('Save proxy', { type: 'submit' }));
 
   return h('section', { class: 'settings-section', 'aria-labelledby': 'set-updates' },

@@ -127,6 +127,7 @@ fn status_view(st: &AppState) -> Value {
         "can_install": blocker.is_none(),
         "cannot_install_reason": blocker,
         "previous": previous,
+        "network": crate::update_net::last_network(),
         "download_page": update::RELEASES_PAGE,
     })
 }

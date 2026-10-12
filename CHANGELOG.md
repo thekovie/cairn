@@ -2,6 +2,15 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- **Updates now work through office proxies that ask for a Windows sign-in** (NTLM or Kerberos). Before, the check failed with a vague "couldn't reach GitHub". Cairn now retries through Windows' own networking, which signs in with your Windows login, and also follows proxy scripts. It never asks for or keeps a password.
+- **The proxy to use is chosen in a fixed order:** the one in Settings, then the `HTTPS_PROXY`-style environment variables (with `NO_PROXY`), then Windows' proxy settings, then none. **Settings → Updates** shows which one the last check used.
+- **Clearer messages when a check fails:** a proxy sign-in, GitHub's request limit, an untrusted certificate, and being offline each have their own.
+- A redirect from a secure to a plain `http` address is no longer followed when downloading an update.
+
 ## 1.0.0 (2026-10-07)
 
 ### Added
