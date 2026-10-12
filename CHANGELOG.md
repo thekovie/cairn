@@ -2,7 +2,7 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
-## Unreleased
+## 1.0.1 (2026-10-12)
 
 ### Fixed
 
