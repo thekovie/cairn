@@ -64,3 +64,5 @@ Publish a pre-release (tag `vX.Y.Z-rc.1`) and check that no copy offers it as an
 | --- | --- | --- |
 | **Settings → Updates → Check now**, then **Update and restart**. | The tab reconnects by itself; Settings shows the new version and **Go back to** the old one. On a Mac and Linux, Cairn keeps running in the same Terminal window. | ☐ |
 | **Go back to …** | The old version runs again, and **Go back to** the new one is offered. | ☐ |
+| **Windows, behind an office proxy that asks for a Windows sign-in (NTLM or Kerberos):** **Settings → Updates → Check now**, with the proxy box empty. | The check succeeds, and Settings says it went through the proxy and was signed in with your Windows login. | ☐ |
+| **Windows:** type a wrong proxy such as `proxy.invalid:8080` in **Proxy server**, then **Check now**. | The message names that proxy and says to check the address. Cairn doesn't quietly go direct. Empty the box afterwards. | ☐ |
