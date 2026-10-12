@@ -32,7 +32,7 @@ The server is [axum](https://github.com/tokio-rs/axum) on tokio. Every filesyste
 | Other local programs | They don't have the token. It's generated from the OS random source at each launch and compared in constant time. |
 | Pictures in `<img>` tags, which can't send headers | Workspace files and draft pictures need a separate per-launch read key in the URL. Anything that isn't a supported picture is sent as a download, never rendered. |
 | Script injection | Markdown is rendered on the server; raw HTML becomes visible text; the result goes through the [ammonia](https://github.com/rust-ammonia/ammonia) allowlist sanitizer; a strict Content-Security-Policy (`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'`) blocks inline scripts and styles. |
-| Tracking or data leaks | No telemetry, no update checks, no remote fonts or scripts. Remote images in pages are shown as a labeled link and never fetched. |
+| Tracking or data leaks | No telemetry, no remote fonts or scripts. The only request Cairn makes on its own is the optional once-a-day check for a new version (GitHub's public releases, nothing about the person or their pages; it can be turned off), sent through the office proxy when there is one, and it never asks for or keeps a password. Remote images in pages are shown as a labeled link and never fetched. |
 
 The token reaches the browser in the URL fragment (`#t=…`), which browsers never send to servers, and is then kept in that tab's `sessionStorage`.
 

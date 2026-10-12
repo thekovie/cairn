@@ -77,7 +77,7 @@ If you stop using Cairn, your documentation is still just a folder of `.md` file
 - **Team templates** for pages you write often, kept with each documentation folder, with fields such as the title and today's date filled in for you.
 - **Download** a page as PDF or Markdown, or a whole folder or all documentation as a .zip. PDFs are made on your own computer.
 - **Your timezone.** Times are stored in one standard form and shown in each person's timezone, marked like “2:30 PM GMT+8”.
-- **Updates itself.** Cairn tells you when a new version is out and installs it with one click, after checking it's signed by Cairn's makers. You can always go back to the version before.
+- **Updates itself.** Cairn tells you when a new version is out and installs it with one click, after checking it's signed by Cairn's makers. You can always go back to the version before. It works through office proxies too, including ones that ask for your Windows login (see [Configuration](docs/configuration.md#updates)).
 
 ## Quick start
 

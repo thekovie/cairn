@@ -29,7 +29,7 @@ Cairn is local-first and needs no server. It is a single program (for Windows, M
 
 ## Capabilities and Constraints
 
-- Works fully offline. All fonts and scripts are bundled; there are no external requests.
+- Works fully offline. All fonts and scripts are bundled; the only external request is the optional once-a-day check for a new version, which sends nothing about the person or their documentation, can be turned off, and goes through the office proxy when there is one (on Windows, signing in with the person's Windows login if the proxy asks; it never asks for a password).
 - A strict Content-Security-Policy applies: no inline scripts or style attributes.
 - Plain JavaScript and CSS, with no front-end framework. The Rust (axum) back end is embedded into one exe.
 - Themes: light (the default), dark, and high contrast. Text sizes: normal, large, and larger.
