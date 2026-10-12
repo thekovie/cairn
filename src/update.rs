@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{CairnError, Result};
 use crate::fsutil::{can_write_dir, write_atomic};
+use crate::update_net::{self, NetFail, Route, redact};
 
 /// Where the latest release is described.
 pub const RELEASES_API: &str = "https://api.github.com/repos/thekovie/cairn/releases/latest";
@@ -291,18 +292,17 @@ pub fn parse_release(json: &[u8], current: &Version) -> Result<Option<Release>> 
     }))
 }
 
-fn agent(timeout: Duration, proxy: Option<&str>) -> ureq::Agent {
+const ACCEPT: &str = "application/vnd.github+json, application/octet-stream";
+
+fn agent(timeout: Duration, proxy: Option<ureq::Proxy>, https_only: bool) -> ureq::Agent {
     use ureq::tls::{RootCerts, TlsConfig};
-    // The proxy chosen in Settings, or else Windows' proxy settings; and the
-    // Windows certificate store, so offices with their own certificates work.
-    let proxy = match proxy {
-        Some(p) => ureq::Proxy::new(&format!("http://{p}")).ok(),
-        None => ureq::Proxy::try_from_env(),
-    };
+    // The Windows certificate store, so offices with their own certificates
+    // work. Redirects stay on https too, unless this is a test on this computer.
     ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
         .user_agent(format!("Cairn/{}", env!("CARGO_PKG_VERSION")))
         .proxy(proxy)
+        .https_only(https_only)
         .tls_config(
             TlsConfig::builder()
                 .root_certs(RootCerts::PlatformVerifier)
@@ -312,63 +312,100 @@ fn agent(timeout: Duration, proxy: Option<&str>) -> ureq::Agent {
         .into()
 }
 
+fn fetch_ureq(
+    source: &UpdateSource,
+    route: &Route,
+    url: &str,
+    limit: u64,
+    timeout: Duration,
+) -> std::result::Result<Vec<u8>, NetFail> {
+    let agent = agent(timeout, route.proxy.clone(), !source.allow_http);
+    let mut response = agent
+        .get(url)
+        .header("Accept", ACCEPT)
+        .call()
+        .map_err(|e| NetFail::from_ureq(&e))?;
+    response
+        .body_mut()
+        .with_config()
+        .limit(limit)
+        .read_to_vec()
+        .map_err(|e| NetFail::Incomplete(redact(&e.to_string())))
+}
+
+/// The same request through Windows' own networking, which can sign in to
+/// a proxy as the person and follow a proxy script. `None` off Windows.
+#[cfg(windows)]
+fn fetch_winhttp(
+    source: &UpdateSource,
+    route: &Route,
+    url: &str,
+    limit: u64,
+    timeout: Duration,
+) -> Option<std::result::Result<Vec<u8>, NetFail>> {
+    // A proxy found by Cairn is used as it is: only a script, or the lack of
+    // one, is left to Windows. No quiet switch to a direct connection.
+    let proxy = route.host_port();
+    Some(crate::winhttp::get(
+        url,
+        ACCEPT,
+        limit,
+        timeout,
+        proxy.as_deref(),
+        source.allow_http,
+    ))
+}
+
+#[cfg(not(windows))]
+fn fetch_winhttp(
+    _: &UpdateSource,
+    _: &Route,
+    _: &str,
+    _: u64,
+    _: Duration,
+) -> Option<std::result::Result<Vec<u8>, NetFail>> {
+    None
+}
+
 fn fetch(source: &UpdateSource, url: &str, limit: u64, timeout: Duration) -> Result<Vec<u8>> {
     if !url.starts_with("https://") && !(source.allow_http && url.starts_with("http://")) {
         return Err(CairnError::Io(
             "The update address isn't secure (https), so it wasn't used.".into(),
         ));
     }
-    let proxy = source.proxy.as_deref();
-    let response = agent(timeout, proxy)
-        .get(url)
-        .header(
-            "Accept",
-            "application/vnd.github+json, application/octet-stream",
-        )
-        .call();
-    let mut response = match response {
-        Ok(r) => r,
-        Err(ureq::Error::StatusCode(407)) => {
-            return Err(CairnError::Io(
-                "The proxy asked for a login, which Cairn can't give. Ask your IT team for a \
-                 proxy that GitHub can be reached through without one."
-                    .into(),
-            ));
+    let route = update_net::resolve(
+        source.proxy.as_deref(),
+        |name| std::env::var(name).ok(),
+        ureq::Proxy::try_from_env,
+    )?;
+    let mut failed = None;
+    if !update_net::prefer_winhttp() {
+        match fetch_ureq(source, &route, url, limit, timeout) {
+            Ok(body) => {
+                update_net::record(route.info(false));
+                return Ok(body);
+            }
+            Err(fail) => failed = Some(fail),
         }
-        Err(e) if proxy.is_some() && !matches!(e, ureq::Error::StatusCode(_)) => {
-            return Err(CairnError::Io(format!(
-                "Cairn couldn't reach GitHub through the proxy {} ({e}). Check the proxy \
-                 address in Settings → Updates.",
-                proxy.unwrap_or_default()
-            )));
+    }
+    if failed
+        .as_ref()
+        .is_none_or(|fail| update_net::wants_winhttp(fail, &route.source))
+    {
+        match fetch_winhttp(source, &route, url, limit, timeout) {
+            Some(Ok(body)) => {
+                update_net::set_prefer_winhttp();
+                update_net::record(route.info(true));
+                return Ok(body);
+            }
+            Some(Err(fail)) => {
+                return Err(update_net::to_cairn_error(fail, &route.source, true));
+            }
+            None => {}
         }
-        Err(ureq::Error::StatusCode(404)) => {
-            return Err(CairnError::NotFound(
-                "No released version of Cairn was found.".into(),
-            ));
-        }
-        Err(ureq::Error::StatusCode(code)) => {
-            return Err(CairnError::Io(format!(
-                "GitHub didn't answer normally (error {code}). Try again later."
-            )));
-        }
-        Err(ureq::Error::Timeout(_)) => {
-            return Err(CairnError::Io(
-                "Checking took too long. The internet connection may be slow or blocked.".into(),
-            ));
-        }
-        Err(e) => {
-            return Err(CairnError::Io(format!(
-                "Cairn couldn't reach GitHub ({e}). Check the internet connection."
-            )));
-        }
-    };
-    response
-        .body_mut()
-        .with_config()
-        .limit(limit)
-        .read_to_vec()
-        .map_err(|e| CairnError::Io(format!("The download didn't finish ({e}). Try again.")))
+    }
+    let fail = failed.unwrap_or_else(|| NetFail::Connect("no connection".into()));
+    Err(update_net::to_cairn_error(fail, &route.source, false))
 }
 
 /// Ask for the latest release. `Ok(None)` means this is the latest version.

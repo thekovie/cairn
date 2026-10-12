@@ -112,6 +112,18 @@ Markdown downloads always work.
 
 Check **Settings → Time and timezone**. Times are shown in the timezone chosen there, marked with their difference from GMT (for example “GMT+8”). If it says Automatic, check the computer's timezone (Windows: **Settings → Time & language**; Mac: **System Settings → General → Date & Time**).
 
+## “Couldn't check for a new version”
+
+**Settings → Updates** shows the reason, and which connection the last check went through. What the messages mean:
+
+- **“Your network's proxy asked for a sign-in.”** The office proxy wants a login. On Windows, Cairn offers your Windows login (NTLM or Kerberos) by itself. If it still says this, the proxy didn't accept that login, or it wants a typed password, which Cairn never gives. Ask your IT team to let Cairn reach `api.github.com`, `github.com` and `*.githubusercontent.com` through the proxy, or to leave them off the sign-in list.
+- **“Cairn couldn't reach GitHub through the proxy …”.** The proxy typed in Settings is wrong or down. Check the address and port, or empty the box to use the proxy that Windows (or the `HTTPS_PROXY` variable) provides.
+- **“Cairn couldn't verify GitHub's security certificate.”** A network filter is replacing GitHub's certificate. Ask your IT team to add its certificate to Windows. Cairn never skips this check.
+- **“GitHub is limiting requests from this network.”** Many computers share one internet address and used up GitHub's allowance for it. Try again in an hour.
+- **“Checking took too long.”** The connection is slow or blocked.
+
+Your IT team can find out what the proxy wants with `curl -v -x http://PROXY:PORT https://api.github.com`: look for a `Proxy-Authenticate:` line (`NTLM` or `Negotiate` means a Windows sign-in, `Basic` a typed password).
+
 ## Where are the log files?
 
 Cairn prints problems in its window. It doesn't write log files or send reports anywhere.

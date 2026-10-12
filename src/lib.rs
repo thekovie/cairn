@@ -24,4 +24,7 @@ pub mod templates;
 pub mod timefmt;
 pub mod trash;
 pub mod update;
+pub mod update_net;
+#[cfg(windows)]
+mod winhttp;
 pub mod workspace;

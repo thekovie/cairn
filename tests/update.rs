@@ -194,6 +194,66 @@ fn updates_go_through_the_proxy_set_in_settings() {
     assert!(err.to_string().contains(&dead), "{err}");
 }
 
+/// An office proxy that wants a Windows sign-in: every request, tunnel or
+/// not, is answered `407` with the NTLM challenge. Counts the requests.
+fn signin_proxy() -> (SocketAddr, Arc<std::sync::atomic::AtomicUsize>) {
+    use std::io::{BufRead, BufReader};
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let requests = Arc::new(AtomicUsize::new(0));
+    let count = requests.clone();
+    std::thread::spawn(move || {
+        for client in listener.incoming().flatten() {
+            let count = count.clone();
+            std::thread::spawn(move || {
+                let mut reader = BufReader::new(client.try_clone().unwrap());
+                let mut out = client;
+                let mut line = String::new();
+                loop {
+                    loop {
+                        line.clear();
+                        match reader.read_line(&mut line) {
+                            Ok(0) | Err(_) => return,
+                            Ok(_) if line == "\r\n" => break,
+                            Ok(_) => {}
+                        }
+                    }
+                    count.fetch_add(1, Ordering::SeqCst);
+                    let reply = "HTTP/1.1 407 Proxy Authentication Required\r\n\
+                                 Proxy-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n";
+                    if out.write_all(reply.as_bytes()).is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+    });
+    (addr, requests)
+}
+
+/// A proxy that wants a sign-in is reported as that, and a proxy chosen in
+/// Settings is never quietly bypassed: GitHub, reachable directly, is not
+/// asked.
+#[test]
+fn a_proxy_that_wants_a_sign_in_is_reported_not_bypassed() {
+    let pair = KeyPair::generate_unencrypted_keypair().unwrap();
+    let zip = release_file(NEW_EXE);
+    let sig = sign(&pair, &zip, &asset("0.9.0"));
+    let github = FakeGitHub::start("v0.9.0", zip, sig);
+    let (proxy, asked) = signin_proxy();
+    let source = UpdateSource {
+        proxy: Some(proxy.to_string()),
+        ..github.source(&pair)
+    };
+    let err = update::check(&source, &v("0.5.0")).unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("asked for a sign-in"), "{message}");
+    assert!(!message.contains("GitHub didn't answer"), "{message}");
+    assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
+}
+
 fn v(s: &str) -> Version {
     Version::parse(s).unwrap()
 }
