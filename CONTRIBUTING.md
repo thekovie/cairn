@@ -119,6 +119,8 @@ Pushing a tag such as `v1.0.0` (matching `Cargo.toml`) runs `.github/workflows/r
 
 Only when all three have built does the last job sign every download and publish them together, so a release always has every system's update. A tag with a `-`, such as `v1.0.0-rc.1`, is published as a pre-release: a trial run that no copy of Cairn offers as an update.
 
+**The website.** After a stable release is published, the last job of the workflow calls a Vercel deploy hook so [cairn.thekovie.com](https://cairn.thekovie.com) rebuilds at once with the new version, download buttons and PDF brief (it would catch up within the hour anyway). The hook's address is the repository secret `SITE_DEPLOY_HOOK` (made in the website's Vercel project: *Settings → Git → Deploy Hooks*, branch `main`). Without the secret the job does nothing and the release is unaffected. Facts that aren't numbers (limits, supported systems, install steps) still need a human; see the website's `docs/CONTENT.md`.
+
 The app icons are made from `assets/favicon.svg` by `installer/icons/make-icons.sh`; run it after changing the logo and commit the results.
 
 **Signing.** Cairn installs an update only if its download is signed with the release key, whose public half is `PUBLIC_KEY` in `src/update.rs`. The secret half is the `MINISIGN_SECRET_KEY` repository secret; the release fails without it. The key was made with:
