@@ -234,18 +234,17 @@ fn signin_proxy() -> (SocketAddr, Arc<std::sync::atomic::AtomicUsize>) {
 }
 
 /// A proxy that wants a sign-in is reported as that, and a proxy chosen in
-/// Settings is never quietly bypassed: GitHub, reachable directly, is not
-/// asked.
+/// Settings is never quietly bypassed. The address exists only behind the
+/// proxy (Windows skips proxies for addresses on this computer), so going
+/// round the proxy would show up as a connection error instead.
 #[test]
 fn a_proxy_that_wants_a_sign_in_is_reported_not_bypassed() {
-    let pair = KeyPair::generate_unencrypted_keypair().unwrap();
-    let zip = release_file(NEW_EXE);
-    let sig = sign(&pair, &zip, &asset("0.9.0"));
-    let github = FakeGitHub::start("v0.9.0", zip, sig);
     let (proxy, asked) = signin_proxy();
     let source = UpdateSource {
+        api_url: "http://updates.cairn.invalid/latest".into(),
+        public_key: String::new(),
+        allow_http: true,
         proxy: Some(proxy.to_string()),
-        ..github.source(&pair)
     };
     let err = update::check(&source, &v("0.5.0")).unwrap_err();
     let message = err.to_string();
