@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use walkdir::WalkDir;
 
-use crate::article::{extract_title, parse_front_matter, title_from_filename};
+use crate::article::{extract_title, parse_front_matter, set_last_reviewed, title_from_filename};
 use crate::editors;
 use crate::error::{CairnError, Result};
 use crate::fsutil::{
@@ -267,6 +267,71 @@ fn move_history(root: &Root, from: &str, to: &str) {
         move_merge(&src, &dst);
     }
     editors::move_record(root, from, to);
+}
+
+// ------------------------------------------------------------- reviewing
+
+/// Stamp a page as reviewed on `today` (`YYYY-MM-DD`). It goes through the
+/// same safe publishing as any change: the page must not be open in anyone's
+/// editor (the lock is taken for the moment), the page as it was is kept as
+/// an earlier version, and a change made at the same moment is never written
+/// over. Who last wrote the page stays as it was: a review is not an edit,
+/// and the status is never touched. Returns whether the page changed (it
+/// doesn't when it already says today).
+pub fn mark_reviewed(root: &Root, me: &Identity, page_rel: &str, today: &str) -> Result<bool> {
+    let path = root.resolve(page_rel)?;
+    let bytes = fs::read(&path)?;
+    let text = String::from_utf8(bytes.clone()).map_err(|_| {
+        CairnError::BadRequest("This page isn't saved as text that Cairn can change.".into())
+    })?;
+    if parse_front_matter(&text).0.last_reviewed.as_deref() == Some(today) {
+        return Ok(false);
+    }
+    let new_text = set_last_reviewed(&text, today).map_err(|why| {
+        CairnError::BadRequest(format!(
+            "Cairn couldn't change this page's details automatically ({why}). \
+             Open the page for editing and set Last reviewed under Page details."
+        ))
+    })?;
+    match locks::status(root, page_rel, me)? {
+        Some(l) if l.is_mine => {
+            return Err(CairnError::Locked(
+                "You have this page open in the editor. Publish your changes or close the \
+                 editor first, then try again."
+                    .into(),
+            ));
+        }
+        Some(l) => {
+            return Err(CairnError::Locked(format!(
+                "{} is editing this page. Try again when they have finished.",
+                l.info.display_name
+            )));
+        }
+        None => {}
+    }
+    let held = HeldLocks::take(root, me, &[page_rel.to_string()], "reviewed")?;
+    let base = sha256_hex(&bytes);
+    let before = editors::lookup(root, page_rel);
+    let request = PublishRequest {
+        root,
+        article_rel: page_rel,
+        identity: me,
+        base_hash: Some(&base),
+        content: &new_text,
+        staged: Vec::new(),
+    };
+    let outcome = publish::publish(request, &PublishOptions::default())?;
+    drop(held);
+    match outcome {
+        PublishOutcome::Published { .. } => {
+            editors::restore(root, page_rel, before.as_ref());
+            editors::rehash(root, page_rel, &bytes, new_text.as_bytes());
+            Ok(true)
+        }
+        PublishOutcome::Conflict { .. } => Err(CairnError::Conflict(
+            "This page was changed at the same moment. Look at it, then try again.".into(),
+        )),
+    }
 }
 
 // ------------------------------------------------------------ other pages

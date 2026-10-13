@@ -59,6 +59,27 @@ fn metadata_problems_travel_with_the_page_into_lists() {
 }
 
 #[test]
+fn a_same_size_change_a_moment_later_is_still_noticed() {
+    let ws = common::workspace();
+    page(&ws, "A.md", "owner: Sam\nlast_reviewed: 2025-09-08");
+    let mut index = refreshed(&ws);
+    assert_eq!(
+        index.get("A.md").unwrap().last_reviewed.as_deref(),
+        Some("2025-09-08")
+    );
+
+    // Same length, written well inside the same second as before: the page
+    // index must still see it (a review date is exactly this kind of edit).
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    page(&ws, "A.md", "owner: Sam\nlast_reviewed: 2026-10-13");
+    index.refresh(&ws.root).unwrap();
+    assert_eq!(
+        index.get("A.md").unwrap().last_reviewed.as_deref(),
+        Some("2026-10-13")
+    );
+}
+
+#[test]
 fn deleted_pages_leave_the_index_and_a_clean_scan_reports_nothing() {
     let ws = common::workspace();
     page(&ws, "Keep.md", "owner: Sam");

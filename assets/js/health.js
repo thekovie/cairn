@@ -4,7 +4,7 @@
 
 import {
   get, post, h, icon, button, banner, emptyState, statusChip, formatDay, href, announce,
-  whileBusy, errorText,
+  whileBusy, errorText, toast,
 } from './core.js';
 
 const FILTERS = [
@@ -33,18 +33,42 @@ const SHOWN_BY_CHIP = new Set(['draft', 'retired']);
 
 const pagesWord = (n) => (n === 1 ? '1 page' : `${n} pages`);
 
-function problemRow(item) {
+/**
+ * "Mark as reviewed today" for one page. Reviewing is not approving: it only
+ * sets the page's review date. The screen is redrawn afterwards.
+ */
+export function markReviewedButton(path, title) {
+  const btn = button('Mark as reviewed today', {
+    icon: 'check',
+    'aria-label': `Mark as reviewed today: ${title}`,
+    onClick: async () => {
+      try {
+        await whileBusy(btn, 'Marking…', () => post('/api/review', { path }));
+        toast('Marked as reviewed today.');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      } catch (err) {
+        toast(errorText(err), { error: true });
+      }
+    },
+  });
+  return btn;
+}
+
+function problemRow(item, canReview) {
   const p = item.page;
   const folder = p.path.includes('/') ? p.path.slice(0, p.path.lastIndexOf('/')).replaceAll('/', ' › ') : '';
-  return h('li', null, h('a', { class: 'row-link', href: href.page(p.path) },
-    icon('page'),
-    h('span', { class: 'row-title' }, p.title),
-    h('span', { class: 'row-side' }, folder),
-    h('span', { class: 'row-meta' },
-      statusChip(p.status),
-      p.owner ? h('span', null, `Owner: ${p.owner}`) : null,
-      item.issues.filter((key) => !SHOWN_BY_CHIP.has(key)).map((key) => h('span', { class: NEEDS_ATTENTION.has(key) ? 'review-due' : null },
-        NEEDS_ATTENTION.has(key) ? icon('alert') : null, PROBLEM_TEXT[key](p))))));
+  const reviewable = canReview && item.issues.some((key) => key === 'overdue' || key === 'no_review_date');
+  return h('li', null,
+    h('a', { class: 'row-link', href: href.page(p.path) },
+      icon('page'),
+      h('span', { class: 'row-title' }, p.title),
+      h('span', { class: 'row-side' }, folder),
+      h('span', { class: 'row-meta' },
+        statusChip(p.status),
+        p.owner ? h('span', null, `Owner: ${p.owner}`) : null,
+        item.issues.filter((key) => !SHOWN_BY_CHIP.has(key)).map((key) => h('span', { class: NEEDS_ATTENTION.has(key) ? 'review-due' : null },
+          NEEDS_ATTENTION.has(key) ? icon('alert') : null, PROBLEM_TEXT[key](p))))),
+    reviewable ? h('div', { class: 'row-actions' }, markReviewedButton(p.path, p.title)) : null);
 }
 
 const plural = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
@@ -142,6 +166,8 @@ export async function healthView(ctx) {
   const shown = current === 'all' ? data.pages : data.pages.filter((p) => p.issues.includes(current));
 
   const clean = data.complete && data.pages.length === 0;
+  // Anyone who can change pages can mark one as reviewed.
+  const canReview = !ctx.app.state.workspace?.read_only;
   ctx.main.append(
     h('div', { class: 'page-head' },
       h('h1', null, 'Documentation health'),
@@ -157,7 +183,7 @@ export async function healthView(ctx) {
       : h('p', { class: 'help' }, `${pagesWord(data.total)} checked. ${data.pages.length === 1 ? '1 page needs' : `${data.pages.length} pages need`} attention.`),
     clean ? null : filterBar(data, current),
     clean ? null : (shown.length
-      ? h('ul', { class: 'list' }, shown.map(problemRow))
+      ? h('ul', { class: 'list' }, shown.map((item) => problemRow(item, canReview)))
       : emptyState({ title: 'Nothing in this list', text: 'No page has this problem. Choose another filter to see the rest.' })),
     linkCheckSection());
   announce(clean ? 'Nothing needs attention' : `${shown.length} of ${pagesWord(data.total)} listed`);

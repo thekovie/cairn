@@ -11,6 +11,7 @@ import {
 
 const PDF_BROWSERS = IS_WINDOWS ? 'Microsoft Edge or Google Chrome' : 'Google Chrome, Microsoft Edge, or Chromium';
 import { openPageDownload, openBulkDownload, openBackup } from './export.js';
+import { markReviewedButton } from './health.js';
 import { pageMoreActions, folderOrganizeSection } from './manage.js';
 import { updatesSection } from './update.js';
 import { timezoneSection } from './timezone.js';
@@ -327,9 +328,13 @@ function editArea(ctx, data) {
       note('lock', data.cannot_edit_reason)];
   }
   const label = data.editing_here || data.has_draft ? 'Continue editing' : 'Edit this page';
+  // Offered when a review is due or has never been recorded.
+  const needsReview = !data.editing_here
+    && (!data.meta.last_reviewed || reviewDue(data.meta.review_due_on));
   return [h('div', { class: 'actions' },
     linkButton(label, href.edit(data.path), { icon: 'edit', kind: 'primary' }),
     secondary,
+    needsReview ? markReviewedButton(data.path, data.title) : null,
     pageMoreActions(ctx, data))];
 }
 

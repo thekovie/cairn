@@ -7,7 +7,7 @@ use axum::extract::State;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::api::{ApiResult, blocking, folder_rel, require_writable, slugify_title};
+use super::api::{ApiResult, blocking, folder_rel, require_writable, slugify_title, today_for};
 use super::{AppState, OpenWorkspace};
 use crate::article::title_from_filename;
 use crate::drafts::{Draft, StagedImage};
@@ -247,6 +247,43 @@ pub async fn delete_page(
         let item = trash::trash_page(&ws.root, &me, &rel, &title, body.hash.as_deref())?;
         ws.refresh_index(true);
         Ok(json!({ "item": item }))
+    })
+    .await
+}
+
+// ---------------------------------------------------------------- reviewing
+
+#[derive(Deserialize)]
+pub struct ReviewBody {
+    path: String,
+}
+
+/// "Mark as reviewed today": sets the page's review date to today in this
+/// person's chosen timezone, through the same safe write as any change.
+pub async fn mark_reviewed(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ReviewBody>,
+) -> ApiResult {
+    blocking(state, move |st| {
+        let ws = st.workspace()?;
+        require_writable(&ws)?;
+        let rel = validate_article_path(&body.path)?;
+        ensure_not_editing(st, &ws, |a| a.eq_ignore_ascii_case(&rel))?;
+        let path = ws.root.resolve(&rel)?;
+        if std::fs::metadata(&path).is_ok_and(|m| m.permissions().readonly()) {
+            return Err(CairnError::PermissionDenied(
+                "This page's file is marked read-only, so it can't be changed.".into(),
+            ));
+        }
+        let today = today_for(st);
+        let changed = manage::mark_reviewed(&ws.root, &st.identity(), &rel, &today)?;
+        ws.refresh_index(true);
+        Ok(json!({
+            "path": rel,
+            "changed": changed,
+            "last_reviewed": today,
+            "review_due_on": crate::article::review_due_on(&today),
+        }))
     })
     .await
 }

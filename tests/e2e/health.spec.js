@@ -1,7 +1,7 @@
 // Documentation health: reached from the sidebar, lists only the pages that
 // need attention with the reason, filters by problem, and says "nothing
 // needs attention" only when that is true.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from './cairn.js';
 
@@ -83,4 +83,36 @@ test('Check documentation finds broken links and pictures, then goes quiet once 
   await page.getByRole('button', { name: 'Check documentation' }).click();
   await expect(results).toContainText('No broken links or pictures found');
   await expect(results.locator('.list')).toHaveCount(0);
+});
+
+test('Mark as reviewed today works from the list, keeps the status, and clears the problem', async ({ page, cairn }) => {
+  const fine = `owner: Sam\nstatus: active\nlast_reviewed: ${daysAgo(10)}`;
+  write(cairn.docs, 'README.md', fine);
+  write(cairn.docs, 'Guides/Printer.md', fine);
+  write(cairn.docs, 'Overdue.md', `owner: Sam\nstatus: active\nlast_reviewed: ${daysAgo(400)}`);
+
+  await page.getByRole('link', { name: 'Documentation health' }).click();
+  const row = page.locator('main .list li', { hasText: 'Overdue.md' });
+  await expect(row).toContainText('Review due');
+  await row.getByRole('button', { name: /Mark as reviewed today/ }).click();
+
+  // Nothing else is wrong with it, so it leaves the list (and the all-clear shows).
+  await expect(page.getByText('Nothing needs attention')).toBeVisible();
+  const text = readFileSync(join(cairn.docs, 'Overdue.md'), 'utf8');
+  expect(text).toContain(`last_reviewed: ${daysAgo(0)}`);
+  expect(text).toContain('status: active');
+  expect(text).toContain('owner: Sam');
+});
+
+test('Mark as reviewed today is offered on a page that has never been reviewed', async ({ page, cairn }) => {
+  write(cairn.docs, 'Undated.md', 'owner: Sam');
+  await page.getByRole('link', { name: 'Documentation health' }).click();
+  await page.locator('main .list').getByRole('link', { name: /Undated\.md/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Undated.md' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Mark as reviewed today' }).click();
+  // The page shows the date, and the button is gone (nothing is due).
+  await expect(page.locator('.article-meta')).toContainText('Reviewed');
+  await expect(page.getByRole('button', { name: 'Mark as reviewed today' })).toHaveCount(0);
+  expect(readFileSync(join(cairn.docs, 'Undated.md'), 'utf8')).toContain(`last_reviewed: ${daysAgo(0)}`);
 });
