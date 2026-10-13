@@ -6,6 +6,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Added
 
+- **Documentation health.** A new screen in the left-hand list shows the pages that need attention, with the reason: review due, no review date, no owner, draft, retired, or page details Cairn can't read. Filter by problem. If part of the shared folder couldn't be read, it says so and never reports that everything is fine. See [Writing and editing](docs/authoring.md#documentation-health).
 - **Back up workspace.** **Settings → Back up workspace** saves one .zip with everything needed to bring the documentation back: pages, pictures, templates, earlier versions, and deleted pages. Every file has a checksum. “Download everything” stays for sharing, and now says it is not a backup. See [Back up and restore](docs/backup-and-restore.md).
 - **`cairn backup create`, `cairn backup verify`, and `cairn restore`** for scheduled backups, for checking a backup, and for restoring one into a new, empty folder. A damaged, edited, unsafe, or newer backup is refused and nothing is written.
 

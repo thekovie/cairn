@@ -73,6 +73,7 @@ If you stop using Cairn, your documentation is still just a folder of `.md` file
 - **Never lose work.** Unsaved changes are kept privately on your own computer every few seconds. If someone changed the page while you were writing, Cairn shows both versions instead of overwriting either one.
 - **Pictures** by button, paste, or drag and drop. They are stored next to the page in a normal folder.
 - **Earlier versions** of every page are kept and can be restored.
+- **See what needs attention.** **Documentation health** lists pages that are overdue for review, have no owner or review date, are still drafts, or are retired, and says so plainly if part of the shared folder couldn't be read.
 - **Rename, move, and delete** pages and folders. Links between pages are updated for you, and anything deleted can be brought back from **Recently deleted**.
 - **Team templates** for pages you write often, kept with each documentation folder, with fields such as the title and today's date filled in for you.
 - **Download** a page as PDF or Markdown, or a whole folder or all documentation as a .zip. PDFs are made on your own computer.

@@ -154,6 +154,20 @@ tags: [printers, office]
 
 If this block is typed wrongly, the page still opens. A notice explains which detail couldn't be read.
 
+## Documentation health
+
+**Documentation health** (in the left-hand list, above Templates) lists the pages that need attention, with the reason beside each:
+
+- **Review due**: it has been a year since the page was last reviewed.
+- **No review date**, and **No owner**: the page details are empty.
+- **Draft**: the page is still being written.
+- **Retired**: the page is no longer used. Retired pages are only listed under Retired, since they need no owner or review.
+- **Page details to fix**: the information block at the top of the page can't be understood (for example, a status other than draft, active, or retired). The message says what to change.
+
+Choose a button such as **No owner** to see only those pages, and open a page to fix it with **Edit**, then **Page details**. The list is worked out when you open the screen, from the same information Cairn already keeps for search, so it is quick.
+
+If Cairn can't read part of the shared folder (the drive is offline, or a folder is off-limits to you), the screen says so and names what it couldn't read. It never says everything is fine unless it could check everything.
+
 ## Unsaved changes
 
 Your unsaved changes are saved on **your own computer** every few seconds, never in the shared folder. The editor shows:

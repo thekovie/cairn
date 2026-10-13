@@ -12,6 +12,7 @@ pub mod editors;
 pub mod error;
 pub mod export;
 pub mod fsutil;
+pub mod health;
 pub mod history;
 pub mod images;
 pub mod links;

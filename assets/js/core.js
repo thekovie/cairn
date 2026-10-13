@@ -733,6 +733,7 @@ export const href = {
   setup: () => '#/setup',
   templates: () => '#/templates',
   deleted: () => '#/deleted',
+  health: (show) => (show && show !== 'all' ? `#/health?show=${show}` : '#/health'),
   print: (p) => `#/print/${encodePath(p)}`,
 };
 
