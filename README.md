@@ -68,7 +68,7 @@ If you stop using Cairn, your documentation is still just a folder of `.md` file
 
 ## What it does
 
-- **Read and search** pages, with a table of contents, owner, status, and last-reviewed date for each page.
+- **Read and search** pages, with a table of contents, owner, status, and last-reviewed date for each page. Narrow a search by folder, status, or tag, and order it by best match, recent change, or title.
 - **Edit safely.** One person edits a page at a time. Others see “Being edited by Alex since 2:30 PM” and can keep reading.
 - **Never lose work.** Unsaved changes are kept privately on your own computer every few seconds. If someone changed the page while you were writing, Cairn shows both versions instead of overwriting either one.
 - **Pictures** by button, paste, or drag and drop. They are stored next to the page in a normal folder.

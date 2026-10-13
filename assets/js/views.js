@@ -233,38 +233,80 @@ export async function folderView(ctx) {
 
 // ---------------------------------------------------------------- search
 
+const SEARCH_STATUS = [['', 'Any status'], ['draft', 'Draft'], ['active', 'Active'], ['retired', 'Retired'], ['none', 'No status set']];
+const SEARCH_SORT = [['best', 'Best match'], ['updated', 'Recently changed'], ['title', 'Title (A to Z)']];
+
+/** A labelled drop-down for the search filters. */
+function searchField(id, label, choices, current) {
+  const known = choices.some(([value]) => value === current);
+  const all = known || !current ? choices : [...choices, [current, current]];
+  return h('div', { class: 'search-field' },
+    h('label', { for: id }, label),
+    h('select', { id: id, name: id }, all.map(([value, text]) => h('option', { value, selected: value === current }, text))));
+}
+
 export async function searchView(ctx) {
   const q = ctx.query.get('q') || '';
+  const oneOf = (value, choices, fallback) => (choices.some(([v]) => v === value) ? value : fallback);
+  const filters = {
+    folder: ctx.query.get('folder') || '',
+    status: oneOf(ctx.query.get('status') || '', SEARCH_STATUS, ''),
+    tag: ctx.query.get('tag') || '',
+    sort: oneOf(ctx.query.get('sort') || 'best', SEARCH_SORT, 'best'),
+  };
+  const filtered = Boolean(filters.folder || filters.status || filters.tag);
+  const [data, foldersData] = await Promise.all([
+    get('/api/search', { q, ...filters }),
+    get('/api/folders'),
+  ]);
+
   const input = h('input', { type: 'search', id: 'search-q', name: 'q', value: q, autocomplete: 'off' });
+  const controls = {
+    folder: searchField('sf-folder', 'Folder', [['', 'Anywhere'], ...foldersData.folders.map((f) => [f, f.replaceAll('/', ' › ')])], filters.folder),
+    status: searchField('sf-status', 'Status', SEARCH_STATUS, filters.status),
+    tag: searchField('sf-tag', 'Tag', [['', 'Any tag'], ...data.tags.map((t) => [t, t])], filters.tag),
+    sort: searchField('sf-sort', 'Order', SEARCH_SORT, filters.sort),
+  };
+  const chosen = () => ({
+    folder: controls.folder.querySelector('select').value,
+    status: controls.status.querySelector('select').value,
+    tag: controls.tag.querySelector('select').value,
+    sort: controls.sort.querySelector('select').value,
+  });
   ctx.main.append(
     h('div', { class: 'page-head' }, h('h1', null, 'Search')),
-    h('form', { role: 'search', onsubmit: (e) => { e.preventDefault(); ctx.navigate(href.search(input.value.trim())); } },
+    h('form', { role: 'search', onsubmit: (e) => { e.preventDefault(); ctx.navigate(href.search(input.value.trim(), chosen())); } },
       h('label', { for: 'search-q' }, 'Words to look for'),
       h('div', { class: 'hero-search' }, input,
         button('Search', { icon: 'search', type: 'submit', kind: 'primary', large: true })),
-      h('p', { class: 'help' }, 'Pages that contain all of your words are shown. Words in the title count more.')));
-  if (!q) {
+      h('div', { class: 'search-filters' }, controls.folder, controls.status, controls.tag, controls.sort),
+      h('p', { class: 'help' }, 'Pages that contain all of your words are shown. Words in the title or tags count more. Choose a folder, status, or tag to narrow the list, then press Search; leave the words empty to list every page that fits. Retired pages are included unless you choose another status.'),
+      filtered ? h('div', { class: 'actions' }, linkButton('Clear filters', href.search(q, { sort: filters.sort }), { icon: 'x' })) : null));
+  if (!q && !filtered) {
     setTimeout(() => input.focus(), 0);
     return { title: 'Search', keepFocus: true };
   }
-  const data = await get('/api/search', { q });
   const n = data.results.length;
+  const total = data.total;
   const results = h('section', { class: 'section', 'aria-labelledby': 'results-h' },
-    h('h2', { id: 'results-h' }, n === 0 ? 'No pages found' : n === 1 ? '1 page found' : `${n} pages found`));
+    h('h2', { id: 'results-h' }, total === 0 ? 'No pages found' : total === 1 ? '1 page found' : `${total} pages found`));
   if (n === 0) {
     // Never a dead end: a likely spelling, then the folders to browse.
     const folders = ctx.app.nav || [];
     appendChildren(results, [
       data.suggestion
         ? h('p', { class: 'suggestion' }, 'Did you mean ',
-          h('a', { href: href.search(data.suggestion) }, `“${data.suggestion}”`), '?')
+          h('a', { href: href.search(data.suggestion, filters) }, `“${data.suggestion}”`), '?')
         : null,
-      h('p', { class: 'help' }, `Nothing matches “${q}”. Check the spelling, try fewer words, or look through a folder:`),
-      folders.length
+      h('p', { class: 'help' }, filtered
+        ? `Nothing matches${q ? ` “${q}”` : ''} with these filters. Try fewer words, or clear a filter.`
+        : `Nothing matches “${q}”. Check the spelling, try fewer words, or look through a folder:`),
+      !filtered && folders.length
         ? h('ul', { class: 'list' }, folders.map(folderRow))
         : null,
     ]);
   } else {
+    if (total > n) results.append(h('p', { class: 'help' }, `Showing the first ${n}. Add a word or a filter to narrow it down.`));
     results.append(h('ul', { class: 'list' }, data.results.map((r) => {
       const row = pageRow(r.page, { showFolder: true });
       row.firstChild.append(h('span', { class: 'excerpt' },
@@ -273,8 +315,8 @@ export async function searchView(ctx) {
     })));
   }
   ctx.main.append(results);
-  announce(n === 1 ? '1 page found' : `${n} pages found`);
-  return { title: `Search: ${q}` };
+  announce(total === 1 ? '1 page found' : `${total} pages found`);
+  return { title: q ? `Search: ${q}` : 'Search' };
 }
 
 // --------------------------------------------------------------- article

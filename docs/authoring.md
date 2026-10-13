@@ -154,6 +154,19 @@ tags: [printers, office]
 
 If this block is typed wrongly, the page still opens. A notice explains which detail couldn't be read.
 
+## Searching
+
+Type words in the search box (or open **Search**) to find pages. A page is listed when it contains **all** of your words, in its title, its tags, or its text. Words don't have to match whole words: “print” also finds “printer”.
+
+- **Best match** (the default) puts first the page whose title is exactly what you typed, then pages that have your words in the title or tags, then pages that mention them more. Pages that tie are ordered by title, then by where they are, so the order is the same every time.
+- **Folder**, **Status**, and **Tag** narrow the list. A folder includes the folders inside it. They apply when you press **Search**, and all of them must fit. Leave the words empty to list every page that fits the filters, for example all Retired pages, or everything tagged *network*. **Clear filters** puts everything back.
+- **Retired** pages are found like any other unless you choose a status.
+- **Order** can be Best match, Recently changed, or Title (A to Z).
+- At most 50 pages are listed. The heading says how many matched in all; add a word or a filter to narrow it down.
+- If nothing matches, Cairn suggests a likely spelling when it can.
+
+Search looks in the page title, tags, and text only. It doesn't look at file names, owners, or the contents of pictures and other files. Everything stays on your computer: there is no search service.
+
 ## Documentation health
 
 **Documentation health** (in the left-hand list, above Templates) lists the pages that need attention, with the reason beside each:

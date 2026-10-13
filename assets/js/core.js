@@ -728,7 +728,13 @@ export const href = {
   edit: (p) => `#/edit/${encodePath(p)}`,
   history: (p) => `#/history/${encodePath(p)}`,
   newPage: (folder) => `#/new?${new URLSearchParams({ folder: folder || '' })}`,
-  search: (q) => `#/search?${new URLSearchParams({ q: q || '' })}`,
+  search: (q, filters = {}) => {
+    const params = new URLSearchParams({ q: q || '' });
+    for (const [key, value] of Object.entries(filters)) {
+      if (value && !(key === 'sort' && value === 'best')) params.set(key, value);
+    }
+    return `#/search?${params}`;
+  },
   settings: () => '#/settings',
   setup: () => '#/setup',
   templates: () => '#/templates',

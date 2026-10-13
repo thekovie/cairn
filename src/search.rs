@@ -46,7 +46,10 @@ struct Entry {
     summary: PageSummary,
     text: String,
     text_lower: String,
+    /// Lower case, with runs of spaces made single, so a typed title matches.
     title_lower: String,
+    path_lower: String,
+    tags_lower: Vec<String>,
     size: u64,
     /// The file's modified time in nanoseconds. Whole seconds are not enough:
     /// a page rewritten at the same length within the same second (a changed
@@ -105,6 +108,65 @@ pub struct SearchHit {
     /// Excerpt split into plain and highlighted parts, so the UI can render
     /// highlights without inserting HTML.
     pub excerpt: Vec<Segment>,
+}
+
+/// Lower case with whitespace runs collapsed to one space.
+fn normalized(text: &str) -> String {
+    text.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// How search results are ordered.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SortBy {
+    /// Most relevant first.
+    #[default]
+    Best,
+    /// Most recently changed first.
+    Updated,
+    /// A to Z.
+    Title,
+}
+
+impl SortBy {
+    pub fn parse(text: &str) -> Option<SortBy> {
+        match text {
+            "best" => Some(SortBy::Best),
+            "updated" => Some(SortBy::Updated),
+            "title" => Some(SortBy::Title),
+            _ => None,
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            SortBy::Best => "best",
+            SortBy::Updated => "updated",
+            SortBy::Title => "title",
+        }
+    }
+}
+
+/// Narrowing and ordering for a search. Filters apply before anything is
+/// counted or cut off, and all of them must hold.
+#[derive(Debug, Clone, Default)]
+pub struct SearchOptions {
+    /// Pages in this folder or any folder inside it (workspace path).
+    pub folder: Option<String>,
+    /// `draft`, `active`, `retired`, or `none` (no status set).
+    pub status: Option<String>,
+    /// A tag, ignoring capitals.
+    pub tag: Option<String>,
+    pub sort: SortBy,
+}
+
+/// Search hits, and how many pages matched before the list was cut short.
+#[derive(Debug)]
+pub struct SearchResults {
+    pub hits: Vec<SearchHit>,
+    pub total: usize,
 }
 
 pub fn skip_dir_name(name: &str) -> bool {
@@ -228,7 +290,9 @@ impl SearchIndex {
             let (mut summary, plain) = summarize(&rel, &String::from_utf8_lossy(&bytes), modified);
             set_last_edit(&mut summary, editors::last_edit(root, &rel, &bytes));
             let entry = Entry {
-                title_lower: summary.title.to_lowercase(),
+                title_lower: normalized(&summary.title),
+                path_lower: summary.path.to_lowercase(),
+                tags_lower: summary.tags.iter().map(|t| t.to_lowercase()).collect(),
                 text_lower: plain.to_lowercase(),
                 text: plain,
                 summary,
@@ -306,45 +370,123 @@ impl SearchIndex {
             .count()
     }
 
-    /// All words must appear in the title or body. Title matches rank higher.
+    /// Every tag in use, once each (capitals ignored), A to Z.
+    pub fn all_tags(&self) -> Vec<String> {
+        let mut seen: HashMap<String, String> = HashMap::new();
+        for e in self.entries.values() {
+            for tag in &e.summary.tags {
+                seen.entry(tag.to_lowercase())
+                    .or_insert_with(|| tag.clone());
+            }
+        }
+        let mut tags: Vec<String> = seen.into_values().collect();
+        tags.sort_by_key(|t| t.to_lowercase());
+        tags
+    }
+
+    /// All words must appear in the title, the tags, or the text. Words in
+    /// the title or tags count more, and a title that is exactly what was
+    /// typed comes first.
     pub fn search(&self, query: &str, limit: usize) -> Vec<SearchHit> {
+        self.search_with(query, &SearchOptions::default(), limit)
+            .hits
+    }
+
+    /// Search with filters and an order. With no words but a filter, lists
+    /// the pages that pass the filter.
+    pub fn search_with(&self, query: &str, opts: &SearchOptions, limit: usize) -> SearchResults {
         let terms: Vec<String> = query
             .split_whitespace()
             .map(str::to_lowercase)
             .take(8)
             .collect();
-        if terms.is_empty() {
-            return Vec::new();
+        let filtered = opts.folder.is_some() || opts.status.is_some() || opts.tag.is_some();
+        if terms.is_empty() && !filtered {
+            return SearchResults {
+                hits: Vec::new(),
+                total: 0,
+            };
         }
+        let phrase = terms.join(" ");
         let mut scored: Vec<(usize, &Entry)> = self
             .entries
             .values()
+            .filter(|e| passes(e, opts))
             .filter_map(|e| {
                 let mut score = 0;
                 for t in &terms {
                     let in_title = e.title_lower.matches(t.as_str()).count();
+                    let in_tags: usize = e
+                        .tags_lower
+                        .iter()
+                        .map(|tag| tag.matches(t.as_str()).count())
+                        .sum();
                     let in_body = e.text_lower.matches(t.as_str()).count();
-                    if in_title + in_body == 0 {
+                    if in_title + in_tags + in_body == 0 {
                         return None;
                     }
-                    score += in_title * 20 + in_body.min(20);
+                    score += (in_title + in_tags) * 20 + in_body.min(20);
+                }
+                if !phrase.is_empty() {
+                    if e.title_lower == phrase {
+                        score += 1000;
+                    } else if terms.len() > 1 && e.title_lower.contains(&phrase) {
+                        score += 100;
+                    }
                 }
                 Some((score, e))
             })
             .collect();
+        let when = |e: &Entry| e.summary.edited_at.unwrap_or(e.summary.modified);
         scored.sort_by(|a, b| {
-            b.0.cmp(&a.0)
-                .then_with(|| a.1.summary.title.cmp(&b.1.summary.title))
+            let by_name = || {
+                a.1.title_lower
+                    .cmp(&b.1.title_lower)
+                    .then_with(|| a.1.path_lower.cmp(&b.1.path_lower))
+            };
+            match opts.sort {
+                SortBy::Best => b.0.cmp(&a.0).then_with(by_name),
+                SortBy::Updated => when(b.1).cmp(&when(a.1)).then_with(by_name),
+                SortBy::Title => by_name(),
+            }
         });
-        scored
+        let total = scored.len();
+        let hits = scored
             .into_iter()
             .take(limit)
             .map(|(_, e)| SearchHit {
                 page: e.summary.clone(),
                 excerpt: excerpt(&e.text, &terms),
             })
-            .collect()
+            .collect();
+        SearchResults { hits, total }
     }
+}
+
+/// Whether a page passes the filters in `opts`.
+fn passes(e: &Entry, opts: &SearchOptions) -> bool {
+    if let Some(folder) = &opts.folder {
+        let prefix = format!("{}/", folder.to_lowercase());
+        if !e.path_lower.starts_with(&prefix) {
+            return false;
+        }
+    }
+    if let Some(want) = &opts.status {
+        let ok = match (want.as_str(), e.summary.status.as_deref()) {
+            ("none", have) => have.is_none(),
+            (want, Some(have)) => want == have,
+            (_, None) => false,
+        };
+        if !ok {
+            return false;
+        }
+    }
+    if let Some(tag) = &opts.tag
+        && !e.tags_lower.contains(&tag.to_lowercase())
+    {
+        return false;
+    }
+    true
 }
 
 /// Longest word a spelling suggestion is looked for.
@@ -595,7 +737,9 @@ mod tests {
         index.entries.insert(
             "Guides/p.md".into(),
             Entry {
-                title_lower: summary.title.to_lowercase(),
+                title_lower: normalized(&summary.title),
+                path_lower: summary.path.to_lowercase(),
+                tags_lower: Vec::new(),
                 text_lower: plain.to_lowercase(),
                 text: plain,
                 summary,

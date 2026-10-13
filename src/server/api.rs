@@ -491,17 +491,70 @@ pub async fn search(
     blocking(state, move |st| {
         let ws = st.workspace()?;
         let query = q.get("q").map(|s| s.trim().to_string()).unwrap_or_default();
+        let opts = search_options(&q)?;
         ws.refresh_index(false);
         let index = ws.index.lock().expect("index lock");
-        let hits = index.search(&query, 50);
-        let suggestion = if hits.is_empty() {
+        let found = index.search_with(&query, &opts, SEARCH_LIMIT);
+        let suggestion = if found.hits.is_empty() && !query.is_empty() {
             index.suggest(&query)
         } else {
             None
         };
-        Ok(json!({ "query": query, "results": hits, "suggestion": suggestion }))
+        Ok(json!({
+            "query": query,
+            "results": found.hits,
+            "total": found.total,
+            "suggestion": suggestion,
+            "tags": index.all_tags(),
+            "filters": {
+                "folder": opts.folder.clone().unwrap_or_default(),
+                "status": opts.status.clone().unwrap_or_default(),
+                "tag": opts.tag.clone().unwrap_or_default(),
+                "sort": opts.sort.key(),
+            },
+        }))
     })
     .await
+}
+
+/// Most pages a search lists; `total` says how many matched.
+const SEARCH_LIMIT: usize = 50;
+
+/// The optional `folder`, `status`, `tag` and `sort` of a search. Anything
+/// else is refused rather than quietly ignored, so a mistyped filter can't
+/// look like "no results".
+fn search_options(q: &HashMap<String, String>) -> Result<crate::search::SearchOptions> {
+    use crate::search::{SearchOptions, SortBy};
+    let given = |key: &str| q.get(key).map(|s| s.trim()).filter(|s| !s.is_empty());
+    let folder = given("folder")
+        .map(folder_rel)
+        .transpose()?
+        .filter(|f| !f.is_empty());
+    let status = match given("status") {
+        None => None,
+        Some(s) if ["draft", "active", "retired", "none"].contains(&s) => Some(s.to_string()),
+        Some(_) => {
+            return Err(CairnError::BadRequest(
+                "Choose a status: draft, active, retired, or none.".into(),
+            ));
+        }
+    };
+    let tag = given("tag").map(str::to_string);
+    if tag.as_ref().is_some_and(|t| t.chars().count() > 100) {
+        return Err(CairnError::BadRequest("That tag is too long.".into()));
+    }
+    let sort = match given("sort") {
+        None => SortBy::Best,
+        Some(s) => SortBy::parse(s).ok_or_else(|| {
+            CairnError::BadRequest("Choose how to sort: best, updated, or title.".into())
+        })?,
+    };
+    Ok(SearchOptions {
+        folder,
+        status,
+        tag,
+        sort,
+    })
 }
 
 // ------------------------------------------------------------------ pages
