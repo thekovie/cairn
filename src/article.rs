@@ -253,14 +253,14 @@ pub struct RenderContext<'a> {
     pub staged: &'a HashMap<String, String>,
 }
 
-enum LinkKind {
+pub(crate) enum LinkKind {
     Local,
     External,
     Anchor,
     Unsafe,
 }
 
-fn classify(dest: &str) -> LinkKind {
+pub(crate) fn classify(dest: &str) -> LinkKind {
     let lower = dest.trim().to_ascii_lowercase();
     if lower.starts_with('#') {
         LinkKind::Anchor
@@ -391,16 +391,62 @@ fn is_image_ext(rel: &str) -> bool {
         .any(|e| lower.ends_with(e))
 }
 
-/// Render a Markdown body to sanitized HTML.
-pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
-    let events: Vec<Event> = Parser::new_ext(body, md_options()).collect();
+/// Where a link to another page or file in the documentation points.
+/// Page rendering and the workspace-wide check both use this, so they
+/// always agree.
+pub(crate) enum LocalLink {
+    /// The target exists (workspace-relative path).
+    Found(String),
+    /// The target would be inside the documentation but isn't there.
+    Missing(String),
+    /// The link climbs out of the documentation folder.
+    Outside,
+}
 
-    // Pass 1: heading texts → unique ids.
+pub(crate) fn judge_local_link(root: &Root, article_rel: &str, dest: &str) -> LocalLink {
+    match resolve_local_target(article_rel, dest) {
+        Some(rel) if root.resolve(&rel).is_ok() => LocalLink::Found(rel),
+        Some(rel) => LocalLink::Missing(rel),
+        None => LocalLink::Outside,
+    }
+}
+
+/// Where a picture in a page points.
+pub(crate) enum LocalImage {
+    /// A picture added in an unpublished draft.
+    Staged(String),
+    Found(String),
+    /// Not there, or not a picture type Cairn shows.
+    Missing(String),
+    Outside,
+}
+
+pub(crate) fn judge_local_image(
+    root: &Root,
+    article_rel: &str,
+    staged: &HashMap<String, String>,
+    dest: &str,
+) -> LocalImage {
+    match resolve_local_target(article_rel, dest) {
+        Some(rel) if staged.contains_key(&rel) => LocalImage::Staged(rel),
+        Some(rel) if is_image_ext(&rel) && root.resolve(&rel).is_ok() => LocalImage::Found(rel),
+        Some(rel) => LocalImage::Missing(rel),
+        None => LocalImage::Outside,
+    }
+}
+
+/// Whether a link to a heading (`#some-heading`) has no heading to go to.
+pub(crate) fn anchor_is_missing(heading_ids: &[String], dest: &str) -> bool {
+    dest.len() > 1 && !heading_ids.contains(&percent_decode(&dest[1..]))
+}
+
+/// The table of contents and the unique id of each heading, in order.
+pub(crate) fn collect_headings(events: &[Event]) -> (Vec<TocEntry>, Vec<String>) {
     let mut toc = Vec::new();
     let mut used: HashMap<String, usize> = HashMap::new();
     let mut heading_ids = Vec::new();
     let mut current: Option<(u8, String)> = None;
-    for event in &events {
+    for event in events {
         match event {
             Event::Start(Tag::Heading { level, .. }) => {
                 current = Some((*level as u8, String::new()))
@@ -431,6 +477,15 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
             _ => {}
         }
     }
+    (toc, heading_ids)
+}
+
+/// Render a Markdown body to sanitized HTML.
+pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
+    let events: Vec<Event> = Parser::new_ext(body, md_options()).collect();
+
+    // Pass 1: heading texts → unique ids.
+    let (toc, heading_ids) = collect_headings(&events);
 
     // Pass 2: rewrite.
     let mut out: Vec<Event> = Vec::with_capacity(events.len());
@@ -505,10 +560,7 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
             }) => match classify(&dest_url) {
                 // A link to a heading on this page that isn't there (renamed,
                 // say) is marked like a missing page.
-                LinkKind::Anchor
-                    if dest_url.len() > 1
-                        && !heading_ids.contains(&percent_decode(&dest_url[1..])) =>
-                {
+                LinkKind::Anchor if anchor_is_missing(&heading_ids, &dest_url) => {
                     broken.push(dest_url.to_string());
                     link_stack.push(true);
                     out.push(Event::Html(CowStr::from(
@@ -532,8 +584,8 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
                 }
                 LinkKind::Local => {
                     let fragment = dest_url.split_once('#').map(|(_, f)| f.to_string());
-                    match resolve_local_target(ctx.article_rel, &dest_url) {
-                        Some(rel) if ctx.root.resolve(&rel).is_ok() => {
+                    match judge_local_link(ctx.root, ctx.article_rel, &dest_url) {
+                        LocalLink::Found(rel) => {
                             let href = if rel.to_ascii_lowercase().ends_with(".md") {
                                 let mut h = format!("#/page/{}", encode_path(&rel));
                                 if let Some(f) = fragment {
@@ -551,7 +603,7 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
                                 id,
                             }));
                         }
-                        Some(rel) => {
+                        LocalLink::Missing(rel) => {
                             broken.push(rel.clone());
                             link_stack.push(true);
                             out.push(Event::Html(CowStr::from(format!(
@@ -559,7 +611,7 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
                                 escape_html(&rel)
                             ))));
                         }
-                        None => {
+                        LocalLink::Outside => {
                             broken.push(dest_url.to_string());
                             link_stack.push(true);
                             out.push(Event::Html(CowStr::from(
@@ -584,34 +636,36 @@ pub fn render(body: &str, ctx: &RenderContext) -> Rendered {
                 id,
             }) => match classify(&dest_url) {
                 LinkKind::External => skip_image = Some((dest_url.to_string(), String::new())),
-                LinkKind::Local => match resolve_local_target(ctx.article_rel, &dest_url) {
-                    Some(rel) if ctx.staged.contains_key(&rel) => {
-                        let url = ctx.staged[&rel].clone();
-                        out.push(Event::Start(Tag::Image {
-                            link_type,
-                            dest_url: CowStr::from(url),
-                            title,
-                            id,
-                        }));
+                LinkKind::Local => {
+                    match judge_local_image(ctx.root, ctx.article_rel, ctx.staged, &dest_url) {
+                        LocalImage::Staged(rel) => {
+                            let url = ctx.staged[&rel].clone();
+                            out.push(Event::Start(Tag::Image {
+                                link_type,
+                                dest_url: CowStr::from(url),
+                                title,
+                                id,
+                            }));
+                        }
+                        LocalImage::Found(rel) => {
+                            let url = format!("/ws-file/{}?k={}", encode_path(&rel), ctx.read_key);
+                            out.push(Event::Start(Tag::Image {
+                                link_type,
+                                dest_url: CowStr::from(url),
+                                title,
+                                id,
+                            }));
+                        }
+                        LocalImage::Missing(rel) => {
+                            broken.push(rel.clone());
+                            broken_image = Some((rel, String::new()));
+                        }
+                        LocalImage::Outside => {
+                            broken.push(dest_url.to_string());
+                            broken_image = Some((dest_url.to_string(), String::new()));
+                        }
                     }
-                    Some(rel) if is_image_ext(&rel) && ctx.root.resolve(&rel).is_ok() => {
-                        let url = format!("/ws-file/{}?k={}", encode_path(&rel), ctx.read_key);
-                        out.push(Event::Start(Tag::Image {
-                            link_type,
-                            dest_url: CowStr::from(url),
-                            title,
-                            id,
-                        }));
-                    }
-                    Some(rel) => {
-                        broken.push(rel.clone());
-                        broken_image = Some((rel, String::new()));
-                    }
-                    None => {
-                        broken.push(dest_url.to_string());
-                        broken_image = Some((dest_url.to_string(), String::new()));
-                    }
-                },
+                }
                 LinkKind::Anchor | LinkKind::Unsafe => {
                     broken_image = Some((dest_url.to_string(), String::new()));
                 }
