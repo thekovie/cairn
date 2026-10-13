@@ -1,5 +1,9 @@
 # Cairn: notes for Claude
 
+## Response style
+
+Use the caveman skill in chat: answer first, no filler, fewest words that keep every fact. Code, commit messages, PR text, docs, and code comments stay in plain prose.
+
 ## Graphify
 
 `graphify-out/` holds a knowledge graph of this repository, made with `/graphify`. Use it as an architectural reference, not as source code.
