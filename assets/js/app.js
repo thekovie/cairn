@@ -483,7 +483,7 @@ async function onRoute() {
 // ------------------------------------------------------------------ boot
 
 async function boot() {
-  bootstrapToken();
+  await bootstrapToken();
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-skip-link]')) {
       e.preventDefault();

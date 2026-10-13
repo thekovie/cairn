@@ -34,7 +34,7 @@ The server is [axum](https://github.com/tokio-rs/axum) on tokio. Every filesyste
 | Script injection | Markdown is rendered on the server; raw HTML becomes visible text; the result goes through the [ammonia](https://github.com/rust-ammonia/ammonia) allowlist sanitizer; a strict Content-Security-Policy (`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'`) blocks inline scripts and styles. |
 | Tracking or data leaks | No telemetry, no remote fonts or scripts. The only request Cairn makes on its own is the optional once-a-day check for a new version (GitHub's public releases, nothing about the person or their pages; it can be turned off), sent through the office proxy when there is one, and it never asks for or keeps a password. Remote images in pages are shown as a labeled link and never fetched. |
 
-The token reaches the browser in the URL fragment (`#t=…`), which browsers never send to servers, and is then kept in that tab's `sessionStorage`.
+The token reaches the browser in the URL fragment (`#t=…`), which browsers never send to servers, and is then kept in that tab's `sessionStorage`. A tab opened without it (a link opened in a new tab, or the address pasted) asks the Cairn tabs already open for it over a `BroadcastChannel`, which only pages from the same address can join, so the token is never written to disk. With no Cairn tab open to ask, the tab shows “Please open Cairn from its program window”.
 
 ## The browser interface
 
