@@ -177,7 +177,11 @@ fn link_folder(link: &std::path::Path, target: &std::path::Path) {
 fn a_link_through_a_shortcut_folder_is_reported_not_followed() {
     let ws = fresh();
     targets(&ws);
-    link_folder(&ws.path.join("Guides/shortcut"), &ws.path.join("Other"));
+    // Separate joins: `mklink /J` on Windows rejects a path mixing `\\` and `/`.
+    link_folder(
+        &ws.path.join("Guides").join("shortcut"),
+        &ws.path.join("Other"),
+    );
     let found = check(
         &ws,
         "Guides/Index.md",
