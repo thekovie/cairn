@@ -84,7 +84,7 @@ export async function openPageDownload(ctx, data) {
     body: [
       h('p', null, `“${data.title}”`),
       choiceCards('dl-format', [
-        { value: 'pdf', label: 'PDF document', text: 'Best for reading, printing, or sending to someone. Includes pictures. Links to other pages show as plain text.' },
+        { value: 'pdf', label: 'PDF document', text: 'Best for reading, printing, or sending to someone. Includes pictures. A link to another page shows that page’s name beside it.' },
         { value: 'zip', label: 'Markdown with pictures (.zip)', text: 'This page and its own pictures, as Markdown. Best for moving to another tool. Links to other pages won’t work in the copy. For a backup, use Back up workspace in Settings.' },
         { value: 'md', label: 'Markdown file (.md)', text: 'Just the text of this page.' },
       ]),
@@ -229,7 +229,7 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     body: [
       name ? h('p', null, `“${name}”`) : null,
       choiceCards('dl-format', [
-        { value: 'pdf', label: 'PDFs (.zip)', text: 'One PDF for each page, in the same folders. Best for reading and printing. Includes pictures.' },
+        { value: 'pdf', label: 'PDFs (.zip)', text: 'One PDF for each page, in the same folders. Best for reading and printing. Includes pictures. The PDFs aren’t linked to each other: a link to another page shows that page’s name beside it.' },
         { value: 'md', label: 'Markdown with pictures (.zip)', text: 'The current pages as Markdown files, with their pictures. Best for sharing or moving to another tool. Not a backup: earlier versions and deleted pages are not included.' },
       ]),
       countLine,
