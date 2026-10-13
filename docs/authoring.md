@@ -138,7 +138,7 @@ Open **Page details** in the editor to set:
 
 - **Owner**: who looks after the page.
 - **Status**: *Draft* (still being written), *Active* (up to date), or *Retired* (no longer used).
-- **Last reviewed**: choose a date, or choose **Today**.
+- **Last reviewed**: choose a date, or choose **Today**. A year later, the page is shown as due for review.
 - **Tags**: words separated by commas.
 
 These are stored in a small block at the top of the page:

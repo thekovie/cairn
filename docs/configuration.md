@@ -162,7 +162,9 @@ tags: [printers, office]
 
 Every field is optional. Values that can't be understood are ignored with a notice on the page; the page itself always opens. The page title is the first level-1 heading (`# Title`). Without one, the file name is used.
 
-`last_reviewed` is a calendar date and is never shifted by timezone.
+`last_reviewed` is a calendar date and is never shifted by timezone. A page counts as **due for review** 365 days after its last review: on that day, in the timezone chosen in Settings, lists and the page itself show “Review due”. This period is fixed. A page with no `last_reviewed` date is not shown as due.
+
+If a page's information block can't be understood (for example, a status other than draft, active, or retired, or a broken block), the notice appears on the page and the affected values are ignored. A block that can't be read at all ignores all of its values.
 
 ### Template front matter
 

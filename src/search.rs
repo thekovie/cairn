@@ -25,7 +25,12 @@ pub struct PageSummary {
     pub owner: Option<String>,
     pub status: Option<String>,
     pub last_reviewed: Option<String>,
+    /// The day it counts as overdue for review (a year after the last review).
+    pub review_due_on: Option<String>,
     pub tags: Vec<String>,
+    /// Problems reading the page's information block, in plain language.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
     /// Unix seconds.
     pub modified: u64,
     /// Who last published it in Cairn, if it hasn't changed since.
@@ -60,9 +65,28 @@ fn set_last_edit(summary: &mut PageSummary, last: LastEdit) {
     }
 }
 
+/// Something the last scan could not read. The pages involved stay in the
+/// index as they were, so a dropped connection never makes pages vanish.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ScanProblem {
+    /// Workspace path of the page or folder ("" is the documentation folder).
+    pub path: String,
+    pub reason: String,
+}
+
+fn scan_problem(path: String, err: &std::io::Error) -> ScanProblem {
+    let reason = match err.kind() {
+        std::io::ErrorKind::PermissionDenied => "Cairn isn't allowed to read it.".into(),
+        std::io::ErrorKind::NotFound => "It was removed while Cairn was looking.".into(),
+        _ => format!("It couldn't be read ({err})."),
+    };
+    ScanProblem { path, reason }
+}
+
 #[derive(Default)]
 pub struct SearchIndex {
     entries: HashMap<String, Entry>,
+    problems: Vec<ScanProblem>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -95,7 +119,9 @@ pub fn summarize(path: &str, text: &str, modified: u64) -> (PageSummary, String)
         owner: meta.owner,
         status: meta.status,
         last_reviewed: meta.last_reviewed,
+        review_due_on: meta.review_due_on,
         tags: meta.tags,
+        warnings: meta.warnings,
         modified,
         edited_by: None,
         edited_at: None,
@@ -123,7 +149,19 @@ impl SearchIndex {
                     !name.starts_with('.')
                 }
             });
-        for entry in walker.flatten() {
+        let mut problems: Vec<ScanProblem> = Vec::new();
+        for entry in walker {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    let path = err
+                        .path()
+                        .and_then(|p| root.relative(p))
+                        .unwrap_or_default();
+                    problems.push(scan_problem(path, &std::io::Error::from(err)));
+                    continue;
+                }
+            };
             if !entry.file_type().is_file()
                 || !entry
                     .file_name()
@@ -133,15 +171,23 @@ impl SearchIndex {
             {
                 continue;
             }
-            let Ok(meta) = fs::symlink_metadata(entry.path()) else {
-                continue;
-            };
-            if is_link_like(&meta) {
-                continue;
-            }
             let Some(rel) = root.relative(entry.path()) else {
                 continue;
             };
+            // Listed before it is read: a page that can't be read this time
+            // keeps its old entry instead of disappearing.
+            seen.insert(rel.clone());
+            let meta = match fs::symlink_metadata(entry.path()) {
+                Ok(meta) => meta,
+                Err(e) => {
+                    problems.push(scan_problem(rel, &e));
+                    continue;
+                }
+            };
+            if is_link_like(&meta) {
+                seen.remove(&rel);
+                continue;
+            }
             let modified = meta
                 .modified()
                 .ok()
@@ -149,7 +195,6 @@ impl SearchIndex {
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
             let size = meta.len();
-            seen.insert(rel.clone());
             if let Some(existing) = self.entries.get_mut(&rel)
                 && existing.summary.modified == modified
                 && existing.size == size
@@ -164,8 +209,12 @@ impl SearchIndex {
                 }
                 continue;
             }
-            let Ok(bytes) = fs::read(entry.path()) else {
-                continue;
+            let bytes = match fs::read(entry.path()) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    problems.push(scan_problem(rel, &e));
+                    continue;
+                }
             };
             let (mut summary, plain) = summarize(&rel, &String::from_utf8_lossy(&bytes), modified);
             set_last_edit(&mut summary, editors::last_edit(root, &rel, &bytes));
@@ -179,8 +228,21 @@ impl SearchIndex {
             };
             self.entries.insert(rel, entry);
         }
-        self.entries.retain(|k, _| seen.contains(k));
+        // Pages in a folder that couldn't be listed stay as they were.
+        let unlisted: Vec<String> = problems.iter().map(|p| p.path.clone()).collect();
+        self.entries.retain(|k, _| {
+            seen.contains(k)
+                || unlisted
+                    .iter()
+                    .any(|dir| dir.is_empty() || k.starts_with(&format!("{dir}/")))
+        });
+        self.problems = problems;
         Ok(())
+    }
+
+    /// What the last refresh could not read (empty when everything was).
+    pub fn problems(&self) -> &[ScanProblem] {
+        &self.problems
     }
 
     pub fn get(&self, rel: &str) -> Option<PageSummary> {
