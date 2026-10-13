@@ -361,7 +361,16 @@ fn cmd_backup(args: &[String]) -> ExitCode {
                         megabytes(done.bytes)
                     );
                     if done.passes > 1 {
-                        println!("Some files changed while it ran, so it was made again.");
+                        println!("A file changed while it was being copied, so it was made again.");
+                    }
+                    if !done.changed_during.is_empty() {
+                        println!(
+                            "{} file(s) were saved, added, or removed while it ran, so it holds each as it was when copied:",
+                            done.changed_during.len()
+                        );
+                        for path in done.changed_during.iter().take(10) {
+                            println!("    {}", plain(path));
+                        }
                     }
                     if !done.skipped_links.is_empty() {
                         println!(

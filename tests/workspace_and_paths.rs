@@ -276,3 +276,23 @@ fn file_symlinks_are_rejected_when_the_os_allows_creating_them() {
         Err(CairnError::PathRejected(_))
     ));
 }
+
+#[test]
+fn a_folder_that_has_gone_away_is_reported_as_unreachable_not_as_a_bad_path() {
+    let ws = common::workspace();
+    // The drive under an open documentation folder disappears.
+    std::fs::remove_dir_all(&ws.path).unwrap();
+    let err = ws.root.resolve("Guides/page.md").unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("can't reach"), "{message}");
+    assert!(
+        message.contains("network drive"),
+        "says what to check: {message}"
+    );
+    assert!(!message.contains("Invalid path"), "{message}");
+    assert_eq!(
+        err.code(),
+        "io_error",
+        "a problem with the drive, not the path"
+    );
+}
