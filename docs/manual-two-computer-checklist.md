@@ -2,6 +2,29 @@
 
 Automated tests cover the file operations on one machine (`cargo test`). This checklist covers what only real network storage and two real computers can show. Run it before each release, and whenever you move documentation to a new kind of storage.
 
+## Status: not yet run
+
+Deferred, as of October 2026. The project has one maintainer and no second person or second computer to run this with, so none of the steps below has been done on a real share. Nothing here is marked Pass.
+
+What has been done in its place, on one computer:
+
+- The automated tests (`cargo test`), which cover locks, conflicts, publishing, backup, restore, and export against a local folder.
+- Two Cairn processes opened on one folder: the edit lock was respected, a backup ran while the other process held a lock, and review worked once the lock was released.
+- A real small drive that was too full for a backup or a restore, a disk image detached in the middle of a backup, a 1 GB workspace, and a case-sensitive volume with spaces and accents in its path.
+
+What none of that can show, and so stays unchecked:
+
+- How a real SMB share behaves: exclusive file creation, rename over an open file, and how fast a change made on one computer shows up on the other.
+- Two different people, accounts, and permissions at once, including the read-only folder (step 10).
+- Network loss in the middle of a publish or a backup on a real network (steps 9 and the backup rows).
+- Mac and Linux against a Windows share.
+
+Until it is run, treat network-share behavior as untested. A release note should say so, and the first team that puts Cairn on a shared drive is, in effect, running this checklist. If you do run it, even only steps 1 to 5 and the backup rows, record the result in the table below.
+
+| Date | Build | Share type | Steps run | Result |
+| --- | --- | --- | --- | --- |
+| *(none yet)* | | | | |
+
 ## Setup
 
 - **Computer A** and **Computer B**, with different user accounts. Run it with two Windows 10/11 computers; for a release that changes how Cairn works on a Mac or Linux, run it again with a Mac or Linux computer as B (see [Mac and Linux](#mac-and-linux)).

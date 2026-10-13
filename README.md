@@ -143,7 +143,7 @@ The screenshots use made-up sample content.
 | [Storage and concurrency](docs/storage-and-concurrency.md) | The marker file, edit locks, time-outs, conflicts, recovery, and filesystem limits |
 | [Configuration](docs/configuration.md) | Settings and the workspace file format |
 | [Troubleshooting](docs/troubleshooting.md) | Shared-folder access, failed publishing, abandoned locks, restoring unsaved changes |
-| [Two-computer test checklist](docs/manual-two-computer-checklist.md) | Manual checks for network-share behavior |
+| [Two-computer test checklist](docs/manual-two-computer-checklist.md) | Manual checks for network-share behavior (not yet run: see its Status section) |
 | [Building Cairn](docs/building.md) | Step by step: from a new computer to your own build of Cairn |
 | [Contributing](CONTRIBUTING.md) | Running, testing, and working on the code |
 | [Changelog](CHANGELOG.md) | What changed in each release |
