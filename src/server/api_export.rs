@@ -356,6 +356,8 @@ fn folder_for(ws: &OpenWorkspace, body: &JobBody) -> Result<String> {
 struct Built {
     result: JobResult,
     changed: Vec<String>,
+    /// Anything else the person should read when it finishes.
+    note: Option<String>,
 }
 
 /// `Guides/setup.md` and `Guides/setup.MD` both become `Guides/setup`.
@@ -396,6 +398,7 @@ fn run_job(
     Ok(Some(Built {
         result: JobResult::Bytes(zip.finish()?),
         changed,
+        note: None,
     }))
 }
 
@@ -426,7 +429,11 @@ fn settle(job: &Job, run: impl FnOnce() -> Result<Option<Built>>, skipped: &[Str
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
         Ok(Ok(Some(built))) => {
             *job.result.lock().expect("job result") = Some(built.result);
-            job.set_state(JobState::Finished, finish_note(&built.changed, skipped));
+            let message = match (finish_note(&built.changed, skipped), built.note) {
+                (Some(a), Some(b)) => Some(format!("{a} {b}")),
+                (a, b) => a.or(b),
+            };
+            job.set_state(JobState::Finished, message);
         }
         Ok(Ok(None)) => job.set_state(JobState::Cancelled, None),
         Ok(Err(e)) => job.set_state(JobState::Failed, Some(e.to_string())),
@@ -538,6 +545,7 @@ fn run_backup(
         backup::create(&ws.root, file, found, &progress)?.map(|done| Built {
             result: JobResult::TempFile(file.to_path_buf()),
             changed: done.changed_during,
+            note: done.space_note,
         }),
     )
 }

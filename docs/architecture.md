@@ -141,6 +141,8 @@ The shared folder is not locked, so each file is judged on its own. A file is co
 
 Over HTTP a backup is a job like a download (`POST /api/backup/jobs`, then the same status, cancel, and file routes), but the finished zip waits in the computer's temporary folder and is streamed to the browser, then deleted, instead of being held in memory. Backup files older than a day in the temporary folder are removed when the next backup starts.
 
+Before a backup writes anything, it estimates the size (files that are already compressed count in full, other files at a tenth as the least and in full as the most) and asks the drive how much is free: less than the least is refused, less than the most is allowed with a note. A restore needs the exact total of the files plus a margin (8 MB or 1%, whichever is more) and refuses up front otherwise. Free space comes from `fsutil::available_space` (`statvfs` on Mac and Linux, `GetDiskFreeSpaceExW` on Windows, which reports a network drive's quota for the signed-in user); if it can't be read, the operation goes ahead.
+
 Restore exists only on the command line (`cairn restore`, `cairn backup verify`). It checks the manifest (format, version, safe relative paths with no `..`, absolute or drive paths, backslashes, alternate streams, reserved names, locks, or duplicates), then reads every entry against its size and checksum while extracting into a hidden folder beside the destination. Entries that are links, folders, or not in the list are refused. The destination must be new or empty and not inside another workspace; only after every check passes is the folder moved into place.
 
 ## Timezones
