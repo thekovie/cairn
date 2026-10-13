@@ -48,6 +48,10 @@ struct Entry {
     text_lower: String,
     title_lower: String,
     size: u64,
+    /// The file's modified time in nanoseconds. Whole seconds are not enough:
+    /// a page rewritten at the same length within the same second (a changed
+    /// date, say) would look untouched.
+    stamp: u128,
     hash: String,
 }
 
@@ -195,8 +199,13 @@ impl SearchIndex {
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
             let size = meta.len();
+            let stamp = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_nanos());
             if let Some(existing) = self.entries.get_mut(&rel)
-                && existing.summary.modified == modified
+                && existing.stamp == stamp
                 && existing.size == size
             {
                 // Another computer notes who published a moment after the
@@ -224,6 +233,7 @@ impl SearchIndex {
                 text: plain,
                 summary,
                 size,
+                stamp,
                 hash: sha256_hex(&bytes),
             };
             self.entries.insert(rel, entry);
@@ -590,6 +600,7 @@ mod tests {
                 text: plain,
                 summary,
                 size: 1,
+                stamp: 0,
                 hash: String::new(),
             },
         );

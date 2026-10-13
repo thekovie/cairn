@@ -6,6 +6,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Added
 
+- **Mark as reviewed today.** On a page that is due for review (and in the Documentation health list), one button sets the review date to today. It changes only that date: not the status, and not who is shown as having written the page. It waits if someone is editing the page, never writes over a change made at the same moment, and keeps the earlier version.
 - **Check documentation.** On the Documentation health screen, one button looks through every page for broken links and pictures: missing pages, files, and headings, missing or unsupported pictures, and links that go outside the documentation. Each problem names the page, the line, and what to do. It never visits web addresses, runs only when asked, and says so if it couldn't read some pages.
 - **Documentation health.** A new screen in the left-hand list shows the pages that need attention, with the reason: review due, no review date, no owner, draft, retired, or page details Cairn can't read. Filter by problem. If part of the shared folder couldn't be read, it says so and never reports that everything is fine. See [Writing and editing](docs/authoring.md#documentation-health).
 - **Back up workspace.** **Settings → Back up workspace** saves one .zip with everything needed to bring the documentation back: pages, pictures, templates, earlier versions, and deleted pages. Every file has a checksum. “Download everything” stays for sharing, and now says it is not a backup. See [Back up and restore](docs/backup-and-restore.md).
@@ -13,6 +14,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Fixed
 
+- **A page changed to a same-length text a moment after it was last saved is no longer missed.** Lists and search noticed changes by whole seconds and file size, so a new review date written in the same second looked unchanged. They now compare the exact time.
 - **“Review due” now uses your chosen timezone.** It used the browser's own timezone and could be a day off. The day a page falls due (a year after its last review) is now worked out once by Cairn, so the page list and the page itself always agree.
 - **A folder or page that can't be read no longer disappears from lists and search.** When the shared drive drops out or a folder is off-limits for a moment, Cairn keeps showing the pages it already knew and records what it couldn't read, instead of quietly dropping them.
 - **Downloads no longer leave files out without telling you.** If Cairn can't read a folder or file (no permission, or the shared drive drops), the download stops and names it. Before, the zip looked complete but the pages were missing.

@@ -44,6 +44,88 @@ pub fn review_due_on(last_reviewed: &str) -> Option<String> {
     due.format(&format).ok()
 }
 
+/// The text with `last_reviewed` set to `date` (`YYYY-MM-DD`). Only that one
+/// line changes (or is added): other keys, comments, line endings, a leading
+/// byte-order mark, and the page text stay exactly as they were. A page with
+/// no information block gets one. Fails, leaving the choice to a person, when
+/// the block can't be edited safely (not closed, unreadable, a date spread
+/// over several lines, or two of them).
+pub fn set_last_reviewed(text: &str, date: &str) -> std::result::Result<String, String> {
+    if !is_valid_date(date) {
+        return Err("that isn't a date (year-month-day)".into());
+    }
+    let (bom, rest) = match text.strip_prefix('\u{feff}') {
+        Some(rest) => ("\u{feff}", rest),
+        None => ("", text),
+    };
+    let eol = if rest.contains("\r\n") { "\r\n" } else { "\n" };
+    let own_ending = |line: &str| {
+        if line.ends_with("\r\n") {
+            "\r\n"
+        } else if line.ends_with('\n') {
+            "\n"
+        } else {
+            ""
+        }
+    };
+    let opening = if rest.starts_with("---\r\n") {
+        Some(5)
+    } else if rest.starts_with("---\n") {
+        Some(4)
+    } else {
+        None
+    };
+    let edited = match opening {
+        None => format!("{bom}---{eol}last_reviewed: {date}{eol}---{eol}{rest}"),
+        Some(open_len) => {
+            let (open, after) = rest.split_at(open_len);
+            let mut out = format!("{bom}{open}");
+            let mut lines = after.split_inclusive('\n').peekable();
+            let mut replaced = false;
+            let mut closed = false;
+            while let Some(line) = lines.next() {
+                let trimmed = line.trim_end_matches(['\r', '\n']);
+                if trimmed == "---" || trimmed == "..." {
+                    if !replaced {
+                        out.push_str(&format!("last_reviewed: {date}{eol}"));
+                    }
+                    out.push_str(line);
+                    for rest_of_page in lines.by_ref() {
+                        out.push_str(rest_of_page);
+                    }
+                    closed = true;
+                    break;
+                }
+                let is_key = trimmed
+                    .strip_prefix("last_reviewed")
+                    .is_some_and(|after| after.trim_start_matches(' ').starts_with(':'));
+                if is_key && !replaced {
+                    if lines
+                        .peek()
+                        .is_some_and(|next| next.starts_with([' ', '\t']))
+                    {
+                        return Err("the date is spread over several lines".into());
+                    }
+                    out.push_str(&format!("last_reviewed: {date}{}", own_ending(line)));
+                    replaced = true;
+                    continue;
+                }
+                out.push_str(line);
+            }
+            if !closed {
+                return Err("the information block at the top isn't closed with ---".into());
+            }
+            out
+        }
+    };
+    // It must read back as asked: this catches a block that was already
+    // unreadable, and a date written twice.
+    match parse_front_matter(&edited).0.last_reviewed.as_deref() {
+        Some(read) if read == date => Ok(edited),
+        _ => Err("the information block at the top can't be read".into()),
+    }
+}
+
 /// Split optional YAML front matter from the body. Invalid metadata never
 /// makes the article unreadable: problems become warnings and the body is
 /// always returned.

@@ -168,6 +168,18 @@ Choose a button such as **No owner** to see only those pages, and open a page to
 
 If Cairn can't read part of the shared folder (the drive is offline, or a folder is off-limits to you), the screen says so and names what it couldn't read. It never says everything is fine unless it could check everything.
 
+### Mark as reviewed today
+
+Next to a page that is due for review, or has no review date, the list has **Mark as reviewed today**. The same button is on the page itself when a review is due. It sets **Last reviewed** to today's date, in the timezone chosen in Settings, and nothing else:
+
+- It does **not** change the status, so reviewing a draft doesn't make it active. Reviewing a page is not approving it.
+- It doesn't count as editing the page: the page still shows who last published it. The page as it was is kept under **Earlier versions**, like any change.
+- It won't change a page that someone else is editing, or that you have open in the editor: it says who, and you try again later.
+- If someone changes the page at the same moment, Cairn doesn't write over it. It tells you, and you can try again.
+- It isn't there if you only have read access to the folder or page.
+
+Cairn doesn't record who reviewed a page, only when. Names in Cairn are typed in by each person and are not checked.
+
 ### Check documentation
 
 Below the list, **Check documentation** looks through every page for links and pictures that lead nowhere. It reports, for each page and line:
