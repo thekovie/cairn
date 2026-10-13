@@ -168,6 +168,17 @@ Choose a button such as **No owner** to see only those pages, and open a page to
 
 If Cairn can't read part of the shared folder (the drive is offline, or a folder is off-limits to you), the screen says so and names what it couldn't read. It never says everything is fine unless it could check everything.
 
+### Check documentation
+
+Below the list, **Check documentation** looks through every page for links and pictures that lead nowhere. It reports, for each page and line:
+
+- links to pages or files that don't exist (renamed, moved, or deleted);
+- links to a heading that isn't there, on the same page or another one;
+- pictures that are missing, or are a type Cairn doesn't show (`.svg`, for example);
+- links that go outside the documentation folder, or that aren't allowed.
+
+Web addresses and email links are never visited or checked. The check happens only when you ask for it, and reads each page once, so on a large shared folder it can take a moment. Line numbers count from the page title, as in the editor. Pages are not locked while it runs, so after a change, check again. If a page couldn't be read, the result says it is partial.
+
 ## Unsaved changes
 
 Your unsaved changes are saved on **your own computer** every few seconds, never in the shared folder. The editor shows:

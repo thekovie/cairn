@@ -8,7 +8,7 @@ use axum::extract::State;
 use super::AppState;
 use super::api::{ApiResult, blocking, today_for};
 use crate::error::CairnError;
-use crate::health;
+use crate::{health, linkcheck};
 
 pub async fn health(State(state): State<Arc<AppState>>) -> ApiResult {
     blocking(state, |st| {
@@ -22,6 +22,22 @@ pub async fn health(State(state): State<Arc<AppState>>) -> ApiResult {
         };
         serde_json::to_value(report)
             .map_err(|e| CairnError::Io(format!("The report could not be made: {e}")))
+    })
+    .await
+}
+
+/// Look through every page for links and pictures that lead nowhere. Done
+/// only when asked: it reads every page once.
+pub async fn check(State(state): State<Arc<AppState>>) -> ApiResult {
+    blocking(state, |st| {
+        let ws = st.workspace()?;
+        ws.refresh_index(true);
+        // Take the list and let go of the index: the check can take a while
+        // on a slow share, and other screens shouldn't wait for it.
+        let pages = ws.index.lock().expect("index lock").all();
+        let report = linkcheck::check_workspace(&ws.root, &pages);
+        serde_json::to_value(report)
+            .map_err(|e| CairnError::Io(format!("The result could not be made: {e}")))
     })
     .await
 }

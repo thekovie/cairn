@@ -74,7 +74,7 @@ pub struct ScanProblem {
     pub reason: String,
 }
 
-fn scan_problem(path: String, err: &std::io::Error) -> ScanProblem {
+pub(crate) fn scan_problem(path: String, err: &std::io::Error) -> ScanProblem {
     let reason = match err.kind() {
         std::io::ErrorKind::PermissionDenied => "Cairn isn't allowed to read it.".into(),
         std::io::ErrorKind::NotFound => "It was removed while Cairn was looking.".into(),

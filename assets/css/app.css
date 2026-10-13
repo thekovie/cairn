@@ -370,6 +370,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 [data-theme="contrast"] .chip { outline: 1px solid currentColor; }
 .review-due { color: var(--warn); font-weight: 600; display: inline-flex; gap: var(--space-1); align-items: center; }
 .review-due .icon { width: 1em; height: 1em; }
+.row-stack { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+.check-results { margin-top: var(--space-4); }
 .filters { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* --------------------------------------------------------------- lists */

@@ -125,6 +125,12 @@ For a PDF, the page is rendered with the same sanitizing renderer, pictures are 
 
 Folder and whole-documentation downloads run as in-memory jobs, one at a time, so the interface can show progress and cancel. Finished files are handed over once and dropped 10 minutes after the job ends (not after it starts, so a slow PDF job is still there when it finishes). A job that crashes is marked failed and does not block the next download. Leftover PDF working folders (`cairn-pdf-*`) older than an hour are removed the first time a PDF is made after Cairn starts.
 
+## Documentation health and the link check
+
+`src/health.rs` turns the page index into the Documentation health list: each page gets the problems it has (review due, no review date, no owner, draft, retired, unreadable details). The index records what its last scan could not read, so the screen shows a warning rather than a clean result when part of the folder was unreachable.
+
+**Check documentation** (`src/linkcheck.rs`, `POST /api/health/check`) reads every page once and reports links and pictures that lead nowhere. It makes the same decisions as page rendering, because `article::render` calls the same small functions (`judge_local_link`, `judge_local_image`, `anchor_is_missing`, `collect_headings`): a page never marks a link broken that the check calls fine. Links to headings on other pages are the one thing only the check looks into. It never contacts web addresses, reads each page and each linked-to page's headings once, and lists any page it could not read. Whether `Printer.md` and `printer.md` are the same file is up to the computer's file system, as everywhere else in Cairn.
+
 ## Backups
 
 A backup (`src/backup.rs`) is a zip of everything under the workspace except edit locks, hidden files, and temporary files, so it includes `shared-docs.json`, `_templates`, and `_system/history`, `edited`, and `trash`. Its last entry, `cairn-backup.json`, lists every file with its size and SHA-256, plus a format name and `format_version` (currently 1), the workspace `instance_id` and name, the date, and the Cairn version. Files are streamed through the hash into a hidden `.part` file that is renamed into place only when complete, so a failed or cancelled backup leaves nothing behind.
