@@ -204,7 +204,9 @@ fn work_root(browser: &Path) -> PathBuf {
 }
 
 fn render_with(browser: &Path, html: &str) -> Result<Vec<u8>> {
-    let dir = work_root(browser).join(format!("cairn-pdf-{}", uuid::Uuid::new_v4().simple()));
+    let root = work_root(browser);
+    sweep_once(&root);
+    let dir = root.join(format!("cairn-pdf-{}", uuid::Uuid::new_v4().simple()));
     std::fs::create_dir_all(&dir)?;
     let result = std::fs::write(dir.join("page.html"), html)
         .map_err(CairnError::from)
@@ -229,14 +231,59 @@ pub fn render_pdf(browsers: &[PathBuf], html: &str) -> Result<Vec<u8>> {
         .filter(|b| Some(*b) == last.as_ref())
         .collect();
     ordered.extend(browsers.iter().filter(|b| Some(*b) != last.as_ref()));
+    // A browser that started and then failed (too slow, no file) is a real
+    // problem worth naming; only "nothing could even start" means the
+    // browser's print window is the way to a PDF.
+    let mut last_failure = None;
     for browser in ordered {
-        if let Ok(bytes) = render_with(browser, html) {
-            *LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()) = Some(browser.clone());
-            return Ok(bytes);
+        match render_with(browser, html) {
+            Ok(bytes) => {
+                *LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()) = Some(browser.clone());
+                return Ok(bytes);
+            }
+            Err(CairnError::PdfUnavailable(_)) => {}
+            Err(e) => last_failure = Some(e),
         }
     }
-    // Nothing worked: the browser's print window is still a way to a PDF.
-    Err(unavailable())
+    Err(last_failure.unwrap_or_else(unavailable))
+}
+
+/// Render folders older than this were left behind by a crash or forced quit.
+const STALE_AFTER: Duration = Duration::from_secs(60 * 60);
+
+/// Remove `cairn-pdf-*` folders in `dir` that are older than `max_age`.
+fn sweep_stale(dir: &Path, max_age: Duration) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("cairn-pdf-")
+        {
+            continue;
+        }
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age >= max_age);
+        if old {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// Sweep each work folder once per run of the app.
+fn sweep_once(dir: &Path) {
+    static SWEPT: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    let mut swept = SWEPT.lock().unwrap_or_else(|e| e.into_inner());
+    if !swept.iter().any(|d| d == dir) {
+        swept.push(dir.to_path_buf());
+        sweep_stale(dir, STALE_AFTER);
+    }
 }
 
 #[cfg(test)]
@@ -279,6 +326,19 @@ mod tests {
             work_root(Path::new("/usr/bin/chromium")),
             std::env::temp_dir()
         );
+    }
+
+    #[test]
+    fn stale_render_folders_are_swept_and_other_folders_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("cairn-pdf-abc")).unwrap();
+        std::fs::create_dir(dir.path().join("my-photos")).unwrap();
+        // Brand new folders (a render in progress) are kept.
+        sweep_stale(dir.path(), Duration::from_secs(3600));
+        assert!(dir.path().join("cairn-pdf-abc").exists());
+        sweep_stale(dir.path(), Duration::ZERO);
+        assert!(!dir.path().join("cairn-pdf-abc").exists());
+        assert!(dir.path().join("my-photos").exists());
     }
 
     #[test]

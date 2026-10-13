@@ -115,11 +115,13 @@ When a folder is opened, Cairn reads every `.md` file once into an in-memory ind
 
 ## Downloads and PDFs
 
-Markdown downloads are zips of the files exactly as stored, with workspace-relative paths so links between pages and pictures keep working after unzipping. `_system`, hidden and temporary files, and anything reached through a link or junction are never included.
+Markdown downloads are zips of the files exactly as stored, with workspace-relative paths so links between pages and pictures keep working after unzipping. `_system`, `shared-docs.json`, hidden and temporary files, and anything reached through a link or junction are never included.
+
+A download never leaves a file out without saying so. A folder or file Cairn cannot read (no permission, share disconnected, removed during the download) stops the download and is named in the message. Links that are left out on purpose are listed when the download finishes. Each file's size and modified time are noted when the download starts and checked again after it is read, so files that changed meanwhile are listed too. This is a check, not a snapshot: Cairn does not lock the shared folder, and other people can keep editing while a download is prepared.
 
 For a PDF, the page is rendered with the same sanitizing renderer, pictures are embedded as `data:` URIs, in-app links become plain text, and the styles and font are inlined. The resulting HTML carries its own Content-Security-Policy (`default-src 'none'`, no scripts). Cairn writes it to a private temporary folder and runs Microsoft Edge (or Chrome) headless with a separate throwaway profile and `--print-to-pdf`, so the person's open browser is never touched. The run is limited to 60 seconds and the temporary folder is always deleted. If one browser fails (for example, when a tool redirects every Edge launch), the next is tried. If none works, the API answers `409 pdf_unavailable` and the interface offers its print view instead.
 
-Folder and whole-documentation downloads run as in-memory jobs, one at a time, so the interface can show progress and cancel. Finished files are handed over once and dropped after 10 minutes.
+Folder and whole-documentation downloads run as in-memory jobs, one at a time, so the interface can show progress and cancel. Finished files are handed over once and dropped 10 minutes after the job ends (not after it starts, so a slow PDF job is still there when it finishes). A job that crashes is marked failed and does not block the next download. Leftover PDF working folders (`cairn-pdf-*`) older than an hour are removed the first time a PDF is made after Cairn starts.
 
 ## Timezones
 

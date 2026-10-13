@@ -41,19 +41,40 @@ pub struct Job {
     total: usize,
     done: AtomicUsize,
     cancel: AtomicBool,
-    created: Instant,
+    /// When the state last changed. The keep-for-ten-minutes window runs
+    /// from the end of a job, not its start, so a slow PDF job is still
+    /// there when it finishes.
+    updated: Mutex<Instant>,
     file_name: String,
     state: Mutex<(JobState, Option<String>)>,
     result: Mutex<Option<Vec<u8>>>,
 }
 
 impl Job {
+    fn new(total: usize, file_name: String) -> Job {
+        Job {
+            total,
+            done: AtomicUsize::new(0),
+            cancel: AtomicBool::new(false),
+            updated: Mutex::new(Instant::now()),
+            file_name,
+            state: Mutex::new((JobState::Running, None)),
+            result: Mutex::new(None),
+        }
+    }
+
     fn state(&self) -> (JobState, Option<String>) {
         self.state.lock().expect("job state").clone()
     }
 
     fn set_state(&self, state: JobState, message: Option<String>) {
+        *self.updated.lock().expect("job time") = Instant::now();
         *self.state.lock().expect("job state") = (state, message);
+    }
+
+    fn is_expired(&self) -> bool {
+        self.state().0 != JobState::Running
+            && self.updated.lock().expect("job time").elapsed() >= JOB_TTL
     }
 }
 
@@ -65,7 +86,7 @@ pub struct ExportJobs {
 
 impl ExportJobs {
     fn prune(jobs: &mut HashMap<String, Arc<Job>>) {
-        jobs.retain(|_, j| j.created.elapsed() < JOB_TTL || j.state().0 == JobState::Running);
+        jobs.retain(|_, j| !j.is_expired());
     }
 
     fn get(&self, id: &str) -> Result<Arc<Job>> {
@@ -87,15 +108,7 @@ impl ExportJobs {
             ));
         }
         let id = uuid::Uuid::new_v4().simple().to_string();
-        let job = Arc::new(Job {
-            total,
-            done: AtomicUsize::new(0),
-            cancel: AtomicBool::new(false),
-            created: Instant::now(),
-            file_name,
-            state: Mutex::new((JobState::Running, None)),
-            result: Mutex::new(None),
-        });
+        let job = Arc::new(Job::new(total, file_name));
         jobs.insert(id.clone(), job.clone());
         Ok((id, job))
     }
@@ -312,43 +325,128 @@ fn folder_for(ws: &OpenWorkspace, body: &JobBody) -> Result<String> {
     Ok(rel)
 }
 
+/// A finished archive, and the files that changed while it was being made.
+struct Built {
+    zip: Vec<u8>,
+    changed: Vec<String>,
+}
+
+/// `Guides/setup.md` and `Guides/setup.MD` both become `Guides/setup`.
+fn without_md(rel: &str) -> &str {
+    match rel.len().checked_sub(3) {
+        Some(at) if rel.is_char_boundary(at) && rel[at..].eq_ignore_ascii_case(".md") => &rel[..at],
+        _ => rel,
+    }
+}
+
 fn run_job(
     job: &Job,
     ws: &OpenWorkspace,
-    items: &[String],
+    items: &[archive::Entry],
     settings: Option<&PrintSettings>,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<Option<Built>> {
     let mut zip = archive::ZipBuilder::default();
-    for rel in items {
+    let mut changed = Vec::new();
+    for entry in items {
         if job.cancel.load(Ordering::SeqCst) {
             return Ok(None);
         }
-        match settings {
+        let moved = match settings {
             Some(settings) => {
-                let bytes = page_pdf(ws, settings, rel).map_err(|e| {
-                    CairnError::Io(format!("Couldn't make a PDF of \"{rel}\": {e}"))
+                let bytes = page_pdf(ws, settings, &entry.rel).map_err(|e| {
+                    CairnError::Io(format!("Couldn't make a PDF of \"{}\": {e}", entry.rel))
                 })?;
-                let name = format!("{}.pdf", rel.strip_suffix(".md").unwrap_or(rel));
-                zip.add(&name, &bytes)?;
+                zip.add(&format!("{}.pdf", without_md(&entry.rel)), &bytes)?;
+                entry.changed_since(&ws.root)?
             }
-            None => zip.add_file(&ws.root, rel)?,
+            None => zip.add_entry(&ws.root, entry)?,
+        };
+        if moved {
+            changed.push(entry.rel.clone());
         }
         job.done.fetch_add(1, Ordering::SeqCst);
     }
-    zip.finish().map(Some)
+    Ok(Some(Built {
+        zip: zip.finish()?,
+        changed,
+    }))
+}
+
+fn count(n: usize, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
+/// The first few names, then how many more.
+fn name_list(paths: &[String]) -> String {
+    const SHOWN: usize = 3;
+    let shown = paths.iter().take(SHOWN).cloned().collect::<Vec<_>>();
+    match paths.len().saturating_sub(SHOWN) {
+        0 => shown.join(", "),
+        more => format!("{}, and {more} more", shown.join(", ")),
+    }
+}
+
+/// What the person should know about a download that did finish.
+fn finish_note(changed: &[String], skipped: &[String]) -> Option<String> {
+    let mut parts = Vec::new();
+    if !changed.is_empty() {
+        parts.push(format!(
+            "{} changed while this download was being prepared, so it may mix older and \
+             newer versions ({}). Download again for the latest.",
+            count(changed.len(), "file"),
+            name_list(changed)
+        ));
+    }
+    if !skipped.is_empty() {
+        parts.push(format!(
+            "Left out {} because Cairn doesn't follow links out of the documentation ({}).",
+            count(skipped.len(), "link"),
+            name_list(skipped)
+        ));
+    }
+    (!parts.is_empty()).then(|| parts.join(" "))
+}
+
+/// Run a job and record how it ended. A crash inside the work is a failed
+/// job, never one that stays "running" and blocks every later download.
+fn settle(job: &Job, run: impl FnOnce() -> Result<Option<Built>>, skipped: &[String]) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
+        Ok(Ok(Some(built))) => {
+            *job.result.lock().expect("job result") = Some(built.zip);
+            job.set_state(JobState::Finished, finish_note(&built.changed, skipped));
+        }
+        Ok(Ok(None)) => job.set_state(JobState::Cancelled, None),
+        Ok(Err(e)) => job.set_state(JobState::Failed, Some(e.to_string())),
+        Err(_) => job.set_state(
+            JobState::Failed,
+            Some(
+                "Something went wrong inside Cairn while preparing this download. \
+                 Please try again."
+                    .into(),
+            ),
+        ),
+    }
 }
 
 pub async fn start_job(State(state): State<Arc<AppState>>, Json(body): Json<JobBody>) -> ApiResult {
     blocking(state.clone(), move |st| {
         let ws = st.workspace()?;
         let folder = folder_for(&ws, &body)?;
-        let (items, settings) = match body.format {
+        let (found, settings) = match body.format {
             Format::Pdf => (
-                archive::pages_in(&ws.root, &folder)?,
+                archive::enumerate_pages(&ws.root, &folder)?,
                 Some(print_settings(st, &ws)?),
             ),
-            Format::Md | Format::Zip => (archive::folder_files(&ws.root, &folder)?, None),
+            Format::Md | Format::Zip => (archive::enumerate(&ws.root, &folder)?, None),
         };
+        let archive::Enumeration {
+            entries: items,
+            skipped_links,
+        } = found;
         if items.is_empty() {
             return Err(CairnError::BadRequest(
                 "There are no pages here to download yet.".into(),
@@ -363,16 +461,13 @@ pub async fn start_job(State(state): State<Arc<AppState>>, Json(body): Json<JobB
         let file_name = format!("{}{kind}-{today}.zip", safe_file_name(&base));
         let (id, job) = st.exports.start(items.len(), file_name.clone())?;
         let total = items.len();
-        std::thread::spawn(
-            move || match run_job(&job, &ws, &items, settings.as_ref()) {
-                Ok(Some(bytes)) => {
-                    *job.result.lock().expect("job result") = Some(bytes);
-                    job.set_state(JobState::Finished, None);
-                }
-                Ok(None) => job.set_state(JobState::Cancelled, None),
-                Err(e) => job.set_state(JobState::Failed, Some(e.to_string())),
-            },
-        );
+        std::thread::spawn(move || {
+            settle(
+                &job,
+                || run_job(&job, &ws, &items, settings.as_ref()),
+                &skipped_links,
+            )
+        });
         Ok(json!({ "id": id, "total": total, "file_name": file_name }))
     })
     .await
@@ -429,5 +524,64 @@ mod tests {
         assert_eq!(safe_file_name("a/b:c?"), "a-b-c-");
         assert_eq!(safe_file_name("  ..  "), "cairn-export");
         assert_eq!(stem("Guides/Set up.md"), "Set up");
+    }
+
+    #[test]
+    fn pdf_names_drop_md_in_any_case() {
+        assert_eq!(without_md("Guides/setup.md"), "Guides/setup");
+        assert_eq!(without_md("Guides/Setup.MD"), "Guides/Setup");
+        assert_eq!(without_md("Guides/notes.txt"), "Guides/notes.txt");
+        assert_eq!(without_md("md"), "md");
+        assert_eq!(without_md("é.md"), "é");
+    }
+
+    #[test]
+    fn the_finish_note_names_changed_and_skipped_files() {
+        assert_eq!(finish_note(&[], &[]), None);
+        let one = vec!["Guides/a.md".to_string()];
+        let note = finish_note(&one, &[]).unwrap();
+        assert!(note.starts_with("1 file changed"), "{note}");
+        assert!(note.contains("Guides/a.md"));
+        let many: Vec<String> = (1..=5).map(|i| format!("p{i}.md")).collect();
+        let note = finish_note(&[], &many).unwrap();
+        assert!(
+            note.contains("5 links") && note.contains("p3.md, and 2 more"),
+            "{note}"
+        );
+        assert!(!note.contains("p4.md"));
+    }
+
+    fn running_job() -> Arc<Job> {
+        Arc::new(Job::new(1, "x.zip".into()))
+    }
+
+    #[test]
+    fn a_crash_in_the_work_fails_the_job_and_frees_the_next_download() {
+        let jobs = ExportJobs::default();
+        let (_, job) = jobs.start(1, "x.zip".into()).unwrap();
+        settle(&job, || panic!("simulated crash"), &[]);
+        let (state, message) = job.state();
+        assert_eq!(state, JobState::Failed);
+        assert!(message.unwrap().contains("Something went wrong"));
+        assert!(jobs.start(1, "y.zip".into()).is_ok(), "no longer blocked");
+    }
+
+    #[test]
+    fn a_finished_job_is_kept_for_ten_minutes_after_it_ends() {
+        let Some(long_ago) = Instant::now().checked_sub(JOB_TTL + Duration::from_secs(60)) else {
+            return; // the clock started less than eleven minutes ago
+        };
+        // Started long ago, finished just now: still there.
+        let slow = running_job();
+        *slow.updated.lock().unwrap() = long_ago;
+        slow.set_state(JobState::Finished, None);
+        assert!(!slow.is_expired());
+        // Finished long ago: gone.
+        *slow.updated.lock().unwrap() = long_ago;
+        assert!(slow.is_expired());
+        // Never dropped while it is still working.
+        let busy = running_job();
+        *busy.updated.lock().unwrap() = long_ago;
+        assert!(!busy.is_expired());
     }
 }

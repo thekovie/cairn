@@ -3,11 +3,17 @@
 //! Paths inside a zip are workspace-relative (`Guides/setup.md`,
 //! `Guides/setup.assets/shot-1a2b3c4d.png`), so relative links between pages
 //! and pictures keep working after unzipping. Cairn's `_system` folder,
-//! hidden files, temporary files, and anything reached through a link are
-//! never included.
+//! `shared-docs.json`, hidden files, temporary files, and anything reached
+//! through a link are never included.
+//!
+//! An export never drops a file without saying so. A folder or file Cairn
+//! cannot read stops the export and is named. Links that are left out on
+//! purpose are listed, and a file that changes while the export runs is
+//! flagged.
 
 use std::fs;
-use std::io::{Cursor, Write};
+use std::io::{self, Cursor, Write};
+use std::time::SystemTime;
 
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
@@ -18,14 +24,81 @@ use crate::fsutil::is_link_like;
 use crate::paths::{Root, SYSTEM_DIR};
 use crate::publish::assets_dir_rel;
 use crate::templates::TEMPLATES_DIR;
+use crate::workspace::MARKER_FILE;
 
 fn is_hidden_or_temp(name: &str) -> bool {
     name.starts_with('.') || name.contains(".cairn-tmp-") || name.contains(".cairn-write-probe-")
 }
 
-/// Every exportable file under `folder_rel` ("" = the whole documentation).
-/// `_templates` is included only for a whole-documentation export.
-pub fn folder_files(root: &Root, folder_rel: &str) -> Result<Vec<String>> {
+/// A file's size and modification time at one moment. If it differs later,
+/// the file changed in between.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamp {
+    len: u64,
+    modified: Option<SystemTime>,
+}
+
+impl Stamp {
+    fn of(meta: &fs::Metadata) -> Stamp {
+        Stamp {
+            len: meta.len(),
+            modified: meta.modified().ok(),
+        }
+    }
+}
+
+/// One file chosen for export, and how it looked when it was chosen.
+#[derive(Debug, Clone)]
+pub struct Entry {
+    pub rel: String,
+    pub stamp: Stamp,
+}
+
+/// What an export will contain, and what was left out on purpose.
+#[derive(Debug, Default)]
+pub struct Enumeration {
+    pub entries: Vec<Entry>,
+    /// Links and shortcuts that were not followed, as workspace paths.
+    pub skipped_links: Vec<String>,
+}
+
+impl Enumeration {
+    /// Keep only Markdown pages (for PDF export).
+    fn pages_only(mut self) -> Enumeration {
+        self.entries.retain(|e| is_page(&e.rel));
+        self
+    }
+}
+
+fn is_page(rel: &str) -> bool {
+    rel.to_ascii_lowercase().ends_with(".md")
+        && !rel
+            .split('/')
+            .any(|seg| seg.to_ascii_lowercase().ends_with(".assets"))
+}
+
+/// A file or folder that can't be read stops the export. Leaving it out
+/// quietly would hand over an archive that looks complete and isn't.
+fn read_problem(name: &str, err: &io::Error) -> CairnError {
+    match err.kind() {
+        io::ErrorKind::NotFound => CairnError::NotFound(format!(
+            "“{name}” was removed while the download was being prepared. Please try again."
+        )),
+        io::ErrorKind::PermissionDenied => CairnError::PermissionDenied(format!(
+            "Cairn isn't allowed to read “{name}”, so the download was stopped instead of \
+             leaving it out. Ask whoever manages the shared folder for access, then try again."
+        )),
+        _ => CairnError::Io(format!(
+            "Cairn couldn't read “{name}” ({err}), so the download was stopped instead of \
+             leaving it out. Check that the shared folder is still reachable, then try again."
+        )),
+    }
+}
+
+/// Every exportable file under `folder_rel` ("" = the whole documentation),
+/// plus the links that were not followed. `_templates` is included only for
+/// a whole-documentation export.
+pub fn enumerate(root: &Root, folder_rel: &str) -> Result<Enumeration> {
     let start = root.resolve(folder_rel)?;
     let whole = folder_rel.is_empty();
     let walker = WalkDir::new(&start)
@@ -39,22 +112,51 @@ pub fn folder_files(root: &Root, folder_rel: &str) -> Result<Vec<String>> {
             let is_dir = e.file_type().is_dir();
             let system = is_dir && name.eq_ignore_ascii_case(SYSTEM_DIR);
             let templates = is_dir && !whole && name.eq_ignore_ascii_case(TEMPLATES_DIR);
-            !(is_hidden_or_temp(&name) || system || templates)
+            // The marker carries the workspace's identity: a copy of it
+            // would pose as the original.
+            let marker =
+                whole && e.depth() == 1 && !is_dir && name.eq_ignore_ascii_case(MARKER_FILE);
+            !(is_hidden_or_temp(&name) || system || templates || marker)
         });
-    let mut out = Vec::new();
-    for entry in walker.flatten() {
-        let Ok(meta) = fs::symlink_metadata(entry.path()) else {
-            continue;
-        };
-        if is_link_like(&meta) || !meta.is_file() {
-            continue;
-        }
-        if let Some(rel) = root.relative(entry.path()) {
-            out.push(rel);
+    let mut found = Enumeration::default();
+    for entry in walker {
+        let entry = entry.map_err(|err| {
+            let name = err
+                .path()
+                .and_then(|p| root.relative(p))
+                .unwrap_or_else(|| "a folder".into());
+            read_problem(&name, &io::Error::from(err))
+        })?;
+        let rel = root
+            .relative(entry.path())
+            .ok_or_else(|| CairnError::Io("A file was found outside the documentation.".into()))?;
+        let meta = fs::symlink_metadata(entry.path()).map_err(|e| read_problem(&rel, &e))?;
+        if is_link_like(&meta) {
+            found.skipped_links.push(rel);
+        } else if meta.is_file() {
+            found.entries.push(Entry {
+                rel,
+                stamp: Stamp::of(&meta),
+            });
         }
     }
-    out.sort_by_key(|p| p.to_lowercase());
-    Ok(out)
+    found.entries.sort_by_key(|e| e.rel.to_lowercase());
+    found.skipped_links.sort_by_key(|p| p.to_lowercase());
+    Ok(found)
+}
+
+/// Markdown pages under `folder_rel`, with the same rules as [`enumerate`].
+pub fn enumerate_pages(root: &Root, folder_rel: &str) -> Result<Enumeration> {
+    Ok(enumerate(root, folder_rel)?.pages_only())
+}
+
+/// Every exportable file under `folder_rel` ("" = the whole documentation).
+pub fn folder_files(root: &Root, folder_rel: &str) -> Result<Vec<String>> {
+    Ok(enumerate(root, folder_rel)?
+        .entries
+        .into_iter()
+        .map(|e| e.rel)
+        .collect())
 }
 
 /// A page plus everything in its `<page>.assets/` folder.
@@ -64,15 +166,15 @@ pub fn page_files(root: &Root, page_rel: &str) -> Result<Vec<String>> {
     if let Ok(dir) = root.resolve(&assets)
         && dir.is_dir()
     {
-        for entry in fs::read_dir(dir)?.flatten() {
+        for entry in fs::read_dir(dir).map_err(|e| read_problem(&assets, &e))? {
+            let entry = entry.map_err(|e| read_problem(&assets, &e))?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            let Ok(meta) = fs::symlink_metadata(entry.path()) else {
-                continue;
-            };
+            let rel = format!("{assets}/{name}");
+            let meta = fs::symlink_metadata(entry.path()).map_err(|e| read_problem(&rel, &e))?;
             if is_hidden_or_temp(&name) || is_link_like(&meta) || !meta.is_file() {
                 continue;
             }
-            out.push(format!("{assets}/{name}"));
+            out.push(rel);
         }
     }
     Ok(out)
@@ -81,14 +183,23 @@ pub fn page_files(root: &Root, page_rel: &str) -> Result<Vec<String>> {
 /// Markdown pages under `folder_rel` (for PDF export). Templates are only
 /// included when exporting everything.
 pub fn pages_in(root: &Root, folder_rel: &str) -> Result<Vec<String>> {
-    Ok(folder_files(root, folder_rel)?
+    Ok(enumerate_pages(root, folder_rel)?
+        .entries
         .into_iter()
-        .filter(|p| p.to_ascii_lowercase().ends_with(".md"))
-        .filter(|p| {
-            !p.split('/')
-                .any(|seg| seg.to_ascii_lowercase().ends_with(".assets"))
-        })
+        .map(|e| e.rel)
         .collect())
+}
+
+impl Entry {
+    /// Whether the file is no longer as it was when it was chosen.
+    pub fn changed_since(&self, root: &Root) -> Result<bool> {
+        let path = root.resolve(&self.rel).map_err(|e| match e {
+            CairnError::NotFound(_) => read_problem(&self.rel, &io::ErrorKind::NotFound.into()),
+            other => other,
+        })?;
+        let meta = fs::metadata(&path).map_err(|e| read_problem(&self.rel, &e))?;
+        Ok(Stamp::of(&meta) != self.stamp)
+    }
 }
 
 fn options() -> SimpleFileOptions {
@@ -121,8 +232,19 @@ impl ZipBuilder {
 
     /// Add a workspace file by its relative path (re-checked through the root).
     pub fn add_file(&mut self, root: &Root, rel: &str) -> Result<()> {
-        let bytes = fs::read(root.resolve(rel)?)?;
+        let path = root.resolve(rel).map_err(|e| match e {
+            CairnError::NotFound(_) => read_problem(rel, &io::ErrorKind::NotFound.into()),
+            other => other,
+        })?;
+        let bytes = fs::read(path).map_err(|e| read_problem(rel, &e))?;
         self.add(rel, &bytes)
+    }
+
+    /// Add a chosen file. Returns `true` when it changed since it was chosen,
+    /// so the caller can warn that the archive mixes old and new versions.
+    pub fn add_entry(&mut self, root: &Root, entry: &Entry) -> Result<bool> {
+        self.add_file(root, &entry.rel)?;
+        entry.changed_since(root)
     }
 
     pub fn finish(self) -> Result<Vec<u8>> {

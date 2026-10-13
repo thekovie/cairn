@@ -11,7 +11,9 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cairn::config::AppConfig;
-use cairn::export::archive::{folder_files, page_files, pages_in, zip_files};
+use cairn::export::archive::{
+    ZipBuilder, enumerate, folder_files, page_files, pages_in, zip_files,
+};
 use cairn::export::html::{PrintInput, printable_html};
 use cairn::export::pdf::{find_browsers, render_pdf};
 use cairn::server::{AppState, api::open_at, build_router};
@@ -136,6 +138,102 @@ fn folder_exports_never_follow_folder_links() {
     link_folder(&ws.path.join("Guides").join("linked"), outside.path());
     let files = folder_files(&ws.root, "").unwrap();
     assert!(!files.iter().any(|p| p.contains("secret")), "{files:?}");
+}
+
+#[test]
+fn links_left_out_of_an_export_are_reported() {
+    let ws = common::workspace();
+    sample(&ws);
+    let outside = tempfile::tempdir().unwrap();
+    common::write(&outside.path().join("secret.md"), "# Secret\n");
+    link_folder(&ws.path.join("Guides").join("linked"), outside.path());
+    let found = enumerate(&ws.root, "").unwrap();
+    assert!(
+        found.skipped_links.contains(&"Guides/linked".to_string()),
+        "{:?}",
+        found.skipped_links
+    );
+    assert!(!found.entries.iter().any(|e| e.rel.contains("secret")));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_folder_stops_the_export_and_is_named() {
+    use std::os::unix::fs::PermissionsExt;
+    let ws = common::workspace();
+    sample(&ws);
+    let locked = ws.path.join("Guides/locked");
+    common::write(&locked.join("hidden-from-cairn.md"), "# Locked\n");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let can_read_anyway = std::fs::read_dir(&locked).is_ok();
+    let result = folder_files(&ws.root, "");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if can_read_anyway {
+        eprintln!("skipped: this user can read every folder");
+        return;
+    }
+    let err = result.expect_err("an export must not quietly skip a folder it cannot read");
+    assert!(err.to_string().contains("Guides/locked"), "{err}");
+}
+
+#[test]
+fn a_whole_export_leaves_out_the_workspace_marker() {
+    let ws = common::workspace();
+    sample(&ws);
+    let all = folder_files(&ws.root, "").unwrap();
+    assert!(
+        !all.iter()
+            .any(|p| p.eq_ignore_ascii_case("shared-docs.json")),
+        "{all:?}"
+    );
+}
+
+#[test]
+fn a_file_that_changes_during_the_export_is_reported() {
+    let ws = common::workspace();
+    sample(&ws);
+    let found = enumerate(&ws.root, "Guides").unwrap();
+    let find = |rel: &str| found.entries.iter().find(|e| e.rel == rel).unwrap();
+    common::write(
+        &ws.path.join("Guides/other.md"),
+        "# Other, and now much longer than it was a moment ago\n",
+    );
+    let mut zip = ZipBuilder::default();
+    assert!(
+        zip.add_entry(&ws.root, find("Guides/other.md")).unwrap(),
+        "the edited page is flagged"
+    );
+    assert!(
+        !zip.add_entry(&ws.root, find("Guides/setup.md")).unwrap(),
+        "an untouched page is not"
+    );
+}
+
+#[test]
+fn a_file_removed_during_the_export_fails_with_its_name() {
+    let ws = common::workspace();
+    sample(&ws);
+    let found = enumerate(&ws.root, "Guides").unwrap();
+    let entry = found
+        .entries
+        .iter()
+        .find(|e| e.rel == "Guides/other.md")
+        .unwrap();
+    std::fs::remove_file(ws.path.join("Guides/other.md")).unwrap();
+    let err = ZipBuilder::default()
+        .add_entry(&ws.root, entry)
+        .expect_err("a vanished file must stop the export");
+    assert!(err.to_string().contains("Guides/other.md"), "{err}");
+}
+
+#[test]
+fn unicode_file_names_survive_an_export() {
+    let ws = common::workspace();
+    common::write(&ws.path.join("Guides/Résumé 日本語.md"), "# Résumé\n");
+    let files = folder_files(&ws.root, "Guides").unwrap();
+    assert_eq!(files, ["Guides/Résumé 日本語.md"]);
+    let bytes = zip_files(&ws.root, &files).unwrap();
+    assert_eq!(zip_names(&bytes), ["Guides/Résumé 日本語.md"]);
 }
 
 fn print_input<'a>(

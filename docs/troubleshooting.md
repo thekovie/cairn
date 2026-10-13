@@ -106,7 +106,15 @@ Cairn makes PDFs with Microsoft Edge, Google Chrome, or (on a Mac or Linux) Chro
 - Installing Google Chrome usually makes one-click PDFs work.
 - An administrator can point Cairn at a specific browser with `pdf_browser` in the [settings file](configuration.md#settings-file).
 
-Markdown downloads always work.
+Markdown downloads don't need a browser, so they work without one.
+
+## “Cairn isn't allowed to read …” or “… was removed while the download was being prepared”
+
+Cairn stops a download instead of handing you a zip with pages missing. The message names the folder or file.
+
+- **Not allowed to read:** you don't have permission for that folder on the shared drive. Ask whoever manages it for access, then download again.
+- **Removed, or couldn't read (the share may be offline):** someone moved or deleted the file during the download, or the connection to the shared folder dropped. Check that the folder opens in File Explorer or Finder, then try again.
+- **“Please note” after a finished download:** some files changed while it was being prepared, or some links were left out because Cairn doesn't follow links out of the documentation. Download again to get the latest versions.
 
 ## Times look wrong
 

@@ -2,6 +2,19 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- **Downloads no longer leave files out without telling you.** If Cairn can't read a folder or file (no permission, or the shared drive drops), the download stops and names it. Before, the zip looked complete but the pages were missing.
+- **Downloads tell you what changed or was left out.** When a download finishes, a note lists files that changed while it was being prepared and links that Cairn didn't follow.
+- **Long PDF downloads can be saved when they finish.** A download that took more than 10 minutes used to disappear the moment it finished. The 10 minutes now run from when it ends.
+- **A crash while preparing a download no longer blocks every other download** until Cairn restarts.
+- **A real PDF problem is now reported as one.** When a browser starts but fails (too slow, no file), the message says so, instead of saying no browser was found.
+- **Download everything no longer includes `shared-docs.json`**, which would make an unzipped copy look like the original documentation.
+- A page named with capital letters (`Setup.MD`) now gets the right name in a PDF download.
+- Leftover PDF working folders from a crash are cleaned up.
+
 ## 1.0.1 (2026-10-12)
 
 ### Fixed
