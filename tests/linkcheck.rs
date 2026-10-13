@@ -12,7 +12,9 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cairn::article::{RenderContext, parse_front_matter, render};
 use cairn::config::AppConfig;
-use cairn::linkcheck::{Headings, check_page, check_workspace};
+use cairn::linkcheck::{
+    CheckProgress, Headings, check_page, check_workspace, check_workspace_with,
+};
 use cairn::search::SearchIndex;
 use cairn::server::{AppState, api::open_at, build_router};
 use http_body_util::BodyExt;
@@ -256,6 +258,53 @@ fn a_page_that_cannot_be_read_makes_the_check_incomplete() {
     );
 }
 
+#[test]
+fn the_check_reports_each_page_it_finishes_and_can_be_stopped() {
+    use std::cell::{Cell, RefCell};
+
+    let ws = fresh();
+    for i in 1..=5 {
+        common::write(
+            &ws.path.join(format!("P{i}.md")),
+            &format!("# P{i}\n\n[gone](Nope{i}.md)\n"),
+        );
+    }
+    let mut index = SearchIndex::default();
+    index.refresh(&ws.root).unwrap();
+    let pages = index.all();
+
+    // Every page is reported once, in order, counting up to the total.
+    let seen = RefCell::new(Vec::new());
+    let never = || false;
+    let note = |n: usize| seen.borrow_mut().push(n);
+    let report = check_workspace_with(
+        &ws.root,
+        &pages,
+        &CheckProgress {
+            cancelled: &never,
+            on_page: &note,
+        },
+    )
+    .expect("not stopped");
+    assert_eq!(*seen.borrow(), [1, 2, 3, 4, 5]);
+    assert_eq!(report.total_findings, 5);
+
+    // Stopped part way: no half-finished result is handed back.
+    let done = Cell::new(0usize);
+    let stop_after_two = || done.get() >= 2;
+    let count = |n: usize| done.set(n);
+    let stopped = check_workspace_with(
+        &ws.root,
+        &pages,
+        &CheckProgress {
+            cancelled: &stop_after_two,
+            on_page: &count,
+        },
+    );
+    assert!(stopped.is_none());
+    assert_eq!(done.get(), 2, "it stopped before the third page");
+}
+
 // ---------------------------------------------------------------- the route
 
 const PORT: u16 = 4325;
@@ -272,35 +321,106 @@ fn state(ws: &common::TestWorkspace) -> (tempfile::TempDir, Arc<AppState>) {
     (home, state)
 }
 
+async fn send(
+    st: &Arc<AppState>,
+    method: &str,
+    uri: &str,
+    token: bool,
+) -> (StatusCode, serde_json::Value) {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("host", format!("127.0.0.1:{PORT}"))
+        .header("content-type", "application/json");
+    if token {
+        req = req.header("x-cairn-token", &st.token);
+    }
+    let res = build_router(st.clone())
+        .oneshot(req.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = res.status();
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null),
+    )
+}
+
 #[tokio::test]
-async fn the_check_route_needs_the_token_and_returns_the_findings() {
+async fn a_check_runs_as_a_job_with_progress_and_hands_over_its_result_once() {
     let ws = fresh();
     common::write(&ws.path.join("A.md"), "# A\n\n[gone](Nope.md)\n");
+    common::write(&ws.path.join("B.md"), "# B\n");
     let (_home, st) = state(&ws);
-    let call = |token: bool| {
-        let mut req = Request::builder()
-            .method("POST")
-            .uri("/api/health/check")
-            .header("host", format!("127.0.0.1:{PORT}"))
-            .header("content-type", "application/json");
-        if token {
-            req = req.header("x-cairn-token", &st.token);
-        }
-        req.body(Body::empty()).unwrap()
-    };
-    let router = || build_router(st.clone());
+
     assert_eq!(
-        router().oneshot(call(false)).await.unwrap().status(),
+        send(&st, "POST", "/api/health/check/jobs", false).await.0,
         StatusCode::UNAUTHORIZED
     );
-    let res = router().oneshot(call(true)).await.unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let body = res.into_body().collect().await.unwrap().to_bytes();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["checked"], 1);
+    let (status, started) = send(&st, "POST", "/api/health/check/jobs", true).await;
+    assert_eq!(status, StatusCode::OK, "{started}");
+    assert_eq!(started["total"], 2);
+    let id = started["id"].as_str().unwrap().to_string();
+
+    // Its progress is on the same route as downloads'.
+    let mut finished = false;
+    for _ in 0..200 {
+        let (_, s) = send(&st, "GET", &format!("/api/export/jobs/{id}"), true).await;
+        assert_eq!(s["total"], 2);
+        match s["state"].as_str().unwrap() {
+            "finished" => {
+                assert_eq!(s["done"], 2);
+                finished = true;
+                break;
+            }
+            "running" => tokio::time::sleep(std::time::Duration::from_millis(20)).await,
+            other => panic!("the check ended as {other}: {s}"),
+        }
+    }
+    assert!(finished);
+
+    let result_uri = format!("/api/health/check/jobs/{id}/result");
+    assert_eq!(
+        send(&st, "GET", &result_uri, false).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, json) = send(&st, "GET", &result_uri, true).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["checked"], 2);
     assert_eq!(json["complete"], true);
     assert_eq!(json["total_findings"], 1);
     assert_eq!(json["pages"][0]["path"], "A.md");
     assert_eq!(json["pages"][0]["findings"][0]["kind"], "missing_page");
     assert_eq!(json["pages"][0]["findings"][0]["line"], 3);
+
+    // Handed over once.
+    assert_eq!(
+        send(&st, "GET", &result_uri, true).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn a_check_cannot_start_while_another_job_is_running_and_says_why() {
+    let ws = fresh();
+    for i in 0..300 {
+        common::write(
+            &ws.path.join(format!("P{i:03}.md")),
+            "# P\n\n[gone](Nope.md)\n",
+        );
+    }
+    let (_home, st) = state(&ws);
+    let (status, first) = send(&st, "POST", "/api/health/check/jobs", true).await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    // Started again at once: refused while the first may still be running,
+    // otherwise (it was quick) accepted. Either way it is never silent.
+    let (status, second) = send(&st, "POST", "/api/health/check/jobs", true).await;
+    if status != StatusCode::OK {
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            second["message"].as_str().unwrap().contains("check"),
+            "{second}"
+        );
+    }
 }

@@ -305,20 +305,51 @@ fn check_fragment(
     ))
 }
 
+/// Lets a long check report its progress and be stopped.
+pub struct CheckProgress<'a> {
+    pub cancelled: &'a dyn Fn() -> bool,
+    /// Called after each page, with how many pages are done.
+    pub on_page: &'a dyn Fn(usize),
+}
+
 /// Check every page in `pages` (from the page index). Pages are read one
 /// after another and not locked, so a page edited during the check may be
 /// judged by either version. Run it again after changes.
 pub fn check_workspace(root: &Root, pages: &[PageSummary]) -> CheckReport {
+    let never = || false;
+    let nothing = |_done: usize| {};
+    check_workspace_with(
+        root,
+        pages,
+        &CheckProgress {
+            cancelled: &never,
+            on_page: &nothing,
+        },
+    )
+    .expect("a check that cannot be stopped finishes")
+}
+
+/// [`check_workspace`] that reports progress and can be stopped. Returns
+/// `None` if it was stopped.
+pub fn check_workspace_with(
+    root: &Root,
+    pages: &[PageSummary],
+    progress: &CheckProgress,
+) -> Option<CheckReport> {
     let mut headings = Headings::default();
     let mut unreadable: Vec<ScanProblem> = Vec::new();
     let mut with_findings = Vec::new();
     let mut checked = 0;
     let mut total_findings = 0;
-    for page in pages {
+    for (i, page) in pages.iter().enumerate() {
+        if (progress.cancelled)() {
+            return None;
+        }
         let bytes = match read_file(root, &page.path) {
             Ok(bytes) => bytes,
             Err(e) => {
                 unreadable.push(scan_problem(page.path.clone(), &e));
+                (progress.on_page)(i + 1);
                 continue;
             }
         };
@@ -333,17 +364,18 @@ pub fn check_workspace(root: &Root, pages: &[PageSummary]) -> CheckReport {
                 findings,
             });
         }
+        (progress.on_page)(i + 1);
     }
     for problem in std::mem::take(&mut headings.unreadable) {
         if !unreadable.iter().any(|p| p.path == problem.path) {
             unreadable.push(problem);
         }
     }
-    CheckReport {
+    Some(CheckReport {
         checked,
         complete: unreadable.is_empty(),
         unreadable,
         total_findings,
         pages: with_findings,
-    }
+    })
 }

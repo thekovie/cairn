@@ -116,3 +116,34 @@ test('Mark as reviewed today is offered on a page that has never been reviewed',
   await expect(page.getByRole('button', { name: 'Mark as reviewed today' })).toHaveCount(0);
   expect(readFileSync(join(cairn.docs, 'Undated.md'), 'utf8')).toContain(`last_reviewed: ${daysAgo(0)}`);
 });
+
+test('Check documentation shows how far it has got and can be stopped', async ({ page }) => {
+  await page.getByRole('link', { name: 'Documentation health' }).click();
+
+  // Make the check look slow: report "3 of 10 pages" until Stop is pressed.
+  let stopped = false;
+  await page.route('**/api/export/jobs/*/cancel', async (route) => {
+    stopped = true;
+    await route.continue();
+  });
+  await page.route('**/api/export/jobs/*', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const body = stopped
+      ? { state: 'cancelled', done: 3, total: 10, message: null, file_name: 'check' }
+      : { state: 'running', done: 3, total: 10, message: null, file_name: 'check' };
+    return route.fulfill({ json: body });
+  });
+
+  await page.getByRole('button', { name: 'Check documentation' }).click();
+  const results = page.locator('.check-results');
+  await expect(results.locator('progress')).toHaveAttribute('max', /\d+/);
+  await expect(results).toContainText('Checking page 4 of 10');
+  await expect(results.locator('progress')).toHaveAttribute('value', '3');
+  // One check at a time: the button waits while it runs.
+  await expect(page.getByRole('button', { name: 'Check documentation' })).toBeDisabled();
+
+  await results.getByRole('button', { name: 'Stop' }).click();
+  await expect(results).toContainText('The check was stopped');
+  await expect(results.locator('progress')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Check documentation' })).toBeEnabled();
+});
