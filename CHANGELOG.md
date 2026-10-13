@@ -20,6 +20,10 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Fixed
 
+- **Check documentation no longer says “complete” when a folder could not be read.** If the list of pages was missing a folder Cairn isn't allowed to open, the check only covered the pages it knew about and reported nothing wrong. It now names the folder and says the result is partial.
+- **Keyboard focus stays in the Download and Back up windows.** After the PDF link warning appeared, or after a backup finished, focus dropped to the page behind the window. It now stays on the button.
+- **The chosen filter and the current page are visible in Windows High Contrast.** Before, every filter button on Documentation health looked the same.
+- **Empty screens (Recently deleted, Earlier versions) no longer skip a heading level**, so screen-reader heading lists make sense. The round and square choice buttons are also a little larger, to meet the 24-pixel minimum.
 - **When the drive under the documentation can't be reached, Cairn now says so.** A network drive that drops out used to produce “Invalid path.” Messages now say Cairn can't reach the folder and to check that the drive is still connected.
 - **A page changed to a same-length text a moment after it was last saved is no longer missed.** Lists and search noticed changes by whole seconds and file size, so a new review date written in the same second looked unchanged. They now compare the exact time.
 - **“Review due” now uses your chosen timezone.** It used the browser's own timezone and could be a day off. The day a page falls due (a year after its last review) is now worked out once by Cairn, so the page list and the page itself always agree.

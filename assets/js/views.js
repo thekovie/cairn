@@ -671,7 +671,7 @@ export async function historyView(ctx) {
           h('span', { class: 'row-meta' },
             v.by ? h('span', null, `Published by ${v.by}`) : null,
             h('span', null, formatSize(v.size)))))))
-      : emptyState({ title: 'No earlier versions yet', text: 'Each time this page is published, the version it replaces is kept here.' }),
+      : emptyState({ level: 2, title: 'No earlier versions yet', text: 'Each time this page is published, the version it replaces is kept here.' }),
     preview);
   return { title: `Earlier versions: ${data.title}` };
 }

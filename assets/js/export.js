@@ -53,6 +53,10 @@ function setBusy(btn, busy, label) {
   const spinner = btn.querySelector('.spinner');
   if (busy && !spinner) btn.prepend(h('span', { class: 'spinner', 'aria-hidden': 'true' }));
   if (!busy && spinner) spinner.remove();
+  // A disabled button gives up focus, which then falls to the page behind the
+  // dialog. Take it back once the button works again.
+  const dlg = btn.closest('dialog');
+  if (!busy && dlg?.open && !dlg.contains(document.activeElement)) btn.focus();
 }
 
 function doneMessage(name) {

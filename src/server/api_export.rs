@@ -30,7 +30,7 @@ use crate::export::{archive, pdf};
 use crate::linkcheck::{self, CheckProgress};
 use crate::paths::{is_system_path, normalize_relative};
 use crate::publish::validate_article_path;
-use crate::search::PageSummary;
+use crate::search::{PageSummary, ScanProblem};
 use crate::timefmt;
 
 /// Finished or abandoned jobs are dropped after this long.
@@ -729,7 +729,12 @@ async fn stream_file(path: PathBuf, file_name: &str) -> std::result::Result<Resp
 
 // ---------------------------------------------------------------- checks
 
-fn run_check(job: &Job, ws: &OpenWorkspace, pages: &[PageSummary]) -> Result<Option<Built>> {
+fn run_check(
+    job: &Job,
+    ws: &OpenWorkspace,
+    pages: &[PageSummary],
+    unread: &[ScanProblem],
+) -> Result<Option<Built>> {
     let cancelled = || job.cancel.load(Ordering::SeqCst);
     let on_page = |done: usize| job.done.store(done, Ordering::SeqCst);
     let progress = CheckProgress {
@@ -739,6 +744,8 @@ fn run_check(job: &Job, ws: &OpenWorkspace, pages: &[PageSummary]) -> Result<Opt
     let Some(report) = linkcheck::check_workspace_with(&ws.root, pages, &progress) else {
         return Ok(None);
     };
+    // What the page list itself could not read counts too.
+    let report = report.with_scan_problems(unread);
     let value = serde_json::to_value(report)
         .map_err(|e| CairnError::Io(format!("The result could not be made: {e}")))?;
     Ok(Some(Built {
@@ -757,10 +764,13 @@ pub async fn start_check(State(state): State<Arc<AppState>>) -> ApiResult {
         ws.refresh_index(true);
         // Take the list and let go of the index: the check can take a while
         // on a slow share, and other screens shouldn't wait for it.
-        let pages = ws.index.lock().expect("index lock").all();
+        let (pages, unread) = {
+            let index = ws.index.lock().expect("index lock");
+            (index.all(), index.problems().to_vec())
+        };
         let total = pages.len();
         let (id, job) = st.exports.start(total, "check".into())?;
-        std::thread::spawn(move || settle(&job, || run_check(&job, &ws, &pages), &[]));
+        std::thread::spawn(move || settle(&job, || run_check(&job, &ws, &pages, &unread), &[]));
         Ok(json!({ "id": id, "total": total }))
     })
     .await
