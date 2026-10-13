@@ -81,7 +81,7 @@ npm test
 
 Each test starts its own Cairn on a fresh temporary folder. A slow or failing shared folder is imitated by holding or failing requests in the browser.
 
-Network-share behavior is checked by hand with [docs/manual-two-computer-checklist.md](docs/manual-two-computer-checklist.md).
+Network-share behavior is checked by hand with [docs/manual-two-computer-checklist.md](docs/manual-two-computer-checklist.md). It has not been run yet, for lack of a second person; see its Status section, and add a row there if you run it.
 
 ## Code layout
 
