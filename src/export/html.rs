@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use jiff::tz::TimeZone;
+use pulldown_cmark::{Event, Parser, Tag};
 
 use crate::article::{self, RenderContext};
 use crate::images::sniff_mime;
@@ -221,6 +222,27 @@ fn readable_internal_links(html: &str, root: &Root, current: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// The pages and files this page links to, which a PDF of it cannot follow
+/// (so each link becomes its text with a note beside it). Links to a heading
+/// on the page itself, the page itself, web and email addresses, and links
+/// that are already broken are not counted. One entry per link, in order.
+pub fn converted_links(root: &Root, rel: &str, text: &str) -> Vec<String> {
+    let body = article::parse_front_matter(text).1;
+    Parser::new_ext(body, article::md_options())
+        .filter_map(|event| match event {
+            Event::Start(Tag::Link { dest_url, .. }) if article::is_local_link(&dest_url) => {
+                match article::judge_local_link(root, rel, &dest_url) {
+                    article::LocalLink::Found(target) if !target.eq_ignore_ascii_case(rel) => {
+                        Some(target)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// The page body as self-contained HTML: pictures embedded, links inside

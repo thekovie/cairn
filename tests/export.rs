@@ -14,7 +14,7 @@ use cairn::config::AppConfig;
 use cairn::export::archive::{
     ZipBuilder, enumerate, folder_files, page_files, pages_in, zip_files,
 };
-use cairn::export::html::{PrintInput, printable_html};
+use cairn::export::html::{PrintInput, converted_links, printable_html};
 use cairn::export::pdf::{find_browsers, render_pdf};
 use cairn::server::{AppState, api::open_at, build_router};
 use http_body_util::BodyExt;
@@ -413,6 +413,27 @@ fn nothing_is_loaded_from_the_internet() {
 }
 
 #[test]
+fn only_links_a_pdf_cannot_follow_are_counted_as_converted() {
+    let ws = common::workspace();
+    sample(&ws);
+    std::fs::create_dir_all(ws.path.join("Reference")).unwrap();
+    std::fs::write(ws.path.join("Reference/sheet.pdf"), b"%PDF-1.4").unwrap();
+    let text = "# Page\n\n\
+        [a page](other.md) [again](other.md) [a file](../Reference/sheet.pdf)\n\n\
+        [heading here](#steps) [this page](page.md#steps) [and again](page.md)\n\n\
+        [web](https://example.com) [mail](mailto:a@b.co) [gone](Nope.md)\n\n\
+        ## Steps\n";
+    let found = converted_links(&ws.root, "Guides/page.md", text);
+    assert_eq!(
+        found,
+        ["Guides/other.md", "Guides/other.md", "Reference/sheet.pdf"],
+        "links to other pages and files are converted; headings here, the page itself, \
+         web and email addresses, and broken links are not"
+    );
+    assert!(converted_links(&ws.root, "Guides/page.md", "# Page\n\nNo links.\n").is_empty());
+}
+
+#[test]
 fn a_real_pdf_is_made_when_a_browser_is_available() {
     let browsers = find_browsers(None);
     if browsers.is_empty() {
@@ -593,4 +614,81 @@ async fn folder_jobs_refuse_cairns_own_folder() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn the_pdf_link_report_counts_what_a_download_would_convert() {
+    let ws = common::workspace();
+    sample(&ws);
+    common::write(&ws.path.join("Guides/plain.md"), "# Plain\n\nNo links.\n");
+    common::write(
+        &ws.path.join("Root page.md"),
+        "# Root page\n\n[guide](Guides/other.md)\n",
+    );
+    let (_home, st) = state(AppConfig::default(), &ws);
+    let ask = |uri: &str| {
+        let uri = uri.to_string();
+        let st = st.clone();
+        async move {
+            let (status, _, body) = send(&st, get(&st, &uri)).await;
+            (
+                status,
+                serde_json::from_slice::<serde_json::Value>(&body).unwrap_or_default(),
+            )
+        }
+    };
+
+    // One page: sample's setup.md links to other.md (and to the web).
+    let (status, one) = ask("/api/export/pdf-links?scope=page&path=Guides%2Fsetup.md").await;
+    assert_eq!(status, StatusCode::OK, "{one}");
+    assert_eq!(
+        (one["links"].as_u64(), one["pages"].as_u64()),
+        (Some(1), Some(1))
+    );
+    assert_eq!(one["examples"][0]["page"], "Guides/setup.md");
+    assert_eq!(one["examples"][0]["targets"][0], "Guides/other.md");
+
+    // A page with no links to convert.
+    let (_, none) = ask("/api/export/pdf-links?scope=page&path=Guides%2Fplain.md").await;
+    assert_eq!(
+        (none["links"].as_u64(), none["pages"].as_u64()),
+        (Some(0), Some(0))
+    );
+
+    // A folder, and everything.
+    let (_, folder) = ask("/api/export/pdf-links?scope=folder&path=Guides").await;
+    assert_eq!(
+        (folder["links"].as_u64(), folder["pages"].as_u64()),
+        (Some(1), Some(1))
+    );
+    let (_, all) = ask("/api/export/pdf-links?scope=all").await;
+    assert_eq!(
+        (all["links"].as_u64(), all["pages"].as_u64()),
+        (Some(2), Some(2))
+    );
+}
+
+#[tokio::test]
+async fn the_pdf_link_report_refuses_what_it_does_not_understand() {
+    let ws = common::workspace();
+    sample(&ws);
+    let (_home, st) = state(AppConfig::default(), &ws);
+    for bad in [
+        "/api/export/pdf-links?scope=bogus",
+        "/api/export/pdf-links?scope=page&path=..%2Fx.md",
+        "/api/export/pdf-links?scope=page&path=notes.txt",
+        "/api/export/pdf-links?scope=folder&path=_system",
+    ] {
+        let (status, _, _) = send(&st, get(&st, bad)).await;
+        assert!(
+            status == StatusCode::BAD_REQUEST || status == StatusCode::FORBIDDEN,
+            "{bad}: {status}"
+        );
+    }
+    let no_token = Request::builder()
+        .uri("/api/export/pdf-links?scope=all")
+        .header("host", format!("127.0.0.1:{PORT}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(&st, no_token).await.0, StatusCode::UNAUTHORIZED);
 }

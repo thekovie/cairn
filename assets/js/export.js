@@ -25,6 +25,27 @@ function choiceCards(name, options) {
 
 const chosen = (dlg, name) => dlg.querySelector(`input[name="${name}"]:checked`)?.value;
 
+/**
+ * Before a PDF is made: what happens to links to other pages. A PDF can't
+ * follow them, so each keeps its words with the name of what it pointed at
+ * beside it. Returns a warning, or null when nothing will change.
+ */
+async function pdfLinkWarning(params) {
+  const r = await get('/api/export/pdf-links', params);
+  if (!r.links) return null;
+  const links = r.links === 1 ? '1 link' : `${r.links} links`;
+  const where = r.pages > 1 ? ` on ${r.pages} pages` : '';
+  const example = r.examples[0];
+  return banner({
+    tone: 'warn', title: 'Links to other pages will change in the PDF', role: 'status',
+    text: h('div', null,
+      h('p', null, `This download has ${links} to other pages or files${where}. A PDF can’t follow links between pages, so each link keeps its words and the name of what it pointed at is written beside it, for example “see the guide (see “Printer setup”)”, or “(file “price-list.pdf”)” for a file.`),
+      h('p', null, 'Links to headings on the same page, and web addresses, still work.'),
+      example ? h('p', { class: 'help' }, `For example, “${example.page}” links to ${example.targets.join(', ')}.`) : null,
+      h('p', null, 'Choose Download anyway to carry on, or pick another kind of file.')),
+  });
+}
+
 function setBusy(btn, busy, label) {
   btn.disabled = busy;
   btn.toggleAttribute('aria-busy', busy);
@@ -49,11 +70,27 @@ export async function openPageDownload(ctx, data) {
   const status = h('div', { class: 'dl-status' });
   let dialog = null;
   let working = false;
+  let warned = false; // the PDF link warning has been shown
 
   async function run() {
     const goBtn = dialog.querySelector('button[value="go"]');
     const format = chosen(dialog, 'dl-format');
     clear(status);
+    if (format === 'pdf' && !warned) {
+      setBusy(goBtn, true, 'Checking…');
+      let warning = null;
+      try {
+        warning = await pdfLinkWarning({ scope: 'page', path: data.path });
+      } catch { /* the download itself will report any real problem */ }
+      if (warning) {
+        warned = true;
+        status.append(warning);
+        // The dialog scrolls: make sure the warning is on screen, not below it.
+        warning.scrollIntoView({ block: 'nearest' });
+        setBusy(goBtn, false, 'Download anyway');
+        return;
+      }
+    }
     working = true;
     setBusy(goBtn, true, 'Preparing…');
     try {
@@ -94,7 +131,16 @@ export async function openPageDownload(ctx, data) {
       { label: 'Close', value: 'cancel' },
       { label: 'Download', value: 'go', kind: 'primary', submit: true, icon: 'download' },
     ],
-    onOpen: (dlg) => { dialog = dlg; },
+    onOpen: (dlg) => {
+      dialog = dlg;
+      // Another kind of file: the warning no longer applies.
+      dlg.addEventListener('change', () => {
+        if (!warned) return;
+        warned = false;
+        clear(status);
+        setBusy(dlg.querySelector('button[value="go"]'), false, 'Download');
+      });
+    },
     onSubmit: (value) => {
       if (value === 'go' && !working) run();
       return false; // stay open to show progress and the result
@@ -110,12 +156,15 @@ export async function openPageDownload(ctx, data) {
  * closed, and saves the finished file. `request(dialog)` starts the job and
  * returns `{ id, total }`.
  */
-async function openJobDialog({ title, noun, startLabel, unit, body, request, formatOf = () => null }) {
+async function openJobDialog({
+  title, noun, startLabel, unit, body, request, formatOf = () => null, beforeStart = null,
+}) {
   const status = h('div', { class: 'dl-status' });
   let dialog = null;
   let job = null; // { id, total, done, format }
   let timer = 0;
   let endGuard = null; // ends the "keep this tab open" guard while a job runs
+  let warned = false; // a warning from `beforeStart` has been shown
 
   function progressView(done, total) {
     return h('div', { class: 'dl-progress' },
@@ -175,6 +224,20 @@ async function openJobDialog({ title, noun, startLabel, unit, body, request, for
     const goBtn = dialog.querySelector('button[value="go"]');
     const format = formatOf(dialog);
     clear(status);
+    if (beforeStart && !warned) {
+      setBusy(goBtn, true, 'Checking…');
+      let warning = null;
+      try {
+        warning = await beforeStart(dialog);
+      } catch { /* the job itself will report any real problem */ }
+      if (warning) {
+        warned = true;
+        status.append(warning);
+        warning.scrollIntoView({ block: 'nearest' });
+        setBusy(goBtn, false, `${startLabel} anyway`);
+        return;
+      }
+    }
     setBusy(goBtn, true, 'Preparing…');
     try {
       const res = await request(dialog);
@@ -200,7 +263,16 @@ async function openJobDialog({ title, noun, startLabel, unit, body, request, for
       { label: 'Close', value: 'cancel' },
       { label: startLabel, value: 'go', kind: 'primary', submit: true, icon: 'download' },
     ],
-    onOpen: (dlg) => { dialog = dlg; },
+    onOpen: (dlg) => {
+      dialog = dlg;
+      // A different choice: any warning shown no longer applies.
+      dlg.addEventListener('change', () => {
+        if (!warned) return;
+        warned = false;
+        clear(status);
+        setBusy(dlg.querySelector('button[value="go"]'), false, startLabel);
+      });
+    },
     onSubmit: (value) => {
       if (value === 'go' && !job) start();
       return false;
@@ -235,6 +307,7 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
       countLine,
     ],
     formatOf: (dlg) => chosen(dlg, 'dl-format'),
+    beforeStart: (dlg) => (chosen(dlg, 'dl-format') === 'pdf' ? pdfLinkWarning({ scope, path }) : null),
     request: (dlg) => post('/api/export/jobs', { scope, path, format: chosen(dlg, 'dl-format') }),
   });
 }
