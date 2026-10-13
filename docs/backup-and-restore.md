@@ -52,11 +52,12 @@ powershell -Command "& 'C:\Program Files\Cairn\cairn.exe' backup create '\\serve
 
 ### What if people are editing?
 
-Cairn does not lock the shared folder, and it cannot take a perfect snapshot of it. Instead it checks:
+Cairn does not lock the shared folder, and it cannot take a perfect snapshot of it. Instead:
 
-1. It notes each file's size and modified time, copies every file, and checks again at the end.
-2. If anything changed, it makes the backup again, once.
-3. If files still keep changing, it stops, deletes the unfinished file, and names the files. Try again when fewer people are editing.
+1. It copies each file in one go and checks that the file didn't change while it was being read. Pages saved in Cairn are replaced whole, never half written, so each copy is a complete version.
+2. If a file changed while it was being copied (an editor saving it in place, for example), or disappeared before it was reached, Cairn starts over with a fresh list. It tries up to three times.
+3. If files still keep changing or disappearing, it stops, deletes the unfinished file, and names them. Try again when fewer people are editing.
+4. A page that someone saves, creates, or deletes *after* it was copied doesn't stop the backup. The backup holds each file as it was when copied, and Cairn lists the files that changed while it ran, so you know the backup may mix slightly older and newer versions.
 
 If Cairn cannot read a folder or file (no permission, or the shared drive drops out), the backup also stops and names it. A backup is never handed over with files quietly missing.
 
@@ -101,7 +102,8 @@ A backup is an ordinary zip. To recover just one earlier version of one page, op
 
 ## If something goes wrong
 
-- **“kept changing while the backup was made”**: too many people were editing at once. Try again in a quiet moment.
+- **“kept changing while the backup was made”**: a file changed or disappeared while it was being copied, three times running. Try again in a quiet moment.
+- **“can't reach … right now”**: the drive under the documentation went away (a network drive disconnected, or a USB drive was removed). Reconnect it and try again. No unfinished file is left behind.
 - **“isn't allowed to read” or “couldn't read”**: you don't have access to that folder, or the shared drive is offline. Fix access, then try again.
 - **“doesn't match its checksum” or “damaged or incomplete”**: that copy of the backup is damaged. Use another copy.
 - **“made by a newer Cairn”**: update Cairn, then restore.

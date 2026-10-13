@@ -37,8 +37,9 @@ pub const BACKUP_FORMAT: &str = "cairn-backup";
 /// Raised when the layout changes in a way older versions can't read.
 pub const BACKUP_FORMAT_VERSION: u32 = 1;
 
-/// A backup is made at most this many times if files keep changing.
-const MAX_PASSES: u32 = 2;
+/// A backup is started again at most this many times if a file keeps
+/// changing while it is being copied.
+const MAX_PASSES: u32 = 3;
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_MARKER_BYTES: u64 = 1024 * 1024;
 const CHUNK: usize = 1024 * 1024;
@@ -72,8 +73,21 @@ pub struct Summary {
     pub files: usize,
     pub bytes: u64,
     pub skipped_links: Vec<String>,
-    /// 1 normally; 2 when files changed during the first attempt.
+    /// 1 normally; more when a file changed while it was being copied.
     pub passes: u32,
+    /// Files someone saved, added, or removed while the backup ran. The backup
+    /// holds each as it was when it was copied (and not the files created
+    /// later). Each file is still a whole, unchanged version.
+    pub changed_during: Vec<String>,
+}
+
+/// How one attempt at a backup ended.
+enum PassResult {
+    Cancelled,
+    /// This file changed while it was being copied, or disappeared before
+    /// it could be: start again with a fresh list.
+    Unstable(String),
+    Done(Summary),
 }
 
 /// What a restore wrote.
@@ -215,35 +229,40 @@ fn attempts(
         MarkerStatus::Invalid(why) => return Err(CairnError::Io(why)),
     };
     let mut listing = first;
+    let mut unstable: Vec<String> = Vec::new();
     for pass in 1..=MAX_PASSES {
-        let Some(mut summary) = write_pass(root, &marker, part, &listing, progress)? else {
-            return Ok(None);
+        let mut summary = match write_pass(root, &marker, part, &listing, progress)? {
+            PassResult::Cancelled => return Ok(None),
+            PassResult::Unstable(rel) => {
+                unstable.push(rel);
+                if pass == MAX_PASSES {
+                    unstable.sort_by_key(|p| p.to_lowercase());
+                    unstable.dedup();
+                    return Err(CairnError::Conflict(format!(
+                        "{} kept changing while the backup was made ({}). Cairn checks for \
+                         changes but doesn't lock the shared folder. Try again when fewer \
+                         people are editing.",
+                        count(unstable.len(), "file"),
+                        name_list(&unstable)
+                    )));
+                }
+                let _ = fs::remove_file(part);
+                listing = enumerate_backup(root)?;
+                continue;
+            }
+            PassResult::Done(summary) => summary,
         };
-        let after = enumerate_backup(root)?;
-        let changed = changed_files(&listing, &after);
-        if changed.is_empty() {
-            // Read the finished file back: the destination is often a
-            // network share, and a backup that can't be restored (for
-            // example two names that differ only in capitals) must not be
-            // reported as a success.
-            verify(part).map_err(|e| {
-                CairnError::Io(format!(
-                    "The backup was written but did not pass its own check, so it was not kept. {e}"
-                ))
-            })?;
-            summary.passes = pass;
-            return Ok(Some(summary));
-        }
-        if pass == MAX_PASSES {
-            return Err(CairnError::Conflict(format!(
-                "{} kept changing while the backup was made ({}). Cairn checks for changes \
-                 but doesn't lock the shared folder. Try again when fewer people are editing.",
-                count(changed.len(), "file"),
-                name_list(&changed)
-            )));
-        }
-        let _ = fs::remove_file(part);
-        listing = after;
+        // Read the finished file back: the destination is often a network
+        // share, and a backup that can't be restored (for example two names
+        // that differ only in capitals) must not be reported as a success.
+        verify(part).map_err(|e| {
+            CairnError::Io(format!(
+                "The backup was written but did not pass its own check, so it was not kept. {e}"
+            ))
+        })?;
+        summary.passes = pass;
+        summary.changed_during = changed_files(&listing, &enumerate_backup(root)?);
+        return Ok(Some(summary));
     }
     Err(CairnError::Io("The backup could not be completed.".into()))
 }
@@ -280,7 +299,7 @@ fn write_pass(
     part: &Path,
     listing: &Enumeration,
     progress: &Progress,
-) -> Result<Option<Summary>> {
+) -> Result<PassResult> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     // Only the owner may read it: on a shared Linux computer the temporary
@@ -297,7 +316,7 @@ fn write_pass(
     let mut bytes = 0u64;
     for (i, entry) in listing.entries.iter().enumerate() {
         if (progress.cancelled)() {
-            return Ok(None);
+            return Ok(PassResult::Cancelled);
         }
         check_path(&entry.rel).map_err(|why| {
             CairnError::Io(format!(
@@ -305,7 +324,14 @@ fn write_pass(
                 entry.rel
             ))
         })?;
-        let item = add_streamed(&mut writer, root, &entry.rel, &mut buf)?;
+        let item = match add_streamed(&mut writer, root, &entry.rel, &mut buf) {
+            Ok(Some(item)) => item,
+            // Changed while being copied, or gone before it was reached.
+            Ok(None) | Err(CairnError::NotFound(_)) => {
+                return Ok(PassResult::Unstable(entry.rel.clone()));
+            }
+            Err(e) => return Err(e),
+        };
         bytes += item.size;
         files.push(item);
         (progress.on_file)(i + 1);
@@ -327,11 +353,12 @@ fn write_pass(
     writer.write_all(&json).map_err(|e| write_problem(&e))?;
     let file = writer.finish().map_err(zip_problem)?;
     file.sync_all().map_err(|e| write_problem(&e))?;
-    Ok(Some(Summary {
+    Ok(PassResult::Done(Summary {
         files: manifest.files.len(),
         bytes,
         skipped_links: manifest.skipped,
         passes: 1,
+        changed_during: Vec::new(),
     }))
 }
 
@@ -371,13 +398,14 @@ fn add_streamed(
     root: &Root,
     rel: &str,
     buf: &mut [u8],
-) -> Result<ManifestFile> {
+) -> Result<Option<ManifestFile>> {
     let path = root.resolve(rel).map_err(|e| match e {
         CairnError::NotFound(_) => read_problem(rel, &io::ErrorKind::NotFound.into()),
         other => other,
     })?;
     let mut file = open_regular(&path, rel)?;
-    let len = file.metadata().map_err(|e| read_problem(rel, &e))?.len();
+    let before = file.metadata().map_err(|e| read_problem(rel, &e))?;
+    let len = before.len();
     let mut options = zip_options();
     if len >= LARGE_FILE_BYTES {
         options = options.large_file(true);
@@ -394,11 +422,17 @@ fn add_streamed(
         writer.write_all(&buf[..n]).map_err(|e| write_problem(&e))?;
         size += n as u64;
     }
-    Ok(ManifestFile {
+    // Written to while it was read (an editor saving in place): what was
+    // copied may be half old and half new.
+    let after = file.metadata().map_err(|e| read_problem(rel, &e))?;
+    if size != len || after.len() != len || after.modified().ok() != before.modified().ok() {
+        return Ok(None);
+    }
+    Ok(Some(ManifestFile {
         path: rel.to_string(),
         size,
         sha256: hex::encode(hasher.finalize()),
-    })
+    }))
 }
 
 // --------------------------------------------------------------- verifying

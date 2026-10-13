@@ -183,7 +183,15 @@ impl Root {
                 Err(_) => break,
             }
         }
-        let resolved = fs::canonicalize(&deepest_existing).map_err(|_| reject("Invalid path."))?;
+        // The deepest folder that was there a moment ago can't be looked up:
+        // the drive or share under it has gone away.
+        let resolved = fs::canonicalize(&deepest_existing).map_err(|e| {
+            CairnError::Io(format!(
+                "Cairn can't reach “{}” right now ({e}). If the documentation is on a \
+                 network drive, check that the drive is still connected, then try again.",
+                display_path(&deepest_existing)
+            ))
+        })?;
         if !is_within(&resolved, &self.canonical) {
             return Err(reject("That path is outside the documentation folder."));
         }

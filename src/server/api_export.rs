@@ -535,9 +535,9 @@ fn run_backup(
         on_file: &on_file,
     };
     Ok(
-        backup::create(&ws.root, file, found, &progress)?.map(|_| Built {
+        backup::create(&ws.root, file, found, &progress)?.map(|done| Built {
             result: JobResult::TempFile(file.to_path_buf()),
-            changed: Vec::new(),
+            changed: done.changed_during,
         }),
     )
 }

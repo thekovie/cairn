@@ -528,19 +528,71 @@ fn a_link_inside_an_archive_is_refused() {
 // ------------------------------------------------------ files that change
 
 #[test]
-fn a_file_that_changes_during_the_backup_triggers_one_retry() {
+fn a_file_saved_during_the_backup_is_copied_whole_and_reported() {
     let ws = common::workspace();
     sample(&ws);
     let out = out_dir();
     let zip = out.path().join("backup.zip");
+    let first = enumerate_backup(&ws.root).unwrap();
+    let copied_first = first.entries[0].rel.clone();
+    let old_first = std::fs::read(ws.path.join(&copied_first)).unwrap();
     let calls = Cell::new(0usize);
-    let target = ws.path.join("Root page.md");
     let not_cancelled = || false;
     let on_file = |_done: usize| {
         calls.set(calls.get() + 1);
-        // Once, during the first pass.
         if calls.get() == 1 {
-            common::write(&target, "# Root, edited while the backup was running\n");
+            // A page not copied yet, and the page that has just been copied.
+            common::write(
+                &ws.path.join("Root page.md"),
+                "# Root, edited while the backup was running\n",
+            );
+            common::write(
+                &ws.path.join(&copied_first),
+                "{\"changed\":\"after it was copied\"}",
+            );
+        }
+    };
+    let progress = Progress {
+        cancelled: &not_cancelled,
+        on_file: &on_file,
+    };
+    let summary = create(&ws.root, &zip, first, &progress).unwrap().unwrap();
+
+    // No need to start over: each file was copied as one whole version.
+    assert_eq!(summary.passes, 1);
+    assert!(summary.changed_during.contains(&"Root page.md".to_string()));
+    assert!(summary.changed_during.contains(&copied_first));
+
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(&zip).unwrap()).unwrap();
+    let mut read = |name: &str| {
+        let mut bytes = Vec::new();
+        archive
+            .by_name(name)
+            .unwrap()
+            .read_to_end(&mut bytes)
+            .unwrap();
+        bytes
+    };
+    let root = String::from_utf8(read("Root page.md")).unwrap();
+    assert!(
+        root.contains("edited while the backup"),
+        "copied after the edit"
+    );
+    assert_eq!(read(&copied_first), old_first, "copied before the edit");
+    verify(&zip).unwrap();
+}
+
+#[test]
+fn a_file_that_vanishes_once_is_handled_by_trying_again() {
+    let ws = common::workspace();
+    sample(&ws);
+    common::write(&ws.path.join("zz1.md"), "# Last\n");
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    let not_cancelled = || false;
+    let on_file = |done: usize| {
+        if done == 1 {
+            let _ = std::fs::remove_file(ws.path.join("zz1.md"));
         }
     };
     let progress = Progress {
@@ -549,31 +601,28 @@ fn a_file_that_changes_during_the_backup_triggers_one_retry() {
     };
     let first = enumerate_backup(&ws.root).unwrap();
     let summary = create(&ws.root, &zip, first, &progress).unwrap().unwrap();
-    assert_eq!(summary.passes, 2);
-    // The final archive holds the edited page and verifies.
-    let mut archive = zip::ZipArchive::new(std::fs::File::open(&zip).unwrap()).unwrap();
-    let mut text = String::new();
-    archive
-        .by_name("Root page.md")
-        .unwrap()
-        .read_to_string(&mut text)
-        .unwrap();
-    assert!(text.contains("edited while the backup"));
+    assert_eq!(summary.passes, 2, "the list was made again without it");
+    assert!(!names(&zip).contains(&"zz1.md".to_string()));
     verify(&zip).unwrap();
 }
 
 #[test]
-fn a_backup_that_cannot_settle_fails_and_names_the_file() {
+fn files_that_keep_disappearing_make_the_backup_give_up_and_name_them() {
     let ws = common::workspace();
     sample(&ws);
+    for i in 1..=3 {
+        common::write(&ws.path.join(format!("zz{i}.md")), "# Last\n");
+    }
     let out = out_dir();
     let zip = out.path().join("backup.zip");
-    let target = ws.path.join("Root page.md");
-    let counter = Cell::new(0usize);
+    let pass = Cell::new(0usize);
     let not_cancelled = || false;
-    let on_file = |_done: usize| {
-        counter.set(counter.get() + 1);
-        common::write(&target, &format!("# Root, edit number {}\n", counter.get()));
+    // Each attempt, a different page that hasn't been copied yet is removed.
+    let on_file = |done: usize| {
+        if done == 1 {
+            pass.set(pass.get() + 1);
+            let _ = std::fs::remove_file(ws.path.join(format!("zz{}.md", pass.get())));
+        }
     };
     let progress = Progress {
         cancelled: &not_cancelled,
@@ -581,7 +630,11 @@ fn a_backup_that_cannot_settle_fails_and_names_the_file() {
     };
     let first = enumerate_backup(&ws.root).unwrap();
     let err = create(&ws.root, &zip, first, &progress).unwrap_err();
-    assert!(err.to_string().contains("Root page.md"), "{err}");
+    let message = err.to_string();
+    assert!(message.contains("kept changing"), "{message}");
+    for name in ["zz1.md", "zz2.md", "zz3.md"] {
+        assert!(message.contains(name), "{name} not named: {message}");
+    }
     assert!(!zip.exists(), "an unreliable backup is not left behind");
     assert!(
         std::fs::read_dir(out.path()).unwrap().next().is_none(),
@@ -708,6 +761,98 @@ fn a_backup_never_follows_a_file_swapped_for_a_link() {
         !bytes.windows(7).any(|w| w == b"private"),
         "content from outside the documentation is in the backup"
     );
+}
+
+/// Someone keeps saving pages while backups are made, the way an editor or
+/// Notepad on another computer would (a temporary file renamed over the
+/// page). Every backup must either verify as a whole, or fail saying files
+/// kept changing, and never leave a half-written file behind.
+fn backups_while_people_save(pause: std::time::Duration) -> (usize, usize) {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    let ws = common::workspace();
+    sample(&ws);
+    for i in 0..40 {
+        common::write(
+            &ws.path.join(format!("Bulk/page{i:02}.md")),
+            &format!("# Page {i}\n"),
+        );
+    }
+    let out = out_dir();
+    let stop = Arc::new(AtomicBool::new(false));
+    let saves = Arc::new(AtomicUsize::new(0));
+
+    let writer = {
+        let (stop, saves) = (stop.clone(), saves.clone());
+        let pages = [
+            ws.path.join("Root page.md"),
+            ws.path.join("Guides/setup.md"),
+            ws.path.join("Bulk/page07.md"),
+            ws.path.join("Bulk/page33.md"),
+        ];
+        std::thread::spawn(move || {
+            let mut n = 0usize;
+            while !stop.load(Ordering::SeqCst) {
+                let page = &pages[n % pages.len()];
+                // Different lengths each time, so the change is always visible.
+                let text = format!("# Saved {n}\n\n{}\n", "x".repeat(n % 50));
+                let _ = cairn::fsutil::write_atomic(page, text.as_bytes());
+                saves.fetch_add(1, Ordering::SeqCst);
+                n += 1;
+                std::thread::sleep(pause);
+            }
+        })
+    };
+
+    let (mut finished, mut gave_up) = (0, 0);
+    for round in 0..25 {
+        let zip = out.path().join(format!("backup-{round}.zip"));
+        match create_backup(&ws.root, &zip) {
+            Ok(_) => {
+                verify(&zip).expect("a backup that was kept must verify");
+                finished += 1;
+            }
+            Err(cairn::error::CairnError::Conflict(message)) => {
+                assert!(message.contains("kept changing"), "{message}");
+                assert!(!zip.exists(), "an unreliable backup was left behind");
+                gave_up += 1;
+            }
+            Err(other) => panic!("unexpected failure while people were saving: {other}"),
+        }
+    }
+    stop.store(true, Ordering::SeqCst);
+    writer.join().unwrap();
+
+    assert!(saves.load(Ordering::SeqCst) > 5, "the writer barely ran");
+    assert_eq!(finished + gave_up, 25);
+    let leftovers: Vec<String> = std::fs::read_dir(out.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains("cairn-part") || n.starts_with('.'))
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "half-written files left: {leftovers:?}"
+    );
+    (finished, gave_up)
+}
+
+/// Someone saving constantly (thousands of times a second). Saving never
+/// leaves a page half written, so every backup is a whole, verified copy
+/// (and says what changed while it ran).
+#[test]
+fn backups_during_constant_saving_still_finish_and_verify() {
+    let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_micros(300));
+    assert_eq!((finished, gave_up), (25, 0));
+}
+
+/// Someone saving now and then, which is a busy office.
+#[test]
+fn backups_during_ordinary_saving_finish_and_verify() {
+    let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_millis(40));
+    assert_eq!((finished, gave_up), (25, 0));
 }
 
 // -------------------------------------------------------------- over HTTP
