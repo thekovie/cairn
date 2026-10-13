@@ -429,8 +429,10 @@ export function banner({ tone = 'info', title, text, actions = [], role }) {
       actions.length ? h('div', { class: 'actions' }, actions) : null));
 }
 
-export function emptyState({ title, text, actions = [] }) {
-  return h('div', { class: 'empty' }, h('h3', null, title), text ? h('p', null, text) : null,
+/** `level` is the heading level of the title: 2 on its own under the page
+ *  title, 3 (the default) inside a section that has its own heading. */
+export function emptyState({ title, text, actions = [], level = 3 }) {
+  return h('div', { class: 'empty' }, h(`h${level}`, null, title), text ? h('p', null, text) : null,
     actions.length ? h('div', { class: 'actions' }, actions) : null);
 }
 

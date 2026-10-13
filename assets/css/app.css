@@ -316,7 +316,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .choice:hover { border-color: var(--border-strong); }
 .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
-.choice input { width: 1.35rem; height: 1.35rem; margin-top: 0.2rem; flex: none; accent-color: var(--accent); }
+.choice input { width: 1.5rem; height: 1.5rem; margin-top: 0.2rem; flex: none; accent-color: var(--accent); }
 .choice strong { display: block; }
 .choice span { color: var(--fg-muted); font-size: var(--text-base); line-height: 1.45; }
 .choices { display: grid; gap: var(--space-3); border: 0; margin: 0 0 var(--space-5); padding: 0; }
@@ -324,7 +324,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .choices-row { grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr)); }
 
 .check { display: flex; gap: var(--space-3); align-items: flex-start; font-weight: 400; cursor: pointer; }
-.check input { width: 1.35rem; height: 1.35rem; margin-top: 0.25rem; accent-color: var(--accent); flex: none; }
+.check input { width: 1.5rem; height: 1.5rem; margin-top: 0.25rem; accent-color: var(--accent); flex: none; }
 
 /* A pane's heading with one option beside it ("Scroll together"). */
 .pane-head { display: flex; flex-wrap: wrap; gap: 0 var(--space-4); align-items: baseline; justify-content: space-between; padding-right: var(--space-4); }
@@ -1167,3 +1167,18 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
 .slash-menu li:hover { background: var(--surface-2); }
 .slash-menu li[aria-selected="true"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
 .table-code-hint { margin: 0; padding: var(--space-2) var(--space-4); background: var(--surface-2); border-bottom: var(--border-width) solid var(--border); }
+
+/* Windows High Contrast drops our colours, so mark what is chosen or current
+   with the system's own highlight pair. */
+@media (forced-colors: active) {
+  .btn-primary,
+  .navlink[aria-current="page"],
+  .tree-link[aria-current="page"] {
+    background: Highlight;
+    border-color: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+  .navlink[aria-current="page"] .icon { color: HighlightText; }
+  .choice:has(input:checked) { outline: 2px solid Highlight; }
+}

@@ -267,7 +267,7 @@ export async function healthView(ctx) {
     clean ? null : filterBar(data, current),
     clean ? null : (shown.length
       ? h('ul', { class: 'list' }, shown.map((item) => problemRow(item, canReview)))
-      : emptyState({ title: 'Nothing in this list', text: 'No page has this problem. Choose another filter to see the rest.' })),
+      : emptyState({ level: 2, title: 'Nothing in this list', text: 'No page has this problem. Choose another filter to see the rest.' })),
     check.element);
   announce(clean ? 'Nothing needs attention' : `${shown.length} of ${pagesWord(data.total)} listed`);
   return { title: 'Documentation health', cleanup: check.cleanup };

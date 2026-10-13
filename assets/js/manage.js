@@ -235,7 +235,7 @@ export async function deletedView(ctx) {
       h('p', { class: 'lede' }, 'Deleted pages and folders are kept here, with their pictures and earlier versions. Restore puts one back where it was.')),
     n
       ? h('ul', { class: 'list' }, data.items.map((item) => deletedRow(ctx, item, data.can_restore)))
-      : emptyState({ title: 'Nothing has been deleted', text: 'When a page or folder is deleted, it appears here so it can be brought back.' }));
+      : emptyState({ level: 2, title: 'Nothing has been deleted', text: 'When a page or folder is deleted, it appears here so it can be brought back.' }));
   announce(n === 0 ? 'Nothing has been deleted' : n === 1 ? '1 deleted item' : `${n} deleted items`);
   return { title: 'Recently deleted' };
 }

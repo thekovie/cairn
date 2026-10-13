@@ -305,6 +305,50 @@ fn the_check_reports_each_page_it_finishes_and_can_be_stopped() {
     assert_eq!(done.get(), 2, "it stopped before the third page");
 }
 
+/// A folder the index could not read is part of the picture: a check over
+/// only the pages the index knows about must not call itself complete.
+#[cfg(unix)]
+#[test]
+fn a_check_that_missed_an_unreadable_folder_says_it_is_partial() {
+    use std::os::unix::fs::PermissionsExt;
+    let ws = fresh();
+    common::write(&ws.path.join("Fine.md"), "# Fine\n");
+    common::write(
+        &ws.path.join("Locked/Hidden.md"),
+        "# Hidden\n[gone](Nope.md)\n",
+    );
+    let folder = ws.path.join("Locked");
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&folder).is_ok() {
+        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+        eprintln!("skipped: this user can read every folder");
+        return;
+    }
+    // The index never saw that folder's pages, so they are not in `pages`.
+    let mut index = SearchIndex::default();
+    index.refresh(&ws.root).unwrap();
+    let report = check_workspace(&ws.root, &index.all()).with_scan_problems(index.problems());
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(!report.complete, "a folder was not looked at");
+    assert!(
+        report.unreadable.iter().any(|p| p.path == "Locked"),
+        "{:?}",
+        report.unreadable
+    );
+    assert_eq!(report.checked, 1);
+    // Merging the same problem twice does not list it twice.
+    let again = report.with_scan_problems(index.problems());
+    assert_eq!(
+        again
+            .unreadable
+            .iter()
+            .filter(|p| p.path == "Locked")
+            .count(),
+        1
+    );
+}
+
 // ---------------------------------------------------------------- the route
 
 const PORT: u16 = 4325;

@@ -305,6 +305,20 @@ fn check_fragment(
     ))
 }
 
+impl CheckReport {
+    /// Add what the page index could not read (a folder, say, so its pages
+    /// were never listed to check). The result is then partial.
+    pub fn with_scan_problems(mut self, problems: &[ScanProblem]) -> CheckReport {
+        for problem in problems {
+            if !self.unreadable.iter().any(|p| p.path == problem.path) {
+                self.unreadable.push(problem.clone());
+            }
+        }
+        self.complete = self.unreadable.is_empty();
+        self
+    }
+}
+
 /// Lets a long check report its progress and be stopped.
 pub struct CheckProgress<'a> {
     pub cancelled: &'a dyn Fn() -> bool,
