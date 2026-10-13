@@ -8,6 +8,7 @@
 //   #/setup             choose or create a documentation folder
 //   #/templates         team and built-in templates
 //   #/deleted           recently deleted pages and folders
+//   #/health?show=...   pages that need attention
 //   #/print/<path>      a page laid out for printing (PDF fallback)
 
 import {
@@ -20,6 +21,7 @@ import { editorView } from './editor.js';
 import { templatesView } from './templates.js';
 import { printView } from './export.js';
 import { deletedView } from './manage.js';
+import { healthView } from './health.js';
 import { watchUpdates, updateBanner } from './update.js';
 
 const app = {
@@ -46,6 +48,7 @@ const ROUTES = {
   setup: setupView,
   templates: templatesView,
   deleted: deletedView,
+  health: healthView,
   print: printView,
 };
 
@@ -285,6 +288,7 @@ function renderNav() {
       tree ? treeList(tree, currentLocation(), 'nav-pages') : null),
     h('div', { class: 'sidenav-more' },
       h('ul', { class: 'navlist', 'aria-label': 'More' },
+        navLink('Documentation health', href.health(), 'checkCircle', route === 'health'),
         navLink('Templates', href.templates(), 'template',
           route === 'templates' || (route === 'edit' && top === '_templates')),
         navLink('Recently deleted', href.deleted(), 'trash', route === 'deleted'))));
@@ -338,6 +342,7 @@ const LOADING_TEXT = {
   new: 'Getting ready…',
   templates: 'Opening templates…',
   deleted: 'Opening recently deleted…',
+  health: 'Checking the documentation…',
   settings: 'Opening settings…',
   print: 'Preparing the page for printing…',
 };
