@@ -4,6 +4,11 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Added
+
+- **Back up workspace.** **Settings → Back up workspace** saves one .zip with everything needed to bring the documentation back: pages, pictures, templates, earlier versions, and deleted pages. Every file has a checksum. “Download everything” stays for sharing, and now says it is not a backup. See [Back up and restore](docs/backup-and-restore.md).
+- **`cairn backup create`, `cairn backup verify`, and `cairn restore`** for scheduled backups, for checking a backup, and for restoring one into a new, empty folder. A damaged, edited, unsafe, or newer backup is refused and nothing is written.
+
 ### Fixed
 
 - **Downloads no longer leave files out without telling you.** If Cairn can't read a folder or file (no permission, or the shared drive drops), the download stops and names it. Before, the zip looked complete but the pages were missing.

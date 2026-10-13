@@ -18,6 +18,9 @@ use crate::error::{CairnError, Result};
 use crate::fsutil::{create_new_with, read_optional, sha256_hex, write_atomic};
 use crate::paths::Root;
 
+/// Folder under `_system` that holds the lock files.
+pub const LOCKS_DIR: &str = "locks";
+
 /// Seconds between heartbeats written by a running client.
 pub const HEARTBEAT_SECS: u64 = 30;
 /// A lock whose heartbeat is older than this is described as possibly
@@ -121,7 +124,7 @@ pub fn now_secs() -> u64 {
 }
 
 fn locks_dir(root: &Root) -> PathBuf {
-    root.system_dir().join("locks")
+    root.system_dir().join(LOCKS_DIR)
 }
 
 /// Lock file for an article. Case-insensitive, because Windows paths are.

@@ -16,7 +16,8 @@ Most people only need **Settings** in Cairn:
 | Time and timezone | Automatic (this computer's timezone) or a chosen region and city. All times shown are converted to it. | Automatic |
 | PDF downloads: Paper size | A4 or US Letter | A4 |
 | Name of this documentation | The workspace display name, shown to everyone | set at creation |
-| Download everything | Save every page, picture, and template as one .zip (Markdown or PDFs) | |
+| Download everything | Save the current pages, pictures, and templates as one .zip (Markdown or PDFs), to share or move. No earlier versions or deleted pages. | |
+| Back up workspace | Save a checked .zip that can restore the documentation: pages, pictures, templates, earlier versions, and deleted pages. See [Back up and restore](backup-and-restore.md). | |
 | Open a different documentation folder | Close this folder and choose another | |
 | Updates: Look for new versions | Every day, or only when you choose **Check now** | Every day |
 | Updates: Proxy server | Address and port of the proxy your office uses to reach the internet, such as `proxy.office.local:8080`. Empty means Windows' proxy settings on Windows; on a Mac or Linux, no proxy (or the `HTTPS_PROXY` environment variable). | empty |

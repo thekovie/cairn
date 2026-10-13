@@ -21,6 +21,7 @@ use zip::{CompressionMethod, ZipWriter};
 
 use crate::error::{CairnError, Result};
 use crate::fsutil::is_link_like;
+use crate::locks::LOCKS_DIR;
 use crate::paths::{Root, SYSTEM_DIR};
 use crate::publish::assets_dir_rel;
 use crate::templates::TEMPLATES_DIR;
@@ -79,7 +80,26 @@ fn is_page(rel: &str) -> bool {
 
 /// A file or folder that can't be read stops the export. Leaving it out
 /// quietly would hand over an archive that looks complete and isn't.
-fn read_problem(name: &str, err: &io::Error) -> CairnError {
+/// "1 file" / "3 files".
+pub fn count(n: usize, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
+/// The first few names, then how many more.
+pub fn name_list(paths: &[String]) -> String {
+    const SHOWN: usize = 3;
+    let shown = paths.iter().take(SHOWN).cloned().collect::<Vec<_>>();
+    match paths.len().saturating_sub(SHOWN) {
+        0 => shown.join(", "),
+        more => format!("{}, and {more} more", shown.join(", ")),
+    }
+}
+
+pub(crate) fn read_problem(name: &str, err: &io::Error) -> CairnError {
     match err.kind() {
         io::ErrorKind::NotFound => CairnError::NotFound(format!(
             "“{name}” was removed while the download was being prepared. Please try again."
@@ -99,25 +119,51 @@ fn read_problem(name: &str, err: &io::Error) -> CairnError {
 /// plus the links that were not followed. `_templates` is included only for
 /// a whole-documentation export.
 pub fn enumerate(root: &Root, folder_rel: &str) -> Result<Enumeration> {
-    let start = root.resolve(folder_rel)?;
     let whole = folder_rel.is_empty();
+    walk(root, folder_rel, |e| {
+        let name = e.file_name().to_string_lossy();
+        let is_dir = e.file_type().is_dir();
+        let system = is_dir && name.eq_ignore_ascii_case(SYSTEM_DIR);
+        let templates = is_dir && !whole && name.eq_ignore_ascii_case(TEMPLATES_DIR);
+        // The marker carries the workspace's identity: a copy of it
+        // would pose as the original.
+        let marker = whole && e.depth() == 1 && !is_dir && name.eq_ignore_ascii_case(MARKER_FILE);
+        !(is_hidden_or_temp(&name) || system || templates || marker)
+    })
+}
+
+/// Everything a workspace backup holds: the whole documentation, including
+/// templates, the workspace marker, and Cairn's own records (earlier
+/// versions, who edited what, deleted pages). Edit locks and scratch files
+/// are left out: they describe the moment, not the documentation.
+pub fn enumerate_backup(root: &Root) -> Result<Enumeration> {
+    walk(root, "", |e| {
+        let name = e.file_name().to_string_lossy();
+        let in_system = e
+            .path()
+            .parent()
+            .and_then(|p| p.file_name())
+            .is_some_and(|n| n.eq_ignore_ascii_case(SYSTEM_DIR));
+        let locks = e.depth() == 2
+            && in_system
+            && e.file_type().is_dir()
+            && name.eq_ignore_ascii_case(LOCKS_DIR);
+        !(is_hidden_or_temp(&name) || locks)
+    })
+}
+
+/// Walk the folder, keep what `keep` accepts (it is not asked about the
+/// starting folder), and report anything unreadable.
+fn walk(
+    root: &Root,
+    folder_rel: &str,
+    keep: impl Fn(&walkdir::DirEntry) -> bool,
+) -> Result<Enumeration> {
+    let start = root.resolve(folder_rel)?;
     let walker = WalkDir::new(&start)
         .follow_links(false)
         .into_iter()
-        .filter_entry(|e| {
-            if e.depth() == 0 {
-                return true;
-            }
-            let name = e.file_name().to_string_lossy();
-            let is_dir = e.file_type().is_dir();
-            let system = is_dir && name.eq_ignore_ascii_case(SYSTEM_DIR);
-            let templates = is_dir && !whole && name.eq_ignore_ascii_case(TEMPLATES_DIR);
-            // The marker carries the workspace's identity: a copy of it
-            // would pose as the original.
-            let marker =
-                whole && e.depth() == 1 && !is_dir && name.eq_ignore_ascii_case(MARKER_FILE);
-            !(is_hidden_or_temp(&name) || system || templates || marker)
-        });
+        .filter_entry(|e| e.depth() == 0 || keep(e));
     let mut found = Enumeration::default();
     for entry in walker {
         let entry = entry.map_err(|err| {

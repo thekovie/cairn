@@ -58,7 +58,8 @@ pub fn read_marker(dir: &Path) -> MarkerStatus {
     parse_marker(&bytes)
 }
 
-fn parse_marker(bytes: &[u8]) -> MarkerStatus {
+/// Validate the bytes of a `shared-docs.json` file.
+pub fn parse_marker(bytes: &[u8]) -> MarkerStatus {
     let value: Value = match serde_json::from_slice(bytes) {
         Ok(v) => v,
         Err(_) => return MarkerStatus::Invalid("The marker file is not valid JSON.".into()),

@@ -10,7 +10,7 @@ import {
 } from './core.js';
 
 const PDF_BROWSERS = IS_WINDOWS ? 'Microsoft Edge or Google Chrome' : 'Google Chrome, Microsoft Edge, or Chromium';
-import { openPageDownload, openBulkDownload } from './export.js';
+import { openPageDownload, openBulkDownload, openBackup } from './export.js';
 import { pageMoreActions, folderOrganizeSection } from './manage.js';
 import { updatesSection } from './update.js';
 import { timezoneSection } from './timezone.js';
@@ -790,8 +790,16 @@ function workspaceSection(ctx, ws) {
     ws.storage?.notes?.length ? banner({ tone: 'warn', text: ws.storage.notes.join(' ') }) : null,
     ws.read_only ? null : renameForm,
     h('div', { class: 'actions', style: 'margin-top: var(--space-5)' }, downloadAll, switchButton),
-    h('p', { class: 'help' }, '“Download everything” saves every page, picture, and template as one .zip file (Markdown or PDFs), for a backup or to share.'),
+    h('p', { class: 'help' }, '“Download everything” saves the current pages, pictures, and templates as one .zip file (Markdown or PDFs), to share or move. It does not include earlier versions or deleted pages. To protect against a lost folder, use “Back up workspace” below.'),
     ws.read_only ? null : cleanupForm(ctx, ws));
+}
+
+function backupSection(ws) {
+  return h('section', { class: 'settings-section', 'aria-labelledby': 'set-backup' },
+    h('h2', { id: 'set-backup' }, 'Back up'),
+    h('p', { class: 'help' }, 'A backup is one .zip file with everything Cairn needs to bring this documentation back if its folder is lost or damaged: pages, pictures, templates, earlier versions, and deleted pages. Its contents are checked when it is restored.'),
+    h('div', { class: 'actions' },
+      button('Back up workspace', { icon: 'download', onClick: () => openBackup({ name: ws.name }) })));
 }
 
 const dayCount = (n) => (n === 1 ? '1 day' : `${n} days`);
@@ -986,6 +994,7 @@ export async function settingsView(ctx) {
 
     pdfSection(ctx, cfg),
     state.workspace ? workspaceSection(ctx, state.workspace) : null,
+    state.workspace ? backupSection(state.workspace) : null,
     updatesSection(cfg, { radioGroup, save: (body, message) => saveSettings(ctx, body, message) }),
     quitSection());
   return { title: 'Settings' };

@@ -93,7 +93,7 @@ If you stop using Cairn, your documentation is still just a folder of `.md` file
 
 Keep the small Cairn window open while you use Cairn. Closing it stops Cairn.
 
-The full walkthrough is in [docs/getting-started.md](docs/getting-started.md).
+The full walkthrough is in [docs/getting-started.md](docs/getting-started.md). To keep a recoverable copy of your documentation, see [Back up and restore](docs/backup-and-restore.md).
 
 ## Screenshots
 
