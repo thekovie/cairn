@@ -153,19 +153,23 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
       timer = setTimeout(() => poll(goBtn), POLL_MS);
       return;
     }
-    const { id } = job;
+    const { id, format } = job;
     stop();
     if (s.state === 'finished') {
       try {
         const saved = await guardAction('Preparing the download…',
           () => downloadFile(`/api/export/jobs/${id}/file`, null, s.file_name));
         clear(status).append(doneMessage(saved));
+        // Something to know even though the download worked: files that
+        // changed meanwhile, or links that were left out.
+        if (s.message) status.append(banner({ tone: 'warn', title: 'Please note', text: s.message }));
         toast(`${saved} is in your Downloads folder.`);
       } catch (err) {
         clear(status).append(banner({ tone: 'danger', title: 'The download didn’t work', text: errorText(err) }));
       }
     } else if (s.state === 'failed') {
-      clear(status).append(banner({ tone: 'danger', title: 'The download didn’t work', text: `${s.message || ''} Try again, or choose Markdown instead.` }));
+      const retry = format === 'pdf' ? 'Try again, or choose Markdown instead.' : 'Try again.';
+      clear(status).append(banner({ tone: 'danger', title: 'The download didn’t work', text: `${s.message || ''} ${retry}` }));
     }
     setBusy(goBtn, false, 'Download');
   }
@@ -177,7 +181,7 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     setBusy(goBtn, true, 'Preparing…');
     try {
       const res = await post('/api/export/jobs', { scope, path, format });
-      job = { id: res.id, total: res.total, done: 0 };
+      job = { id: res.id, total: res.total, done: 0, format };
       guardAction('Preparing the download…', () => new Promise((resolve) => { endGuard = resolve; }));
       status.append(progressView(0, res.total));
       timer = setTimeout(() => poll(goBtn), POLL_MS);
