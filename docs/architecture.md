@@ -113,6 +113,8 @@ drafts/<workspace id>/<page hash>/staged/<pictures not yet published>
 
 ## Search
 
+Filters (folder, status, tag), the order, and the 50-page limit are applied in that order: pages that fail a filter are never scored, and the limit cuts only the sorted matches, so a filtered search can't lose a page to unfiltered ones. A title typed exactly counts far more than anything else, then title and tag words, then up to 20 mentions in the text. Ties break by title and then path, both ignoring capitals.
+
 When a folder is opened, Cairn reads every `.md` file once into an in-memory index of titles and plain text. After that it re-reads only files whose size or modified time changed, at most every few seconds. `_system`, `_templates`, `.assets` folders, hidden files, and links are skipped. Nothing is stored on disk.
 
 ## Downloads and PDFs
