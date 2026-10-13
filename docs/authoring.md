@@ -202,7 +202,7 @@ Below the list, **Check documentation** looks through every page for links and p
 - pictures that are missing, or are a type Cairn doesn't show (`.svg`, for example);
 - links that go outside the documentation folder, or that aren't allowed.
 
-Web addresses and email links are never visited or checked. The check happens only when you ask for it, and reads each page once, so on a large shared folder it can take a moment. Line numbers count from the page title, as in the editor. Pages are not locked while it runs, so after a change, check again. If a page couldn't be read, the result says it is partial.
+Web addresses and email links are never visited or checked. The check happens only when you ask for it, and reads each page once, so on a large shared folder it can take a while. A bar shows “Checking page 412 of 1280” as it goes, and **Stop** ends it at any point without changing anything. Only one check, download, or backup can run at a time, and leaving the screen stops a check that is still going. Line numbers count from the page title, as in the editor. Pages are not locked while it runs, so after a change, check again. If a page couldn't be read, the result says it is partial.
 
 ## Unsaved changes
 

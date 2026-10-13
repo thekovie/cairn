@@ -27,8 +27,10 @@ use crate::error::{CairnError, Result};
 use crate::export::archive::{count, name_list};
 use crate::export::html::{PrintInput, printable_html};
 use crate::export::{archive, pdf};
+use crate::linkcheck::{self, CheckProgress};
 use crate::paths::{is_system_path, normalize_relative};
 use crate::publish::validate_article_path;
+use crate::search::PageSummary;
 use crate::timefmt;
 
 /// Finished or abandoned jobs are dropped after this long.
@@ -63,6 +65,8 @@ pub struct Job {
 enum JobResult {
     Bytes(Vec<u8>),
     TempFile(PathBuf),
+    /// The outcome of a documentation check (fetched as JSON, not a file).
+    Report(Value),
 }
 
 impl Drop for Job {
@@ -128,7 +132,9 @@ impl ExportJobs {
         Self::prune(&mut jobs);
         if jobs.values().any(|j| j.state().0 == JobState::Running) {
             return Err(CairnError::BadRequest(
-                "Another download is still being prepared. Please wait for it to finish.".into(),
+                "Another download, backup, or check is still being prepared. Please wait for it \
+                 to finish."
+                    .into(),
             ));
         }
         let id = uuid::Uuid::new_v4().simple().to_string();
@@ -645,6 +651,63 @@ async fn stream_file(path: PathBuf, file_name: &str) -> std::result::Result<Resp
     Ok(response)
 }
 
+// ---------------------------------------------------------------- checks
+
+fn run_check(job: &Job, ws: &OpenWorkspace, pages: &[PageSummary]) -> Result<Option<Built>> {
+    let cancelled = || job.cancel.load(Ordering::SeqCst);
+    let on_page = |done: usize| job.done.store(done, Ordering::SeqCst);
+    let progress = CheckProgress {
+        cancelled: &cancelled,
+        on_page: &on_page,
+    };
+    let Some(report) = linkcheck::check_workspace_with(&ws.root, pages, &progress) else {
+        return Ok(None);
+    };
+    let value = serde_json::to_value(report)
+        .map_err(|e| CairnError::Io(format!("The result could not be made: {e}")))?;
+    Ok(Some(Built {
+        result: JobResult::Report(value),
+        changed: Vec::new(),
+        note: None,
+    }))
+}
+
+/// Start looking through every page for links and pictures that lead
+/// nowhere. Progress and Stop use the same job routes as downloads; the
+/// result is fetched once from `check_result`.
+pub async fn start_check(State(state): State<Arc<AppState>>) -> ApiResult {
+    blocking(state.clone(), move |st| {
+        let ws = st.workspace()?;
+        ws.refresh_index(true);
+        // Take the list and let go of the index: the check can take a while
+        // on a slow share, and other screens shouldn't wait for it.
+        let pages = ws.index.lock().expect("index lock").all();
+        let total = pages.len();
+        let (id, job) = st.exports.start(total, "check".into())?;
+        std::thread::spawn(move || settle(&job, || run_check(&job, &ws, &pages), &[]));
+        Ok(json!({ "id": id, "total": total }))
+    })
+    .await
+}
+
+/// The finished check, handed over once.
+pub async fn check_result(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> ApiResult {
+    let job = state.exports.get(&id)?;
+    if job.state().0 != JobState::Finished {
+        return Err(ApiError(CairnError::Conflict(
+            "This check isn't finished yet.".into(),
+        )));
+    }
+    let result = job.result.lock().expect("job result").take();
+    state.exports.remove(&id);
+    match result {
+        Some(JobResult::Report(report)) => Ok(Json(report)),
+        _ => Err(ApiError(CairnError::NotFound(
+            "This result was already fetched. Please check again.".into(),
+        ))),
+    }
+}
+
 fn status_json(job: &Job) -> Value {
     let (state, message) = job.state();
     json!({
@@ -682,6 +745,9 @@ pub async fn job_file(
     match result {
         Some(JobResult::Bytes(bytes)) => Ok(download(bytes, &job.file_name, "application/zip")),
         Some(JobResult::TempFile(path)) => stream_file(path, &job.file_name).await,
+        Some(JobResult::Report(_)) => Err(ApiError(CairnError::NotFound(
+            "That isn't a download.".into(),
+        ))),
         None => Err(ApiError(CairnError::NotFound(
             "This download was already saved. Please start it again.".into(),
         ))),

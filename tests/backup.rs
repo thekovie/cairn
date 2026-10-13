@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use cairn::backup::{
     MANIFEST_NAME, Progress, create, create_backup, create_checked, restore, restore_checked,
-    restore_space_needed, verify,
+    restore_space_needed, restore_with, verify, verify_with,
 };
 use cairn::export::archive::enumerate_backup;
 use cairn::workspace::{MarkerStatus, read_marker};
@@ -856,6 +856,32 @@ fn backups_during_constant_saving_still_finish_and_verify() {
 fn backups_during_ordinary_saving_finish_and_verify() {
     let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_millis(40));
     assert_eq!((finished, gave_up), (25, 0));
+}
+
+// ---------------------------------------------------------------- progress
+
+#[test]
+fn verifying_and_restoring_report_each_file_as_it_is_checked() {
+    use std::cell::RefCell;
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    create_backup(&ws.root, &zip).unwrap();
+    let total = verify(&zip).unwrap().files.len();
+
+    let seen = RefCell::new(Vec::new());
+    verify_with(&zip, &|done, of| seen.borrow_mut().push((done, of))).unwrap();
+    let expected: Vec<(usize, usize)> = (1..=total).map(|n| (n, total)).collect();
+    assert_eq!(*seen.borrow(), expected);
+
+    seen.borrow_mut().clear();
+    let room = |_: &Path| Ok(u64::MAX);
+    restore_with(&zip, &out.path().join("Restored"), &room, &|done, of| {
+        seen.borrow_mut().push((done, of));
+    })
+    .unwrap();
+    assert_eq!(*seen.borrow(), expected);
 }
 
 // ------------------------------------------------------------ free space

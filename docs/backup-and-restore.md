@@ -61,6 +61,8 @@ Cairn does not lock the shared folder, and it cannot take a perfect snapshot of 
 
 If Cairn cannot read a folder or file (no permission, or the shared drive drops out), the backup also stops and names it. A backup is never handed over with files quietly missing.
 
+In a terminal, `cairn backup create`, `cairn backup verify`, and `cairn restore` show a counter such as “Copying file 40 of 120” while they work. It isn't printed when the output goes to a file or another program, so scheduled runs and logs stay clean.
+
 ## Free space
 
 Cairn checks there is room **before** it writes anything, so a backup or restore that can't fit never starts and never leaves a half-filled drive behind.

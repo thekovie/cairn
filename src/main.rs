@@ -12,13 +12,16 @@
 //! cairn restore <backup.zip> <new-folder>
 //! ```
 
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use cairn::backup;
 use cairn::config;
+use cairn::error::{CairnError, Result as CairnResult};
+use cairn::export::archive;
+use cairn::fsutil;
 use cairn::locks;
 use cairn::paths::Root;
 use cairn::server::{self, AppState};
@@ -342,6 +345,70 @@ fn cmd_locks(args: &[String]) -> ExitCode {
     }
 }
 
+/// A counter on the terminal ("Copying file 40 of 120"), redrawn a few times a
+/// second, and only when a person is watching: nothing is printed into a log
+/// or a pipe.
+fn progress_printer(label: &'static str) -> impl Fn(usize, usize) {
+    let watched = std::io::stderr().is_terminal();
+    let last: std::cell::Cell<Option<Instant>> = std::cell::Cell::new(None);
+    move |done, total| {
+        if !watched {
+            return;
+        }
+        let now = Instant::now();
+        let recent = last
+            .get()
+            .is_some_and(|t| now.duration_since(t) < Duration::from_millis(100));
+        if recent && done < total {
+            return;
+        }
+        last.set(Some(now));
+        eprint!("\r{label} {done} of {total}\x1b[K");
+    }
+}
+
+/// Wipe the counter line once the work is over.
+fn end_progress() {
+    if std::io::stderr().is_terminal() {
+        eprint!("\r\x1b[K");
+    }
+}
+
+fn create_shown(root: &Root, file: &str) -> CairnResult<backup::Summary> {
+    let first = archive::enumerate_backup(root)?;
+    let total = first.entries.len();
+    let show = progress_printer("Copying file");
+    let never = || false;
+    let on_file = |done: usize| show(done, total);
+    let progress = backup::Progress {
+        cancelled: &never,
+        on_file: &on_file,
+    };
+    let result = backup::create(root, Path::new(file), first, &progress);
+    end_progress();
+    // Nothing here can stop it part way, so "stopped" never happens.
+    result?.ok_or_else(|| CairnError::Io("The backup was cancelled.".into()))
+}
+
+fn verify_shown(file: &str) -> CairnResult<backup::Manifest> {
+    let show = progress_printer("Checking file");
+    let checked = backup::verify_with(Path::new(file), &show);
+    end_progress();
+    checked
+}
+
+fn restore_shown(file: &str, folder: &str) -> CairnResult<backup::Restored> {
+    let show = progress_printer("Restoring file");
+    let restored = backup::restore_with(
+        Path::new(file),
+        Path::new(folder),
+        &fsutil::available_space,
+        &show,
+    );
+    end_progress();
+    restored
+}
+
 fn megabytes(bytes: u64) -> String {
     format!("{:.1} MB", bytes as f64 / 1_048_576.0)
 }
@@ -353,7 +420,7 @@ fn cmd_backup(args: &[String]) -> ExitCode {
                 Ok(r) => r,
                 Err(e) => return fail(e),
             };
-            match backup::create_backup(&root, Path::new(file)) {
+            match create_shown(&root, file) {
                 Ok(done) => {
                     println!(
                         "Backed up {} files ({}) to {file}.",
@@ -387,7 +454,7 @@ fn cmd_backup(args: &[String]) -> ExitCode {
                 Err(e) => fail(e),
             }
         }
-        (Some("verify"), Some(file), None) => match backup::verify(Path::new(file)) {
+        (Some("verify"), Some(file), None) => match verify_shown(file) {
             Ok(m) => {
                 println!(
                     "OK: \"{}\" backup made {} by Cairn {}: {} files, all checksums match.",
@@ -410,7 +477,7 @@ fn cmd_restore(args: &[String]) -> ExitCode {
     let (Some(file), Some(folder)) = (args.first(), args.get(1)) else {
         return fail("usage: cairn restore <backup.zip> <new-folder>");
     };
-    match backup::restore(Path::new(file), Path::new(folder)) {
+    match restore_shown(file, folder) {
         Ok(done) => {
             println!(
                 "Restored \"{}\" ({} files, {}) to {folder}.",

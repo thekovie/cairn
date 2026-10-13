@@ -620,6 +620,7 @@ fn read_entries(
     archive: &mut ZipArchive<File>,
     manifest: &Manifest,
     extract_to: Option<&Path>,
+    progress: &dyn Fn(usize, usize),
 ) -> Result<u64> {
     let expected: HashMap<&str, &ManifestFile> = manifest
         .files
@@ -698,6 +699,7 @@ fn read_entries(
             out.sync_all().map_err(|e| write_problem(&e))?;
         }
         total += size;
+        progress(seen.len(), manifest.files.len());
     }
     let missing: Vec<String> = manifest
         .files
@@ -741,9 +743,14 @@ fn create_out(dir: &Path, name: &str) -> Result<File> {
 
 /// Check a backup file completely without restoring it.
 pub fn verify(zip: &Path) -> Result<Manifest> {
+    verify_with(zip, &|_, _| {})
+}
+
+/// [`verify`] that reports `(files checked, files in all)` as it goes.
+pub fn verify_with(zip: &Path, progress: &dyn Fn(usize, usize)) -> Result<Manifest> {
     let mut archive = open(zip)?;
     let manifest = read_manifest(&mut archive)?;
-    read_entries(&mut archive, &manifest, None)?;
+    read_entries(&mut archive, &manifest, None, progress)?;
     Ok(manifest)
 }
 
@@ -763,6 +770,16 @@ pub fn restore_space_needed(held: u64) -> u64 {
 
 /// [`restore`] with the free-space lookup supplied (so it can be tested).
 pub fn restore_checked(zip: &Path, dest: &Path, space: SpaceFn) -> Result<Restored> {
+    restore_with(zip, dest, space, &|_, _| {})
+}
+
+/// [`restore_checked`] that reports `(files written, files in all)` as it goes.
+pub fn restore_with(
+    zip: &Path,
+    dest: &Path,
+    space: SpaceFn,
+    progress: &dyn Fn(usize, usize),
+) -> Result<Restored> {
     let name = dest
         .file_name()
         .ok_or_else(|| bad("Choose a folder name to restore into."))?;
@@ -817,7 +834,7 @@ pub fn restore_checked(zip: &Path, dest: &Path, space: SpaceFn) -> Result<Restor
     let suffix = uuid::Uuid::new_v4().simple().to_string();
     let staging = parent.join(format!(".cairn-restore-{}", &suffix[..12]));
     fs::create_dir(&staging).map_err(|e| write_problem(&e))?;
-    let outcome = read_entries(&mut archive, &manifest, Some(&staging))
+    let outcome = read_entries(&mut archive, &manifest, Some(&staging), progress)
         .and_then(|bytes| move_into_place(&staging, &dest).map(|()| bytes));
     match outcome {
         Ok(bytes) => Ok(Restored {
