@@ -22,12 +22,27 @@ pub struct ArticleMeta {
     pub owner: Option<String>,
     pub status: Option<String>,
     pub last_reviewed: Option<String>,
+    /// The day the page counts as overdue for review (`YYYY-MM-DD`): a year
+    /// after `last_reviewed`. Browsers compare it with today's date in the
+    /// person's chosen timezone, so everyone sees the same answer.
+    pub review_due_on: Option<String>,
     pub tags: Vec<String>,
     /// Non-fatal problems with the front matter, in plain language.
     pub warnings: Vec<String>,
 }
 
 const STATUSES: &[&str] = &["draft", "active", "retired"];
+
+/// A page is due for review this many days after it was last reviewed.
+pub const REVIEW_AFTER_DAYS: i64 = 365;
+
+/// The day a page reviewed on `last_reviewed` (`YYYY-MM-DD`) falls due.
+pub fn review_due_on(last_reviewed: &str) -> Option<String> {
+    let format = time::macros::format_description!("[year]-[month]-[day]");
+    let reviewed = time::Date::parse(last_reviewed, &format).ok()?;
+    let due = reviewed.checked_add(time::Duration::days(REVIEW_AFTER_DAYS))?;
+    due.format(&format).ok()
+}
 
 /// Split optional YAML front matter from the body. Invalid metadata never
 /// makes the article unreadable: problems become warnings and the body is
@@ -93,7 +108,10 @@ pub fn parse_front_matter(text: &str) -> (ArticleMeta, &str) {
     }
     if let Some(reviewed) = get("last_reviewed") {
         match scalar_to_string(reviewed) {
-            Some(s) if is_valid_date(s.trim()) => meta.last_reviewed = Some(s.trim().to_string()),
+            Some(s) if is_valid_date(s.trim()) => {
+                meta.last_reviewed = Some(s.trim().to_string());
+                meta.review_due_on = review_due_on(s.trim());
+            }
             _ => meta.warnings.push(
                 "The last reviewed date should look like 2026-01-31 (year-month-day).".into(),
             ),

@@ -11,6 +11,8 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Fixed
 
+- **“Review due” now uses your chosen timezone.** It used the browser's own timezone and could be a day off. The day a page falls due (a year after its last review) is now worked out once by Cairn, so the page list and the page itself always agree.
+- **A folder or page that can't be read no longer disappears from lists and search.** When the shared drive drops out or a folder is off-limits for a moment, Cairn keeps showing the pages it already knew and records what it couldn't read, instead of quietly dropping them.
 - **Downloads no longer leave files out without telling you.** If Cairn can't read a folder or file (no permission, or the shared drive drops), the download stops and names it. Before, the zip looked complete but the pages were missing.
 - **Downloads tell you what changed or was left out.** When a download finishes, a note lists files that changed while it was being prepared and links that Cairn didn't follow.
 - **Long PDF downloads can be saved when they finish.** A download that took more than 10 minutes used to disappear the moment it finished. The 10 minutes now run from when it ends.

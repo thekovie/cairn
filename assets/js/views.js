@@ -5,7 +5,7 @@ import {
   get, post, h, clear, icon, button, linkButton, banner, emptyState, breadcrumbsNav, statusChip,
   relativeTime, formatDay, formatTime, formatDateTime, formatIsoDateTime, formatSize, href, toast,
   confirmDialog, formDialog, whileBusy, guardAction, errorText, diffView, fieldError, announce, applyPrefs,
-  appendChildren, isToday, enablePictureZoom, ApiError,
+  appendChildren, isToday, todayYmd, enablePictureZoom, ApiError,
   IS_WINDOWS,
 } from './core.js';
 
@@ -36,7 +36,7 @@ function pageRow(page, { showFolder = false } = {}) {
       statusChip(page.status),
       page.owner ? h('span', null, `Owner: ${page.owner}`) : null,
       page.last_reviewed
-        ? (reviewDue(page.last_reviewed)
+        ? (reviewDue(page.review_due_on)
           ? h('span', { class: 'review-due' }, icon('alert'), 'Review due')
           : h('span', null, `Reviewed ${formatDay(page.last_reviewed)}`))
         : null,
@@ -333,18 +333,18 @@ function editArea(ctx, data) {
     pageMoreActions(ctx, data))];
 }
 
-const REVIEW_DUE_DAYS = 365;
-
-/** Whether a "last reviewed" date (YYYY-MM-DD) is more than a year ago. */
-export function reviewDue(ymd) {
-  const reviewed = Date.parse(`${ymd}T00:00:00`);
-  return Number.isFinite(reviewed) && Date.now() - reviewed > REVIEW_DUE_DAYS * 86400000;
+/**
+ * Whether a page is overdue for review. `dueOn` (YYYY-MM-DD) comes from the
+ * server; "today" is the date in the timezone chosen in Settings.
+ */
+export function reviewDue(dueOn) {
+  return Boolean(dueOn) && todayYmd() >= dueOn;
 }
 
 /** One quiet line under the title: status, owner, review, last change. */
 function articleMeta(data) {
   const m = data.meta;
-  const due = m.last_reviewed && reviewDue(m.last_reviewed);
+  const due = reviewDue(m.review_due_on);
   return h('p', { class: 'article-meta' },
     statusChip(m.status),
     m.owner ? h('span', null, `Owner: ${m.owner}`) : null,
