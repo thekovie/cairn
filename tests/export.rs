@@ -285,6 +285,133 @@ fn printable_html_is_self_contained() {
     assert_eq!(html.matches("<h1").count(), 1, "the title is printed once");
 }
 
+/// The printable HTML of `Guides/page.md` with this text, in a workspace
+/// that also has the pages used in the links below.
+fn printed_full(text: &str) -> String {
+    let ws = common::workspace();
+    sample(&ws);
+    common::write(&ws.path.join("Reference/api.md"), "# API Guide\n");
+    std::fs::write(ws.path.join("Reference/sheet.pdf"), b"%PDF-1.4").unwrap();
+    common::write(&ws.path.join("Guides/Résumé.md"), "# Résumé\n");
+    // Entities in a title become real angle brackets and quotes in its text.
+    common::write(
+        &ws.path.join("Guides/evil.md"),
+        "# Tom &amp; Jerry &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;\n",
+    );
+    common::write(&ws.path.join("Guides/page.md"), text);
+    let zone = jiff::tz::TimeZone::UTC;
+    let mut input = print_input(&ws, text, &zone);
+    input.rel = "Guides/page.md";
+    printable_html(&input)
+}
+
+/// Just the printed page (without the stylesheets), so a failure is readable.
+fn printed(text: &str) -> String {
+    let html = printed_full(text);
+    html[html.find("<body").unwrap()..].to_string()
+}
+
+#[test]
+fn a_link_to_another_page_keeps_its_meaning_in_a_pdf() {
+    let html =
+        printed("# Page\n\nSee [the other page](other.md) and [the web](https://example.com).\n");
+    assert!(
+        html.contains("the other page</a> <span class=\"print-ref\">(see “Other”)</span>"),
+        "{html}"
+    );
+    assert!(!html.contains("#/page/"));
+    assert!(
+        html.contains("href=\"https://example.com\""),
+        "web links stay"
+    );
+}
+
+#[test]
+fn no_note_is_added_when_the_link_already_says_the_page_name() {
+    let html = printed("# Page\n\nSee [Other](other.md) and [other](Other.md).\n");
+    assert!(!html.contains("print-ref"), "{html}");
+}
+
+#[test]
+fn a_page_in_another_folder_says_where_it_is() {
+    let html = printed("# Page\n\nSee [the reference](../Reference/api.md).\n");
+    assert!(html.contains("(see “API Guide” in Reference)"), "{html}");
+}
+
+#[test]
+fn a_link_to_a_file_shows_which_file() {
+    let html = printed("# Page\n\nSee [the sheet](../Reference/sheet.pdf).\n");
+    assert!(html.contains("(file “Reference/sheet.pdf”)"), "{html}");
+    assert!(!html.contains("/ws-file/"));
+}
+
+#[test]
+fn accented_names_and_encoded_links_read_correctly() {
+    let html = printed("# Page\n\nSee [my CV](R%C3%A9sum%C3%A9.md).\n");
+    assert!(html.contains("(see “Résumé”)"), "{html}");
+}
+
+#[test]
+fn a_page_name_is_escaped_in_the_note() {
+    let html = printed("# Page\n\nSee [it](evil.md).\n");
+    assert!(
+        html.contains("(see “Tom &amp; Jerry &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;”)"),
+        "{html}"
+    );
+    assert!(!html.contains("<script"));
+}
+
+#[test]
+fn broken_links_are_left_exactly_as_they_were() {
+    let html = printed("# Page\n\nSee [gone](Nope.md).\n");
+    assert!(html.contains("broken-link"), "{html}");
+    assert!(!html.contains("print-ref"));
+}
+
+#[test]
+fn links_to_headings_work_inside_the_pdf_including_the_title() {
+    let html = printed(
+        "# Page title\n\n[jump](#steps) [top](#page-title) [same page](page.md#steps) [self](page.md)\n\n## Steps\n\ntext\n",
+    );
+    assert!(
+        html.contains("<h1 id=\"page-title\">"),
+        "the title can be linked: {html}"
+    );
+    assert_eq!(html.matches("id=\"page-title\"").count(), 1);
+    assert!(html.contains("href=\"#steps\""));
+    assert!(html.contains("href=\"#page-title\""));
+    assert_eq!(
+        html.matches("href=\"#steps\"").count(),
+        2,
+        "a link to a heading on the same page becomes a plain heading link"
+    );
+    assert!(html.contains("<h2 id=\"steps\">"));
+    assert!(!html.contains("print-ref"), "no note for the page itself");
+    assert!(!html.contains("#/page/"));
+}
+
+#[test]
+fn nothing_is_loaded_from_the_internet() {
+    let html = printed_full(
+        "# Page\n\n![remote](https://example.com/x.png)\n\n[web](https://example.com)\n",
+    );
+    for banned in [
+        "<link",
+        "@import",
+        "src=\"http",
+        "url(http",
+        "<script",
+        "<iframe",
+    ] {
+        assert!(
+            !html.contains(banned),
+            "{banned} found in the printable page"
+        );
+    }
+    assert!(html.contains("default-src 'none'"));
+    assert!(html.contains("External picture (not loaded)"));
+}
+
 #[test]
 fn a_real_pdf_is_made_when_a_browser_is_available() {
     let browsers = find_browsers(None);

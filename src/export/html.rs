@@ -89,20 +89,133 @@ fn embedded_pictures(root: &Root, rel: &str, body: &str) -> Vec<(String, String)
         .collect()
 }
 
-/// Remove `href` attributes whose value starts with `prefix`, so the link
-/// text stays but no longer points anywhere.
-fn strip_hrefs(html: &str, prefix: &str) -> String {
-    let needle = format!(" href=\"{prefix}");
+/// Text between tags, with the few entities the renderer writes undone, so
+/// it can be compared with a page title.
+fn plain_text(html: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}
+
+/// Lower case, runs of spaces made single: what two names are compared by.
+fn same_words(text: &str) -> String {
+    text.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// A page's title (its first heading, else its file name), read once.
+fn page_title(root: &Root, rel: &str, cache: &mut HashMap<String, String>) -> String {
+    cache
+        .entry(rel.to_string())
+        .or_insert_with(|| {
+            let text = root
+                .resolve(rel)
+                .ok()
+                .and_then(|p| std::fs::read(p).ok())
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+                .unwrap_or_default();
+            article::extract_title(article::parse_front_matter(&text).1)
+                .unwrap_or_else(|| article::title_from_filename(rel))
+        })
+        .clone()
+}
+
+/// The value of attribute `name` in an opening tag.
+fn attribute(tag: &str, name: &str) -> Option<String> {
+    let needle = format!(" {name}=\"");
+    let start = tag.find(&needle)? + needle.len();
+    let end = tag[start..].find('"')?;
+    Some(tag[start..start + end].replace("&amp;", "&"))
+}
+
+/// In a PDF a link inside the documentation can't lead anywhere, so it keeps
+/// its meaning instead: the text stays, and the page (or file) it pointed at
+/// is named beside it. A link to a heading on the page itself stays a real
+/// link. Web links, and links that were already broken, are left alone.
+fn readable_internal_links(html: &str, root: &Root, current: &str) -> String {
+    let mut titles: HashMap<String, String> = HashMap::new();
     let mut out = String::with_capacity(html.len());
     let mut rest = html;
-    while let Some(start) = rest.find(&needle) {
+    while let Some(start) = rest.find("<a ") {
         out.push_str(&rest[..start]);
-        let after = &rest[start + needle.len()..];
-        match after.find('"') {
-            Some(end) => rest = &after[end + 1..],
-            None => {
-                rest = "";
-                break;
+        let after = &rest[start..];
+        let Some(tag_end) = after.find('>') else {
+            break;
+        };
+        let tag = &after[..=tag_end];
+        let href = attribute(tag, "href")
+            .filter(|h| h.starts_with("#/page/") || h.starts_with("/ws-file/"));
+        let close = after[tag_end + 1..].find("</a>");
+        let (Some(href), Some(close)) = (href, close) else {
+            out.push_str(tag);
+            rest = &after[tag_end + 1..];
+            continue;
+        };
+        let inner = &after[tag_end + 1..tag_end + 1 + close];
+        rest = &after[tag_end + 1 + close + "</a>".len()..];
+
+        let (path_part, query) = match href.split_once('?') {
+            Some((p, q)) => (p, q),
+            None => (href.as_str(), ""),
+        };
+        let encoded = path_part
+            .strip_prefix("#/page/")
+            .or_else(|| path_part.strip_prefix("/ws-file/"))
+            .unwrap_or(path_part);
+        let target = article::percent_decode(encoded);
+        let text = plain_text(inner);
+
+        if href.starts_with("#/page/") && target.eq_ignore_ascii_case(current) {
+            // A link into this very page: a heading link works in the PDF.
+            let section = query
+                .split('&')
+                .find_map(|kv| kv.strip_prefix("section="))
+                .map(article::percent_decode)
+                .filter(|s| !s.is_empty());
+            match section {
+                Some(id) => out.push_str(&format!("<a href=\"#{}\">{inner}</a>", escape(&id))),
+                None => out.push_str(&format!("<a>{inner}</a>")),
+            }
+            continue;
+        }
+        out.push_str(&format!("<a>{inner}</a>"));
+        if href.starts_with("#/page/") {
+            let title = page_title(root, &target, &mut titles);
+            if same_words(&text) != same_words(&title) {
+                let folder = target.rsplit_once('/').map_or("", |(f, _)| f);
+                let here = current.rsplit_once('/').map_or("", |(f, _)| f);
+                // Say where it is only when that isn't where this page is.
+                let place = if folder.is_empty() || folder.eq_ignore_ascii_case(here) {
+                    String::new()
+                } else {
+                    format!(" in {}", escape(&folder.replace('/', " › ")))
+                };
+                out.push_str(&format!(
+                    " <span class=\"print-ref\">(see “{}”{place})</span>",
+                    escape(&title)
+                ));
+            }
+        } else {
+            let file = target.rsplit('/').next().unwrap_or(&target);
+            if same_words(&text) != same_words(file) {
+                out.push_str(&format!(
+                    " <span class=\"print-ref\">(file “{}”)</span>",
+                    escape(&target)
+                ));
             }
         }
     }
@@ -110,9 +223,11 @@ fn strip_hrefs(html: &str, prefix: &str) -> String {
     out
 }
 
-/// The page body as self-contained HTML: pictures embedded, in-app links
-/// reduced to plain text, and the first heading removed (the header shows it).
-fn body_html(root: &Root, rel: &str, body: &str) -> String {
+/// The page body as self-contained HTML: pictures embedded, links inside
+/// the documentation turned into readable references, and the first heading
+/// removed (the header shows it). Also returns that heading's id, so links
+/// to the title still work.
+fn body_html(root: &Root, rel: &str, body: &str) -> (String, Option<String>) {
     let pictures = embedded_pictures(root, rel, body);
     let staged: HashMap<String, String> = pictures
         .iter()
@@ -135,10 +250,15 @@ fn body_html(root: &Root, rel: &str, body: &str) -> String {
             &format!("\"{data}\""),
         );
     }
-    let html = strip_hrefs(&strip_hrefs(&html, "#/"), "/ws-file/");
+    let html = readable_internal_links(&html, root, rel);
     match (html.trim_start().starts_with("<h1"), html.find("</h1>")) {
-        (true, Some(end)) => html[end + "</h1>".len()..].to_string(),
-        _ => html,
+        (true, Some(end)) => {
+            let title_id = html
+                .find('>')
+                .and_then(|open| attribute(&html[..=open], "id"));
+            (html[end + "</h1>".len()..].to_string(), title_id)
+        }
+        _ => (html, None),
     }
 }
 
@@ -156,7 +276,10 @@ pub fn printable_html(input: &PrintInput) -> String {
     let (meta, body) = article::parse_front_matter(input.text);
     let title =
         article::extract_title(body).unwrap_or_else(|| article::title_from_filename(input.rel));
-    let content = body_html(input.root, input.rel, body);
+    let (content, title_id) = body_html(input.root, input.rel, body);
+    let title_attr = title_id
+        .map(|id| format!(" id=\"{}\"", escape(&id)))
+        .unwrap_or_default();
 
     // Every font the stylesheet names goes inside the file, so a saved
     // page looks the same anywhere.
@@ -203,7 +326,7 @@ pub fn printable_html(input: &PrintInput) -> String {
          <title>{title}</title>\
          <style>{tokens}\n{markdown}\n{print}\n@page {{ size: {size}; margin: 16mm 15mm; }}</style>\
          </head><body class=\"print-doc\">\
-         <header class=\"print-head\"><p class=\"print-ws\">{ws}</p><h1>{title}</h1>\
+         <header class=\"print-head\"><p class=\"print-ws\">{ws}</p><h1{title_attr}>{title}</h1>\
          <dl class=\"print-meta\">{details_html}</dl></header>\
          <main class=\"md-body\">{content}</main>\
          <footer class=\"print-foot\">Exported {exported} from {ws} with Cairn</footer>\
@@ -225,14 +348,5 @@ mod tests {
         assert_eq!(base64(b"fo"), "Zm8=");
         assert_eq!(base64(b"foo"), "Zm9v");
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
-    }
-
-    #[test]
-    fn strip_hrefs_keeps_link_text() {
-        let html = "<a href=\"#/page/a.md\" rel=\"x\">A</a> <a href=\"https://e.com\">E</a>";
-        assert_eq!(
-            strip_hrefs(html, "#/"),
-            "<a rel=\"x\">A</a> <a href=\"https://e.com\">E</a>"
-        );
     }
 }

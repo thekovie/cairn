@@ -112,3 +112,6 @@
   #main { padding: 0 !important; margin: 0 !important; }
   .route-view > .print-doc { max-width: none; padding: 0; border: 0; }
 }
+
+/* Where a link inside the documentation pointed: it can't be followed in a PDF. */
+.print-doc .print-ref { color: var(--fg-muted); font-size: 0.9em; }

@@ -315,7 +315,7 @@ To use a template, choose **Use for a new page** beside it, or pick it under **S
 
 Choose **Download** on any page:
 
-- **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top.
+- **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top. A link to another page can't be followed in a PDF, so it keeps its text and shows the page's name beside it, for example “see the printer guide (see “Printer setup” in Guides)”. Links to headings on the same page still work, and web links still open.
 - **Markdown with pictures (.zip)**: this page and its own pictures, for moving to another tool. Links to other pages won't work in the copy. This is not a backup.
 - **Markdown file (.md)**: just the text.
 
