@@ -237,6 +237,11 @@ pub fn pages_in(root: &Root, folder_rel: &str) -> Result<Vec<String>> {
 }
 
 impl Entry {
+    /// The file's size when it was chosen, in bytes.
+    pub fn size(&self) -> u64 {
+        self.stamp.len
+    }
+
     /// Whether the file is no longer as it was when it was chosen.
     pub fn changed_since(&self, root: &Root) -> Result<bool> {
         let path = root.resolve(&self.rel).map_err(|e| match e {

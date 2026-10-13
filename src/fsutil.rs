@@ -163,6 +163,76 @@ fn same_entry(_: &Path, _: &Path) -> bool {
     true
 }
 
+/// Bytes this user can still write on the drive that holds `path` (which
+/// must exist). On a network drive this is what the server reports, quotas
+/// included. An error means "can't tell", never "none".
+pub fn available_space(path: &Path) -> io::Result<u64> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "path contains a NUL"))?;
+        // SAFETY: `statvfs` is plain data that is valid when zeroed.
+        let mut stats: libc::statvfs = unsafe { std::mem::zeroed() };
+        // SAFETY: `c_path` is a NUL-terminated string and `stats` is a valid
+        // out-pointer for the duration of the call.
+        if unsafe { libc::statvfs(c_path.as_ptr(), &mut stats) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok((stats.f_bavail as u64).saturating_mul(stats.f_frsize as u64))
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+        // A network path must end in a backslash for this call.
+        let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+        if wide.last() != Some(&u16::from(b'\\')) {
+            wide.push(u16::from(b'\\'));
+        }
+        wide.push(0);
+        let mut free: u64 = 0;
+        // SAFETY: `wide` is NUL-terminated; `free` is a valid out-pointer and
+        // the two unused out-pointers may be null.
+        let ok = unsafe {
+            GetDiskFreeSpaceExW(
+                wide.as_ptr(),
+                &mut free,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        if ok == 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(free)
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "not supported here",
+        ))
+    }
+}
+
+/// A size for people: "512 KB", "954 MB", "1.2 GB".
+pub fn human_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    let b = bytes as f64;
+    if b < KB {
+        format!("{bytes} bytes")
+    } else if b < KB * KB {
+        format!("{:.0} KB", b / KB)
+    } else if b < KB * KB * KB {
+        format!("{:.0} MB", b / (KB * KB))
+    } else {
+        format!("{:.1} GB", b / (KB * KB * KB))
+    }
+}
+
 /// Whether a path is a symlink, junction, or other reparse point.
 pub fn is_link_like(meta: &fs::Metadata) -> bool {
     if meta.file_type().is_symlink() {
@@ -196,6 +266,22 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains("cairn-tmp"))
             .collect();
         assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn free_space_is_reported_for_a_real_folder_and_errors_for_a_missing_one() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(available_space(dir.path()).unwrap() > 0);
+        assert!(available_space(&dir.path().join("not there")).is_err());
+    }
+
+    #[test]
+    fn sizes_are_written_for_people() {
+        assert_eq!(human_size(0), "0 bytes");
+        assert_eq!(human_size(1023), "1023 bytes");
+        assert_eq!(human_size(2048), "2 KB");
+        assert_eq!(human_size(5 * 1024 * 1024), "5 MB");
+        assert_eq!(human_size(1_717_986_918), "1.6 GB");
     }
 
     #[test]

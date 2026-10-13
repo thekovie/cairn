@@ -372,6 +372,9 @@ fn cmd_backup(args: &[String]) -> ExitCode {
                             println!("    {}", plain(path));
                         }
                     }
+                    if let Some(note) = &done.space_note {
+                        println!("Note: {}", plain(note));
+                    }
                     if !done.skipped_links.is_empty() {
                         println!(
                             "Left out {} link(s) that point out of the documentation.",

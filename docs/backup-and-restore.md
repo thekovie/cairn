@@ -61,6 +61,16 @@ Cairn does not lock the shared folder, and it cannot take a perfect snapshot of 
 
 If Cairn cannot read a folder or file (no permission, or the shared drive drops out), the backup also stops and names it. A backup is never handed over with files quietly missing.
 
+## Free space
+
+Cairn checks there is room **before** it writes anything, so a backup or restore that can't fit never starts and never leaves a half-filled drive behind.
+
+- **Restore** needs exactly the size of the files in the backup, plus a small margin. If the drive has less, Cairn stops at once and says how much it needs and how much is free.
+- **Backup** can't know in advance how small the zip will be, because text squeezes a lot and pictures, PDFs and archives don't. It estimates the smallest it could be. If there isn't even that much room, it refuses. If there is enough for the likely case but not for the worst case, it goes ahead and says so, and if it does run out it stops and leaves nothing behind.
+- On a network drive, the free space is what the server reports to you, including any quota set for your account. If Cairn can't find out how much is free, it goes ahead.
+
+For a backup made in Cairn, the zip is first built in your computer's temporary folder, so that is the drive that needs room.
+
 ## Checking a backup
 
 ```text
@@ -103,6 +113,7 @@ A backup is an ordinary zip. To recover just one earlier version of one page, op
 ## If something goes wrong
 
 - **“kept changing while the backup was made”**: a file changed or disappeared while it was being copied, three times running. Try again in a quiet moment.
+- **“There isn't enough free space”**: the drive named in the message has less room than the backup or restore needs. Free up space, or choose another drive, then try again. Nothing was written.
 - **“can't reach … right now”**: the drive under the documentation went away (a network drive disconnected, or a USB drive was removed). Reconnect it and try again. No unfinished file is left behind.
 - **“isn't allowed to read” or “couldn't read”**: you don't have access to that folder, or the shared drive is offline. Fix access, then try again.
 - **“doesn't match its checksum” or “damaged or incomplete”**: that copy of the backup is damaged. Use another copy.

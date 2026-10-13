@@ -11,7 +11,10 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use cairn::backup::{MANIFEST_NAME, Progress, create, create_backup, restore, verify};
+use cairn::backup::{
+    MANIFEST_NAME, Progress, create, create_backup, create_checked, restore, restore_checked,
+    restore_space_needed, verify,
+};
 use cairn::export::archive::enumerate_backup;
 use cairn::workspace::{MarkerStatus, read_marker};
 use sha2::{Digest, Sha256};
@@ -853,6 +856,149 @@ fn backups_during_constant_saving_still_finish_and_verify() {
 fn backups_during_ordinary_saving_finish_and_verify() {
     let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_millis(40));
     assert_eq!((finished, gave_up), (25, 0));
+}
+
+// ------------------------------------------------------------ free space
+
+fn progress_none<'a>(never: &'a dyn Fn() -> bool, nothing: &'a dyn Fn(usize)) -> Progress<'a> {
+    Progress {
+        cancelled: never,
+        on_file: nothing,
+    }
+}
+
+#[test]
+fn a_backup_with_no_room_is_refused_before_anything_is_written() {
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    let (never, nothing) = (|| false, |_: usize| {});
+    let first = enumerate_backup(&ws.root).unwrap();
+    let almost_full = |_: &Path| Ok(1000u64);
+    let err = create_checked(
+        &ws.root,
+        &zip,
+        first,
+        &progress_none(&never, &nothing),
+        &almost_full,
+    )
+    .unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("free space"), "{message}");
+    assert!(
+        message.contains("1000 bytes"),
+        "says how much is free: {message}"
+    );
+    assert!(
+        message.contains("another drive"),
+        "says what to do: {message}"
+    );
+    assert!(
+        std::fs::read_dir(out.path()).unwrap().next().is_none(),
+        "nothing was created"
+    );
+}
+
+#[test]
+fn a_backup_that_may_not_fit_goes_ahead_and_says_so() {
+    let ws = common::workspace();
+    sample(&ws);
+    // Text squeezes to almost nothing, so this fits in far less room than its
+    // size, but Cairn can't know that in advance.
+    std::fs::write(ws.path.join("Big notes.md"), vec![b'a'; 24 * 1024 * 1024]).unwrap();
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    let (never, nothing) = (|| false, |_: usize| {});
+    let first = enumerate_backup(&ws.root).unwrap();
+    let tight = |_: &Path| Ok(20 * 1024 * 1024u64);
+    let summary = create_checked(
+        &ws.root,
+        &zip,
+        first,
+        &progress_none(&never, &nothing),
+        &tight,
+    )
+    .unwrap()
+    .unwrap();
+    let note = summary.space_note.expect("a warning about tight space");
+    assert!(note.contains("free"), "{note}");
+    verify(&zip).unwrap();
+}
+
+#[test]
+fn a_backup_with_plenty_of_room_or_an_unknown_amount_just_goes_ahead() {
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let (never, nothing) = (|| false, |_: usize| {});
+    for (name, space) in [
+        (
+            "plenty",
+            Box::new(|_: &Path| Ok(u64::MAX)) as Box<dyn Fn(&Path) -> std::io::Result<u64>>,
+        ),
+        (
+            "unknown",
+            Box::new(|_: &Path| Err(std::io::Error::other("can't tell"))),
+        ),
+    ] {
+        let zip = out.path().join(format!("{name}.zip"));
+        let first = enumerate_backup(&ws.root).unwrap();
+        let summary = create_checked(
+            &ws.root,
+            &zip,
+            first,
+            &progress_none(&never, &nothing),
+            &*space,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(summary.space_note.is_none(), "{name}");
+        verify(&zip).unwrap();
+    }
+}
+
+#[test]
+fn a_restore_with_no_room_is_refused_and_leaves_nothing() {
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    create_backup(&ws.root, &zip).unwrap();
+    let dest = out.path().join("Restored");
+    let almost_full = |_: &Path| Ok(1000u64);
+    let err = restore_checked(&zip, &dest, &almost_full).unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("free space"), "{message}");
+    assert!(message.contains("1000 bytes"), "{message}");
+    assert!(message.contains("needs about"), "{message}");
+    assert!(!dest.exists());
+    let leftovers: Vec<_> = std::fs::read_dir(out.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers, ["backup.zip"], "no staging folder either");
+}
+
+#[test]
+fn a_restore_needs_exactly_what_the_backup_holds_plus_a_margin() {
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    create_backup(&ws.root, &zip).unwrap();
+    let held: u64 = verify(&zip).unwrap().files.iter().map(|f| f.size).sum();
+    let need = restore_space_needed(held);
+    assert!(need > held);
+
+    let one_short = move |_: &Path| Ok(need - 1);
+    assert!(restore_checked(&zip, &out.path().join("A"), &one_short).is_err());
+    let enough = move |_: &Path| Ok(need);
+    restore_checked(&zip, &out.path().join("B"), &enough).unwrap();
+    // If the amount can't be found out, the restore is not blocked.
+    let unknown = |_: &Path| Err(std::io::Error::other("can't tell"));
+    restore_checked(&zip, &out.path().join("C"), &unknown).unwrap();
 }
 
 // -------------------------------------------------------------- over HTTP

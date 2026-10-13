@@ -27,6 +27,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::error::{CairnError, Result};
 use crate::export::archive::{Enumeration, count, enumerate_backup, name_list, read_problem};
+use crate::fsutil::{available_space, human_size};
 use crate::locks::LOCKS_DIR;
 use crate::paths::{Root, SYSTEM_DIR, split_relative};
 use crate::workspace::{MARKER_FILE, Marker, MarkerStatus, parse_marker, read_marker};
@@ -43,6 +44,12 @@ const MAX_PASSES: u32 = 3;
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_MARKER_BYTES: u64 = 1024 * 1024;
 const CHUNK: usize = 1024 * 1024;
+/// Room kept free beyond what a backup or restore needs, for the folder
+/// entries and file system overhead.
+const SPACE_MARGIN: u64 = 8 * 1024 * 1024;
+
+/// How much free space is on the drive holding a folder (an error: unknown).
+pub type SpaceFn<'a> = &'a dyn Fn(&Path) -> io::Result<u64>;
 /// Files from this size up are written with zip64 headers.
 const LARGE_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -79,6 +86,8 @@ pub struct Summary {
     /// holds each as it was when it was copied (and not the files created
     /// later). Each file is still a whole, unchanged version.
     pub changed_during: Vec<String>,
+    /// Said when there may not have been room for the backup after all.
+    pub space_note: Option<String>,
 }
 
 /// How one attempt at a backup ended.
@@ -176,16 +185,101 @@ pub fn create(
     first: Enumeration,
     progress: &Progress,
 ) -> Result<Option<Summary>> {
+    create_checked(root, dest, first, progress, &available_space)
+}
+
+/// The room a folder's backup is likely to need, as (least, most): files that
+/// are already compressed (pictures, PDFs, archives, office files) stay their
+/// size, other files shrink a lot but by an amount no one can know in advance.
+fn backup_estimate(listing: &Enumeration) -> (u64, u64) {
+    const SQUEEZED: [&str; 18] = [
+        "png", "jpg", "jpeg", "gif", "webp", "zip", "gz", "7z", "rar", "pdf", "docx", "xlsx",
+        "pptx", "mp3", "mp4", "mov", "mkv", "avi",
+    ];
+    let (mut least, mut most) = (SPACE_MARGIN, SPACE_MARGIN);
+    for entry in &listing.entries {
+        let len = entry.size();
+        let ext = entry
+            .rel
+            .rsplit_once('.')
+            .map_or("", |(_, e)| e)
+            .to_ascii_lowercase();
+        most += len;
+        least += if SQUEEZED.contains(&ext.as_str()) {
+            len
+        } else {
+            len / 10
+        };
+    }
+    (least, most)
+}
+
+fn not_enough_space(what: &str, need: u64, free: u64, folder: &Path) -> CairnError {
+    CairnError::Io(format!(
+        "There isn't enough free space. {what} needs about {}, but {} has only {} free. \
+         Free up space or choose another drive, then try again.",
+        human_size(need),
+        folder.display(),
+        human_size(free)
+    ))
+}
+
+/// Refuse a backup that certainly won't fit, and note one that might not.
+fn check_backup_space(
+    dest: &Path,
+    listing: &Enumeration,
+    space: SpaceFn,
+) -> Result<Option<String>> {
+    let folder = match dest.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
+    // If the amount can't be found out, go ahead: running out of room is
+    // still handled cleanly (nothing is left behind).
+    let Ok(free) = space(folder) else {
+        return Ok(None);
+    };
+    let (least, most) = backup_estimate(listing);
+    if free < least {
+        return Err(not_enough_space(
+            "The backup (even squeezed as small as it can go)",
+            least,
+            free,
+            folder,
+        ));
+    }
+    if free < most {
+        return Ok(Some(format!(
+            "{} has {} free, and the backup may need up to {} if the files don't squeeze \
+             well. If it runs out of room, it stops and leaves nothing behind.",
+            folder.display(),
+            human_size(free),
+            human_size(most)
+        )));
+    }
+    Ok(None)
+}
+
+/// [`create`] with the free-space lookup supplied (so it can be tested).
+pub fn create_checked(
+    root: &Root,
+    dest: &Path,
+    first: Enumeration,
+    progress: &Progress,
+    space: SpaceFn,
+) -> Result<Option<Summary>> {
     if dest.exists() {
         return Err(bad(format!(
             "{} already exists. Choose a new file name.",
             dest.display()
         )));
     }
+    let space_note = check_backup_space(dest, &first, space)?;
     let part = part_path(dest)?;
     let outcome = attempts(root, &part, first, progress);
     match outcome {
-        Ok(Some(summary)) => {
+        Ok(Some(mut summary)) => {
+            summary.space_note = space_note;
             if let Err(e) = fs::rename(&part, dest) {
                 let _ = fs::remove_file(&part);
                 return Err(write_problem(&e));
@@ -359,6 +453,7 @@ fn write_pass(
         skipped_links: manifest.skipped,
         passes: 1,
         changed_during: Vec::new(),
+        space_note: None,
     }))
 }
 
@@ -658,6 +753,16 @@ pub fn verify(zip: &Path) -> Result<Manifest> {
 /// completely while it is written to a hidden folder next to `dest`, and
 /// only then moved into place, so a bad backup leaves nothing behind.
 pub fn restore(zip: &Path, dest: &Path) -> Result<Restored> {
+    restore_checked(zip, dest, &available_space)
+}
+
+/// Room a restore of `held` bytes of files needs: the files, and a margin.
+pub fn restore_space_needed(held: u64) -> u64 {
+    held + SPACE_MARGIN.max(held / 100)
+}
+
+/// [`restore`] with the free-space lookup supplied (so it can be tested).
+pub fn restore_checked(zip: &Path, dest: &Path, space: SpaceFn) -> Result<Restored> {
     let name = dest
         .file_name()
         .ok_or_else(|| bad("Choose a folder name to restore into."))?;
@@ -701,6 +806,14 @@ pub fn restore(zip: &Path, dest: &Path) -> Result<Restored> {
     }
     let mut archive = open(zip)?;
     let manifest = read_manifest(&mut archive)?;
+    // Know it fits before writing anything: a restore that runs out of room
+    // halfway is slow to fail and leaves a full drive behind for a moment.
+    let need = restore_space_needed(manifest.files.iter().map(|f| f.size).sum());
+    if let Ok(free) = space(&parent)
+        && free < need
+    {
+        return Err(not_enough_space("The restore", need, free, &parent));
+    }
     let suffix = uuid::Uuid::new_v4().simple().to_string();
     let staging = parent.join(format!(".cairn-restore-{}", &suffix[..12]));
     fs::create_dir(&staging).map_err(|e| write_problem(&e))?;
