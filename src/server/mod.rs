@@ -332,6 +332,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/templates/delete", post(api_templates::delete))
         .route("/api/templates/deleted", get(api_templates::deleted))
         .route("/api/export/page", get(api_export::page))
+        .route("/api/export/pdf-links", get(api_export::pdf_links))
         .route("/api/export/jobs", post(api_export::start_job))
         .route("/api/backup/jobs", post(api_export::start_backup))
         .route("/api/health", get(api_health::health))

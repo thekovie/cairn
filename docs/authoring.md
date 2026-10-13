@@ -315,7 +315,7 @@ To use a template, choose **Use for a new page** beside it, or pick it under **S
 
 Choose **Download** on any page:
 
-- **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top. A link to another page can't be followed in a PDF, so it keeps its text and shows the page's name beside it, for example “see the printer guide (see “Printer setup” in Guides)”. Links to headings on the same page still work, and web links still open.
+- **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top. A link to another page can't be followed in a PDF, so it keeps its text and shows the page's name beside it, for example “see the printer guide (see “Printer setup” in Guides)”. Links to headings on the same page still work, and web links still open. **Before** a PDF is made, Cairn tells you if the page (or any page in a folder download) has links like that, how many, and what will happen to them, and you choose **Download anyway** to carry on. Choose another kind of file instead and the warning goes away. There is no warning when nothing will change.
 - **Markdown with pictures (.zip)**: this page and its own pictures, for moving to another tool. Links to other pages won't work in the copy. This is not a backup.
 - **Markdown file (.md)**: just the text.
 

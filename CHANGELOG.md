@@ -6,6 +6,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Added
 
+- **A warning before a PDF changes links.** If a page (or any page in a folder download) has links to other pages or files, Cairn says so first: how many, and that each will keep its words with the name of what it pointed at beside it, since a PDF can't follow them. You choose **Download anyway** to carry on. Nothing is shown when no links will change.
 - **PDFs keep the meaning of links.** A link to another page used to turn into plain text. It now keeps its text and shows the page's name beside it (and its folder, when different), and a link to a file shows the file's name. Links to headings on the same page, including the page title, now work inside the PDF. Download dialogs say how links appear. Links between separate PDFs in a folder download are deliberately not made: the PDFs are printed one at a time and can't link to each other reliably.
 - **Narrow a search by folder, status, or tag, and choose the order.** Best match, recently changed, or title. Leave the words empty to list every page that fits. Filters apply before the 50-page limit, so a filtered search finds pages an unfiltered one would cut off, and the heading says how many matched in all. Retired pages are still found unless you choose a status.
 - **Search ranks better.** A title that is exactly what you typed comes first, tags are searched and count like title words, and pages that tie always come in the same order (title, then path, ignoring capitals).

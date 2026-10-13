@@ -25,7 +25,7 @@ use super::{ApiError, AppState, OpenWorkspace};
 use crate::backup;
 use crate::error::{CairnError, Result};
 use crate::export::archive::{count, name_list};
-use crate::export::html::{PrintInput, printable_html};
+use crate::export::html::{self, PrintInput, printable_html};
 use crate::export::{archive, pdf};
 use crate::linkcheck::{self, CheckProgress};
 use crate::paths::{is_system_path, normalize_relative};
@@ -321,6 +321,82 @@ pub async fn page(
     })
     .await?;
     Ok(download(bytes, &name, mime))
+}
+
+// ------------------------------------------------------ PDF link warning
+
+#[derive(Deserialize)]
+pub struct PdfLinksQuery {
+    scope: String,
+    #[serde(default)]
+    path: String,
+}
+
+/// Before a PDF is made: how many links to other pages and files it will
+/// have to turn into plain text with a note (a PDF can't follow them), and
+/// on how many pages, so the person can be told first.
+pub async fn pdf_links(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<PdfLinksQuery>,
+) -> ApiResult {
+    blocking(state, move |st| {
+        let ws = st.workspace()?;
+        let pages: Vec<String> = match q.scope.as_str() {
+            "page" => vec![validate_article_path(&q.path)?],
+            "folder" | "all" => {
+                let scope = if q.scope == "all" {
+                    Scope::All
+                } else {
+                    Scope::Folder
+                };
+                let folder = folder_for(
+                    &ws,
+                    &JobBody {
+                        scope,
+                        path: q.path.clone(),
+                        format: Format::Pdf,
+                    },
+                )?;
+                archive::pages_in(&ws.root, &folder)?
+            }
+            _ => {
+                return Err(CairnError::BadRequest(
+                    "Choose page, folder, or all.".into(),
+                ));
+            }
+        };
+        let (mut links, mut with_links) = (0usize, 0usize);
+        let mut examples = Vec::new();
+        for rel in &pages {
+            // A page that can't be read fails the PDF itself, loudly.
+            let Some(text) = ws
+                .root
+                .resolve(rel)
+                .ok()
+                .and_then(|p| std::fs::read(p).ok())
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+            else {
+                continue;
+            };
+            let found = html::converted_links(&ws.root, rel, &text);
+            if found.is_empty() {
+                continue;
+            }
+            links += found.len();
+            with_links += 1;
+            if examples.len() < 5 {
+                let mut targets: Vec<String> = Vec::new();
+                for target in found {
+                    if !targets.contains(&target) && targets.len() < 4 {
+                        targets.push(target);
+                    }
+                }
+                examples.push(json!({ "page": rel, "targets": targets }));
+            }
+        }
+        Ok(json!({ "links": links, "pages": with_links, "examples": examples }))
+    })
+    .await
 }
 
 // ------------------------------------------------------------- bulk jobs
