@@ -42,6 +42,22 @@ Record the build version (`cairn --version`), the share type, and the date. Mark
 | **Maintainer:** `cairn locks list <share>`, then `cairn locks release <share> <page> --session <id>`. | Released; a record appears in `_system/locks/released/`. B can edit. | ☐ |
 | **A:** start Cairn again and edit the page. | A is offered their unsaved changes. If B published meanwhile, A is shown both versions before publishing. | ☐ |
 
+## Downloads and backups on the share
+
+These need a real share, so they are not covered by the automatic tests.
+
+| Step | Expected result | Pass |
+| --- | --- | --- |
+| **A:** **Settings → Download everything → Markdown**. While it prepares, **B** publishes a change to a page. | A's download finishes. If B's change landed in time, a “Please note” message names the changed file. Nothing is silently missing. | ☐ |
+| **A:** start **Download everything**, then disconnect A from the network (or sleep the file server) before it finishes. | The download fails with a message naming a file or folder it couldn't read. No zip is saved. Reconnect and it works again. | ☐ |
+| **A:** **Settings → Back up workspace** while **B** keeps publishing different pages every few seconds. | Either the backup finishes (possibly after “made again”), or it stops with “kept changing” and names the pages. No half-finished file is left in Downloads or the temporary folder. | ☐ |
+| **A:** disconnect from the network in the middle of **Back up workspace**. | The backup fails with a message naming the file it couldn't read. | ☐ |
+| **A:** `cairn backup create <share> D:\Backups\test.zip`, then `cairn backup verify D:\Backups\test.zip`. | Both succeed. `verify` says all checksums match. | ☐ |
+| **A:** `cairn restore D:\Backups\test.zip D:\Restored`, then open `D:\Restored` in Cairn. | Pages, pictures, earlier versions (Earlier versions on a page), and Recently deleted pages are all there. No page is shown as being edited. | ☐ |
+| **A:** `cairn restore` again into `D:\Restored`, and into a folder inside the share. | Both are refused with a clear message and nothing changes. | ☐ |
+| **A:** change one byte inside `test.zip` (with a hex editor), then `cairn backup verify`. | It reports the damaged file and does not say OK. | ☐ |
+| **Mac or Linux B:** `cairn backup create` on the same share, then `cairn restore` on a Windows computer (and the reverse). | Works both ways. Names with accents or other scripts come through unchanged. | ☐ |
+
 ## Mac and Linux
 
 Run steps 1–14 with B on a Mac or Linux computer that has the same share mounted (on a Mac, **Go → Connect to Server** with `smb://fileserver/team`; on Linux, mounted with CIFS). Then:

@@ -266,10 +266,10 @@ To use a template, choose **Use for a new page** beside it, or pick it under **S
 Choose **Download** on any page:
 
 - **PDF document**: for reading, printing, or sending to someone. Pictures are included, with the owner, status, and dates at the top.
-- **Markdown with pictures (.zip)**: for backups or moving to another tool.
+- **Markdown with pictures (.zip)**: this page and its own pictures, for moving to another tool. Links to other pages won't work in the copy. This is not a backup.
 - **Markdown file (.md)**: just the text.
 
-On a folder, **Download this folder** saves all its pages (and folders inside it) as one .zip, either as Markdown with pictures or as one PDF per page. **Settings → Download everything** does the same for the whole documentation, including templates. A progress bar shows how far along it is, and **Close** stops it.
+On a folder, **Download this folder** saves all its pages (and folders inside it) as one .zip, either as Markdown with pictures or as one PDF per page. **Settings → Download everything** does the same for the whole documentation, including templates. These downloads hold the current pages only, not earlier versions or deleted pages. For a copy you can restore, use **Settings → Back up workspace** ([Back up and restore](backup-and-restore.md)). A progress bar shows how far along it is, and **Close** stops it.
 
 PDFs are made on your own computer by Microsoft Edge, Google Chrome, or Chromium; nothing is uploaded. If none works on your computer, Cairn offers to **open the print window instead**: choose **Save as PDF** (or, on Windows, **Microsoft Print to PDF**) as the printer.
 

@@ -97,6 +97,8 @@ _templates/<template>.md                          team templates for this docume
 _system/locks/<hash>.lock                         who is editing what
 _system/locks/released/*.json                     locks released by a maintainer
 _system/history/<page path>/<UTC time>-<hash>.md  earlier versions
+_system/edited/<page path>.json                   who last published the page, and a fingerprint of it
+_system/.probe/                                   scratch files from the storage check (removed afterwards)
 _system/trash/<id>/item.json                      a deleted page or folder: where it was, who, when
 _system/trash/<id>/content/                       the deleted page (with its .assets) or folder
 ```
@@ -122,6 +124,16 @@ A download never leaves a file out without saying so. A folder or file Cairn can
 For a PDF, the page is rendered with the same sanitizing renderer, pictures are embedded as `data:` URIs, in-app links become plain text, and the styles and font are inlined. The resulting HTML carries its own Content-Security-Policy (`default-src 'none'`, no scripts). Cairn writes it to a private temporary folder and runs Microsoft Edge (or Chrome) headless with a separate throwaway profile and `--print-to-pdf`, so the person's open browser is never touched. The run is limited to 60 seconds and the temporary folder is always deleted. If one browser fails (for example, when a tool redirects every Edge launch), the next is tried. If none works, the API answers `409 pdf_unavailable` and the interface offers its print view instead.
 
 Folder and whole-documentation downloads run as in-memory jobs, one at a time, so the interface can show progress and cancel. Finished files are handed over once and dropped 10 minutes after the job ends (not after it starts, so a slow PDF job is still there when it finishes). A job that crashes is marked failed and does not block the next download. Leftover PDF working folders (`cairn-pdf-*`) older than an hour are removed the first time a PDF is made after Cairn starts.
+
+## Backups
+
+A backup (`src/backup.rs`) is a zip of everything under the workspace except edit locks, hidden files, and temporary files, so it includes `shared-docs.json`, `_templates`, and `_system/history`, `edited`, and `trash`. Its last entry, `cairn-backup.json`, lists every file with its size and SHA-256, plus a format name and `format_version` (currently 1), the workspace `instance_id` and name, the date, and the Cairn version. Files are streamed through the hash into a hidden `.part` file that is renamed into place only when complete, so a failed or cancelled backup leaves nothing behind.
+
+The shared folder is not locked. Each file's size and modified time are noted before it is read and the whole tree is listed again at the end; any difference means the backup is made once more, and a second difference fails it, naming the files. This is a consistency check, not a snapshot.
+
+Over HTTP a backup is a job like a download (`POST /api/backup/jobs`, then the same status, cancel, and file routes), but the finished zip waits in the computer's temporary folder and is streamed to the browser, then deleted, instead of being held in memory. Backup files older than a day in the temporary folder are removed when the next backup starts.
+
+Restore exists only on the command line (`cairn restore`, `cairn backup verify`). It checks the manifest (format, version, safe relative paths with no `..`, absolute or drive paths, backslashes, alternate streams, reserved names, locks, or duplicates), then reads every entry against its size and checksum while extracting into a hidden folder beside the destination. Entries that are links, folders, or not in the list are refused. The destination must be new or empty and not inside another workspace; only after every check passes is the folder moved into place.
 
 ## Timezones
 

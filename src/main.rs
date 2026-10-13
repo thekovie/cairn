@@ -7,6 +7,9 @@
 //! cairn init <folder> --name "<name>"     create a documentation folder
 //! cairn locks list <workspace>            show edit locks (maintainers)
 //! cairn locks release <workspace> <page> --session <id>
+//! cairn backup create <workspace> <backup.zip>
+//! cairn backup verify <backup.zip>
+//! cairn restore <backup.zip> <new-folder>
 //! ```
 
 use std::io::Write;
@@ -14,6 +17,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use cairn::backup;
 use cairn::config;
 use cairn::locks;
 use cairn::paths::Root;
@@ -27,6 +31,9 @@ USAGE:
     cairn init <folder> --name <name>
     cairn locks list <workspace-folder>
     cairn locks release <workspace-folder> <page-path> --session <session-id>
+    cairn backup create <workspace-folder> <backup.zip>
+    cairn backup verify <backup.zip>
+    cairn restore <backup.zip> <new-folder>
 
 OPTIONS:
     --no-browser        Don't open the web browser automatically
@@ -68,6 +75,8 @@ fn main() -> ExitCode {
         }
         Some("init") => cmd_init(&args[1..]),
         Some("locks") => cmd_locks(&args[1..]),
+        Some("backup") => cmd_backup(&args[1..]),
+        Some("restore") => cmd_restore(&args[1..]),
         _ => cmd_run(RunArgs {
             open_browser: !args.iter().any(|a| a == "--no-browser"),
             port: value_after(&args, "--port")
@@ -79,8 +88,17 @@ fn main() -> ExitCode {
     }
 }
 
+/// Text from a file we didn't write (a backup's names, say) must not be able
+/// to send terminal commands: control characters become "?".
+fn plain(text: impl std::fmt::Display) -> String {
+    text.to_string()
+        .chars()
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
+}
+
 fn fail(msg: impl std::fmt::Display) -> ExitCode {
-    eprintln!("Error: {msg}");
+    eprintln!("Error: {}", plain(msg));
     ExitCode::FAILURE
 }
 
@@ -321,5 +339,81 @@ fn cmd_locks(args: &[String]) -> ExitCode {
             "usage: cairn locks list <workspace> | \
              cairn locks release <workspace> <page> --session <id>",
         ),
+    }
+}
+
+fn megabytes(bytes: u64) -> String {
+    format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+}
+
+fn cmd_backup(args: &[String]) -> ExitCode {
+    match (args.first().map(String::as_str), args.get(1), args.get(2)) {
+        (Some("create"), Some(folder), Some(file)) => {
+            let root = match open_root(folder) {
+                Ok(r) => r,
+                Err(e) => return fail(e),
+            };
+            match backup::create_backup(&root, Path::new(file)) {
+                Ok(done) => {
+                    println!(
+                        "Backed up {} files ({}) to {file}.",
+                        done.files,
+                        megabytes(done.bytes)
+                    );
+                    if done.passes > 1 {
+                        println!("Some files changed while it ran, so it was made again.");
+                    }
+                    if !done.skipped_links.is_empty() {
+                        println!(
+                            "Left out {} link(s) that point out of the documentation.",
+                            done.skipped_links.len()
+                        );
+                    }
+                    println!("Check it any time with: cairn backup verify {file}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => fail(e),
+            }
+        }
+        (Some("verify"), Some(file), None) => match backup::verify(Path::new(file)) {
+            Ok(m) => {
+                println!(
+                    "OK: \"{}\" backup made {} by Cairn {}: {} files, all checksums match.",
+                    plain(&m.display_name),
+                    plain(&m.created_at),
+                    plain(&m.cairn_version),
+                    m.files.len()
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(e),
+        },
+        _ => fail(
+            "usage: cairn backup create <workspace> <backup.zip> | cairn backup verify <backup.zip>",
+        ),
+    }
+}
+
+fn cmd_restore(args: &[String]) -> ExitCode {
+    let (Some(file), Some(folder)) = (args.first(), args.get(1)) else {
+        return fail("usage: cairn restore <backup.zip> <new-folder>");
+    };
+    match backup::restore(Path::new(file), Path::new(folder)) {
+        Ok(done) => {
+            println!(
+                "Restored \"{}\" ({} files, {}) to {folder}.",
+                plain(&done.display_name),
+                done.files,
+                megabytes(done.bytes)
+            );
+            println!(
+                "It keeps the identity of the original (id {}).",
+                done.instance_id
+            );
+            println!("Use it to replace a lost folder, not alongside the original.");
+            println!("Open the folder from Cairn's start screen to use it.");
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(e),
     }
 }

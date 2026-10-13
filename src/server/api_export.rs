@@ -3,20 +3,28 @@
 //! show real progress and offer Cancel).
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use axum::Json;
+use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
+use futures_core::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tokio_util::io::ReaderStream;
 
 use super::api::{ApiResult, blocking};
 use super::{ApiError, AppState, OpenWorkspace};
+use crate::backup;
 use crate::error::{CairnError, Result};
+use crate::export::archive::{count, name_list};
 use crate::export::html::{PrintInput, printable_html};
 use crate::export::{archive, pdf};
 use crate::paths::{is_system_path, normalize_relative};
@@ -47,7 +55,23 @@ pub struct Job {
     updated: Mutex<Instant>,
     file_name: String,
     state: Mutex<(JobState, Option<String>)>,
-    result: Mutex<Option<Vec<u8>>>,
+    result: Mutex<Option<JobResult>>,
+}
+
+/// A finished download: small ones stay in memory, a backup (which can be
+/// large) waits in a file in the temporary folder until it is fetched.
+enum JobResult {
+    Bytes(Vec<u8>),
+    TempFile(PathBuf),
+}
+
+impl Drop for Job {
+    /// A backup that was never fetched must not stay on disk.
+    fn drop(&mut self) {
+        if let Some(JobResult::TempFile(path)) = self.result.get_mut().ok().and_then(Option::take) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
 }
 
 impl Job {
@@ -208,6 +232,10 @@ fn stem(rel: &str) -> String {
 }
 
 fn download(bytes: Vec<u8>, file_name: &str, content_type: &str) -> Response {
+    (download_headers(file_name, content_type), bytes).into_response()
+}
+
+fn download_headers(file_name: &str, content_type: &str) -> [(header::HeaderName, String); 3] {
     let ascii: String = file_name
         .chars()
         .map(|c| {
@@ -222,12 +250,11 @@ fn download(bytes: Vec<u8>, file_name: &str, content_type: &str) -> Response {
         "attachment; filename=\"{ascii}\"; filename*=UTF-8''{}",
         crate::article::encode_path(file_name)
     );
-    let headers = [
+    [
         (header::CONTENT_TYPE, content_type.to_string()),
         (header::CONTENT_DISPOSITION, disposition),
         (header::CACHE_CONTROL, "no-store".to_string()),
-    ];
-    (headers, bytes).into_response()
+    ]
 }
 
 async fn run_blocking<T, F>(state: Arc<AppState>, f: F) -> std::result::Result<T, ApiError>
@@ -327,7 +354,7 @@ fn folder_for(ws: &OpenWorkspace, body: &JobBody) -> Result<String> {
 
 /// A finished archive, and the files that changed while it was being made.
 struct Built {
-    zip: Vec<u8>,
+    result: JobResult,
     changed: Vec<String>,
 }
 
@@ -367,27 +394,9 @@ fn run_job(
         job.done.fetch_add(1, Ordering::SeqCst);
     }
     Ok(Some(Built {
-        zip: zip.finish()?,
+        result: JobResult::Bytes(zip.finish()?),
         changed,
     }))
-}
-
-fn count(n: usize, noun: &str) -> String {
-    if n == 1 {
-        format!("1 {noun}")
-    } else {
-        format!("{n} {noun}s")
-    }
-}
-
-/// The first few names, then how many more.
-fn name_list(paths: &[String]) -> String {
-    const SHOWN: usize = 3;
-    let shown = paths.iter().take(SHOWN).cloned().collect::<Vec<_>>();
-    match paths.len().saturating_sub(SHOWN) {
-        0 => shown.join(", "),
-        more => format!("{}, and {more} more", shown.join(", ")),
-    }
 }
 
 /// What the person should know about a download that did finish.
@@ -416,7 +425,7 @@ fn finish_note(changed: &[String], skipped: &[String]) -> Option<String> {
 fn settle(job: &Job, run: impl FnOnce() -> Result<Option<Built>>, skipped: &[String]) {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
         Ok(Ok(Some(built))) => {
-            *job.result.lock().expect("job result") = Some(built.zip);
+            *job.result.lock().expect("job result") = Some(built.result);
             job.set_state(JobState::Finished, finish_note(&built.changed, skipped));
         }
         Ok(Ok(None)) => job.set_state(JobState::Cancelled, None),
@@ -473,6 +482,161 @@ pub async fn start_job(State(state): State<Arc<AppState>>, Json(body): Json<JobB
     .await
 }
 
+// --------------------------------------------------------------- backups
+
+/// Backups wait in the computer's temporary folder until they are fetched.
+const BACKUP_FILE_PREFIX: &str = "cairn-backup-";
+/// Backups left by a crash are removed after this long.
+const STALE_BACKUP_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Whether a file name is one Cairn made for a backup it is preparing
+/// (`cairn-backup-<32 hex>.zip`, or its hidden half-written form). Someone's
+/// own backup that happens to start with "cairn-backup-" is not matched.
+fn is_backup_temp_name(name: &str) -> bool {
+    let name = name.strip_prefix('.').unwrap_or(name);
+    let Some(rest) = name.strip_prefix(BACKUP_FILE_PREFIX) else {
+        return false;
+    };
+    let (id, after) = rest.split_at_checked(32).unwrap_or((rest, ""));
+    id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()) && after.starts_with(".zip")
+}
+
+/// Remove backup files in `dir` (finished or half-written) older than `max_age`.
+fn sweep_old_backups(dir: &std::path::Path, max_age: Duration) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !is_backup_temp_name(&entry.file_name().to_string_lossy()) {
+            continue;
+        }
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age >= max_age);
+        if old {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+fn run_backup(
+    job: &Job,
+    ws: &OpenWorkspace,
+    file: &std::path::Path,
+    found: archive::Enumeration,
+) -> Result<Option<Built>> {
+    let cancelled = || job.cancel.load(Ordering::SeqCst);
+    let on_file = |done: usize| job.done.store(done, Ordering::SeqCst);
+    let progress = backup::Progress {
+        cancelled: &cancelled,
+        on_file: &on_file,
+    };
+    Ok(
+        backup::create(&ws.root, file, found, &progress)?.map(|_| Built {
+            result: JobResult::TempFile(file.to_path_buf()),
+            changed: Vec::new(),
+        }),
+    )
+}
+
+/// Start a workspace backup. Progress, cancel and the file itself use the
+/// same job routes as downloads.
+pub async fn start_backup(State(state): State<Arc<AppState>>) -> ApiResult {
+    blocking(state.clone(), move |st| {
+        let ws = st.workspace()?;
+        let found = archive::enumerate_backup(&ws.root)?;
+        let total = found.entries.len();
+        let name = ws.marker.read().expect("marker lock").display_name.clone();
+        let today = timefmt::today(&timefmt::user_zone(st.config().timezone.as_deref()));
+        let file_name = format!("{}-backup-{today}.zip", safe_file_name(&name));
+        let temp = std::env::temp_dir();
+        sweep_old_backups(&temp, STALE_BACKUP_AFTER);
+        let file = temp.join(format!(
+            "{BACKUP_FILE_PREFIX}{}.zip",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let (id, job) = st.exports.start(total, file_name.clone())?;
+        let skipped = found.skipped_links.clone();
+        std::thread::spawn(move || {
+            settle(&job, || run_backup(&job, &ws, &file, found), &skipped);
+        });
+        Ok(json!({ "id": id, "total": total, "file_name": file_name }))
+    })
+    .await
+}
+
+/// Deletes a file shortly after, retrying while something still has it
+/// open (Windows won't delete an open file).
+fn remove_soon(path: PathBuf) {
+    std::thread::spawn(move || {
+        for _ in 0..10 {
+            if std::fs::remove_file(&path).is_ok() || !path.exists() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
+/// Streams a temporary file to the browser, and deletes it when the stream
+/// ends or is dropped, whether the download finished or the browser gave up.
+struct TempFileStream {
+    inner: Option<ReaderStream<tokio::fs::File>>,
+    path: PathBuf,
+}
+
+impl Stream for TempFileStream {
+    type Item = std::io::Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.inner.as_mut() {
+            Some(inner) => Pin::new(inner).poll_next(cx),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+impl Drop for TempFileStream {
+    fn drop(&mut self) {
+        self.inner = None;
+        remove_soon(std::mem::take(&mut self.path));
+    }
+}
+
+async fn stream_file(path: PathBuf, file_name: &str) -> std::result::Result<Response, ApiError> {
+    let opened = async {
+        let file = tokio::fs::File::open(&path).await?;
+        let len = file.metadata().await?.len();
+        Ok::<_, std::io::Error>((file, len))
+    }
+    .await;
+    let (file, len) = match opened {
+        Ok(opened) => opened,
+        Err(e) => {
+            remove_soon(path);
+            return Err(ApiError(CairnError::Io(format!(
+                "The backup could not be read back ({e}). Please make it again."
+            ))));
+        }
+    };
+    let stream = TempFileStream {
+        inner: Some(ReaderStream::new(file)),
+        path,
+    };
+    let mut response = (
+        download_headers(file_name, "application/zip"),
+        Body::from_stream(stream),
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(header::CONTENT_LENGTH, len.into());
+    Ok(response)
+}
+
 fn status_json(job: &Job) -> Value {
     let (state, message) = job.state();
     json!({
@@ -505,10 +669,11 @@ pub async fn job_file(
             "This download isn't ready yet.".into(),
         )));
     }
-    let bytes = job.result.lock().expect("job result").take();
+    let result = job.result.lock().expect("job result").take();
     state.exports.remove(&id);
-    match bytes {
-        Some(bytes) => Ok(download(bytes, &job.file_name, "application/zip")),
+    match result {
+        Some(JobResult::Bytes(bytes)) => Ok(download(bytes, &job.file_name, "application/zip")),
+        Some(JobResult::TempFile(path)) => stream_file(path, &job.file_name).await,
         None => Err(ApiError(CairnError::NotFound(
             "This download was already saved. Please start it again.".into(),
         ))),
@@ -549,6 +714,31 @@ mod tests {
             "{note}"
         );
         assert!(!note.contains("p4.md"));
+    }
+
+    #[test]
+    fn old_backup_files_are_swept_and_other_files_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        let ours = format!("cairn-backup-{id}.zip");
+        let half = format!(".cairn-backup-{id}.zip.cairn-part-abc123");
+        for name in [
+            ours.as_str(),
+            half.as_str(),
+            "cairn-backup-2026-10-13.zip",
+            "holiday.zip",
+        ] {
+            std::fs::write(dir.path().join(name), "x").unwrap();
+        }
+        // New files (a backup in progress) are kept.
+        sweep_old_backups(dir.path(), Duration::from_secs(3600));
+        assert!(dir.path().join(&ours).exists());
+        sweep_old_backups(dir.path(), Duration::ZERO);
+        assert!(!dir.path().join(&ours).exists());
+        assert!(!dir.path().join(&half).exists());
+        // Someone's own backups are never touched, even with a similar name.
+        assert!(dir.path().join("cairn-backup-2026-10-13.zip").exists());
+        assert!(dir.path().join("holiday.zip").exists());
     }
 
     fn running_job() -> Arc<Job> {

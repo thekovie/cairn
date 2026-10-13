@@ -5,6 +5,7 @@
 //! folder (local or on a network share) using that user's own permissions.
 
 pub mod article;
+pub mod backup;
 pub mod config;
 pub mod drafts;
 pub mod editors;

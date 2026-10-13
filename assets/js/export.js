@@ -84,8 +84,8 @@ export async function openPageDownload(ctx, data) {
     body: [
       h('p', null, `“${data.title}”`),
       choiceCards('dl-format', [
-        { value: 'pdf', label: 'PDF document', text: 'Best for reading, printing, or sending to someone. Includes pictures.' },
-        { value: 'zip', label: 'Markdown with pictures (.zip)', text: 'Best for backups or moving to another tool. Keeps pictures and links working.' },
+        { value: 'pdf', label: 'PDF document', text: 'Best for reading, printing, or sending to someone. Includes pictures. Links to other pages show as plain text.' },
+        { value: 'zip', label: 'Markdown with pictures (.zip)', text: 'This page and its own pictures, as Markdown. Best for moving to another tool. Links to other pages won’t work in the copy. For a backup, use Back up workspace in Settings.' },
         { value: 'md', label: 'Markdown file (.md)', text: 'Just the text of this page.' },
       ]),
       status,
@@ -105,25 +105,22 @@ export async function openPageDownload(ctx, data) {
 // ------------------------------------------------- folder or everything
 
 /**
- * Download dialog for a folder (`scope: 'folder'`) or all documentation
- * (`scope: 'all'`). `pageCount` is shown before starting, when known.
+ * Runs a background job (a folder download or a workspace backup) in a
+ * dialog: starts it, shows real progress, stops it when the dialog is
+ * closed, and saves the finished file. `request(dialog)` starts the job and
+ * returns `{ id, total }`.
  */
-export async function openBulkDownload({ scope, path = '', name, pageCount }) {
+async function openJobDialog({ title, noun, startLabel, unit, body, request, formatOf = () => null }) {
   const status = h('div', { class: 'dl-status' });
-  const what = scope === 'all' ? 'all documentation' : 'this folder';
   let dialog = null;
-  let job = null; // { id, total, done }
+  let job = null; // { id, total, done, format }
   let timer = 0;
   let endGuard = null; // ends the "keep this tab open" guard while a job runs
 
-  const countLine = pageCount === undefined ? null
-    : h('p', { class: 'help' },
-      `${scope === 'all' ? 'The documentation' : 'This folder'} has ${pageCount === 1 ? '1 page' : `${pageCount} pages`}. PDFs may take a few minutes; Markdown takes seconds.`);
-
   function progressView(done, total) {
     return h('div', { class: 'dl-progress' },
-      h('label', { for: 'dl-bar' }, `Preparing page ${Math.min(done + 1, total)} of ${total}…`),
-      h('progress', { id: 'dl-bar', max: String(total), value: String(done) }));
+      h('label', { for: 'dl-bar' }, `Preparing ${unit} ${Math.min(done + 1, total)} of ${total}…`),
+      h('progress', { id: 'dl-bar', max: String(total), value: String(Math.min(done, total)) }));
   }
 
   function stop() {
@@ -140,13 +137,13 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
       s = await get(`/api/export/jobs/${job.id}`);
     } catch (err) {
       stop();
-      clear(status).append(banner({ tone: 'danger', title: 'The download stopped', text: errorText(err) }));
+      clear(status).append(banner({ tone: 'danger', title: `The ${noun} stopped`, text: errorText(err) }));
       setBusy(goBtn, false, 'Try again');
       return;
     }
     if (s.state === 'running') {
       if (Math.floor(s.done / ANNOUNCE_EVERY) > Math.floor(job.done / ANNOUNCE_EVERY)) {
-        announce(`Prepared ${s.done} of ${s.total} pages.`);
+        announce(`Prepared ${s.done} of ${s.total} ${unit}s.`);
       }
       job.done = s.done;
       clear(status).append(progressView(s.done, s.total));
@@ -157,59 +154,51 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     stop();
     if (s.state === 'finished') {
       try {
-        const saved = await guardAction('Preparing the download…',
+        const saved = await guardAction(`Preparing the ${noun}…`,
           () => downloadFile(`/api/export/jobs/${id}/file`, null, s.file_name));
         clear(status).append(doneMessage(saved));
-        // Something to know even though the download worked: files that
-        // changed meanwhile, or links that were left out.
+        // Something to know even though it worked: files that changed
+        // meanwhile, or links that were left out.
         if (s.message) status.append(banner({ tone: 'warn', title: 'Please note', text: s.message }));
         toast(`${saved} is in your Downloads folder.`);
       } catch (err) {
-        clear(status).append(banner({ tone: 'danger', title: 'The download didn’t work', text: errorText(err) }));
+        clear(status).append(banner({ tone: 'danger', title: `The ${noun} didn’t work`, text: errorText(err) }));
       }
     } else if (s.state === 'failed') {
       const retry = format === 'pdf' ? 'Try again, or choose Markdown instead.' : 'Try again.';
-      clear(status).append(banner({ tone: 'danger', title: 'The download didn’t work', text: `${s.message || ''} ${retry}` }));
+      clear(status).append(banner({ tone: 'danger', title: `The ${noun} didn’t work`, text: `${s.message || ''} ${retry}` }));
     }
-    setBusy(goBtn, false, 'Download');
+    setBusy(goBtn, false, startLabel);
   }
 
   async function start() {
     const goBtn = dialog.querySelector('button[value="go"]');
-    const format = chosen(dialog, 'dl-format');
+    const format = formatOf(dialog);
     clear(status);
     setBusy(goBtn, true, 'Preparing…');
     try {
-      const res = await post('/api/export/jobs', { scope, path, format });
+      const res = await request(dialog);
       job = { id: res.id, total: res.total, done: 0, format };
-      guardAction('Preparing the download…', () => new Promise((resolve) => { endGuard = resolve; }));
+      guardAction(`Preparing the ${noun}…`, () => new Promise((resolve) => { endGuard = resolve; }));
       status.append(progressView(0, res.total));
       timer = setTimeout(() => poll(goBtn), POLL_MS);
     } catch (err) {
-      setBusy(goBtn, false, 'Download');
+      setBusy(goBtn, false, startLabel);
       status.append(err.code === 'pdf_unavailable'
         ? banner({
           tone: 'warn', title: 'PDFs can’t be made automatically on this computer',
           text: `${errorText(err)} Choose “Markdown with pictures” instead, or open a single page and use its Download button to print it as a PDF.`,
         })
-        : banner({ tone: 'danger', title: 'The download didn’t start', text: errorText(err) }));
+        : banner({ tone: 'danger', title: `The ${noun} didn’t start`, text: errorText(err) }));
     }
   }
 
   await openDialog({
-    title: `Download ${what}`, iconName: 'download', tone: 'info',
-    body: [
-      name ? h('p', null, `“${name}”`) : null,
-      choiceCards('dl-format', [
-        { value: 'pdf', label: 'PDFs (.zip)', text: 'One PDF for each page, in the same folders. Best for reading and printing. Includes pictures.' },
-        { value: 'md', label: 'Markdown with pictures (.zip)', text: 'Best for backups or moving to another tool. Keeps pictures and links working.' },
-      ]),
-      countLine,
-      status,
-    ],
+    title, iconName: 'download', tone: 'info',
+    body: [...body, status],
     actions: [
       { label: 'Close', value: 'cancel' },
-      { label: 'Download', value: 'go', kind: 'primary', submit: true, icon: 'download' },
+      { label: startLabel, value: 'go', kind: 'primary', submit: true, icon: 'download' },
     ],
     onOpen: (dlg) => { dialog = dlg; },
     onSubmit: (value) => {
@@ -222,8 +211,47 @@ export async function openBulkDownload({ scope, path = '', name, pageCount }) {
     const { id } = job;
     stop();
     post(`/api/export/jobs/${id}/cancel`).catch(() => {});
-    toast('The download was cancelled.');
+    toast(`The ${noun} was cancelled.`);
   }
+}
+
+/**
+ * Download dialog for a folder (`scope: 'folder'`) or all documentation
+ * (`scope: 'all'`). `pageCount` is shown before starting, when known.
+ */
+export async function openBulkDownload({ scope, path = '', name, pageCount }) {
+  const what = scope === 'all' ? 'all documentation' : 'this folder';
+  const countLine = pageCount === undefined ? null
+    : h('p', { class: 'help' },
+      `${scope === 'all' ? 'The documentation' : 'This folder'} has ${pageCount === 1 ? '1 page' : `${pageCount} pages`}. PDFs may take a few minutes; Markdown takes seconds.`);
+  await openJobDialog({
+    title: `Download ${what}`, noun: 'download', startLabel: 'Download', unit: 'page',
+    body: [
+      name ? h('p', null, `“${name}”`) : null,
+      choiceCards('dl-format', [
+        { value: 'pdf', label: 'PDFs (.zip)', text: 'One PDF for each page, in the same folders. Best for reading and printing. Includes pictures.' },
+        { value: 'md', label: 'Markdown with pictures (.zip)', text: 'The current pages as Markdown files, with their pictures. Best for sharing or moving to another tool. Not a backup: earlier versions and deleted pages are not included.' },
+      ]),
+      countLine,
+    ],
+    formatOf: (dlg) => chosen(dlg, 'dl-format'),
+    request: (dlg) => post('/api/export/jobs', { scope, path, format: chosen(dlg, 'dl-format') }),
+  });
+}
+
+/** Back up the whole workspace: everything needed to bring it back. */
+export async function openBackup({ name }) {
+  await openJobDialog({
+    title: 'Back up workspace', noun: 'backup', startLabel: 'Back up', unit: 'file',
+    body: [
+      name ? h('p', null, `“${name}”`) : null,
+      h('p', null, 'A backup saves what Cairn needs to bring this documentation back if its folder is lost or damaged: every page, picture and template, earlier versions, and deleted pages.'),
+      h('p', null, 'It leaves out who is editing right now, and unpublished changes, which stay on each person’s own computer.'),
+      h('p', { class: 'help' }, 'Cairn checks for changes while it works but does not lock the shared folder. If pages keep changing, it stops and names them: try again when fewer people are editing. Keep the file somewhere other than the shared folder, such as another drive.'),
+      h('p', { class: 'help' }, 'To restore a backup, an administrator runs “cairn restore” with the backup file and a new folder. See “Back up and restore” in the help.'),
+    ],
+    request: () => post('/api/backup/jobs'),
+  });
 }
 
 // ----------------------------------------------------------- print view
