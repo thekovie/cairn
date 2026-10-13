@@ -335,6 +335,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/export/jobs", post(api_export::start_job))
         .route("/api/backup/jobs", post(api_export::start_backup))
         .route("/api/health", get(api_health::health))
+        .route("/api/health/check", post(api_health::check))
         .route("/api/export/jobs/{id}", get(api_export::job_status))
         .route("/api/export/jobs/{id}/file", get(api_export::job_file))
         .route("/api/export/jobs/{id}/cancel", post(api_export::job_cancel))

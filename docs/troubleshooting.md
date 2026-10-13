@@ -90,11 +90,15 @@ The information block at the top of the page has a mistake in it. Open the page 
 
 ## Links show “(missing)”
 
-The link points to a page or picture that doesn't exist. Common reasons:
+The link points to a page, file, or picture that Cairn can't find. To see every such link in the documentation at once, open **Documentation health** and choose **Check documentation** (see [Writing and editing](authoring.md#documentation-health)). Common reasons:
 
 - The page was deleted. Look in **Recently deleted** and choose **Restore**.
 - The page was renamed or moved in File Explorer (Cairn updates links only when this is done in Cairn).
 - It was renamed or moved in Cairn while someone was editing this page, so this page couldn't be updated.
+- The link goes to a heading that was renamed. The check says which heading is missing.
+- The link goes outside the documentation folder, or through a shortcut (link or junction) to another folder. Cairn doesn't follow those.
+- The picture is a type Cairn doesn't show, such as `.svg`. Use png, jpg, jpeg, gif, or webp.
+- Capital letters differ. A link to `printer.md` finds `Printer.md` on Windows and most Macs but not on Linux, so it can work for some people and not others. Use the exact name.
 
 Edit the page and fix the link with **Link…**.
 

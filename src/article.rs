@@ -384,7 +384,7 @@ fn slugify(text: &str) -> String {
     }
 }
 
-fn is_image_ext(rel: &str) -> bool {
+pub(crate) fn is_image_ext(rel: &str) -> bool {
     let lower = rel.to_ascii_lowercase();
     [".png", ".jpg", ".jpeg", ".gif", ".webp"]
         .iter()

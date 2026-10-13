@@ -3,7 +3,8 @@
 // everything.
 
 import {
-  get, h, icon, banner, emptyState, statusChip, formatDay, href, announce,
+  get, post, h, icon, button, banner, emptyState, statusChip, formatDay, href, announce,
+  whileBusy, errorText,
 } from './core.js';
 
 const FILTERS = [
@@ -44,6 +45,70 @@ function problemRow(item) {
       p.owner ? h('span', null, `Owner: ${p.owner}`) : null,
       item.issues.filter((key) => !SHOWN_BY_CHIP.has(key)).map((key) => h('span', { class: NEEDS_ATTENTION.has(key) ? 'review-due' : null },
         NEEDS_ATTENTION.has(key) ? icon('alert') : null, PROBLEM_TEXT[key](p))))));
+}
+
+const plural = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+
+/** Pages with links or pictures that lead nowhere, and what is wrong. */
+function findingRow(item) {
+  return h('li', null, h('a', { class: 'row-link', href: href.page(item.path) },
+    icon('page'),
+    h('span', { class: 'row-title' }, item.title),
+    h('span', { class: 'row-side' }, plural(item.findings.length, 'problem', 'problems')),
+    h('span', { class: 'row-meta row-stack' },
+      item.findings.map((f) => h('span', { class: 'review-due' },
+        icon('alert'), `Line ${f.line}: ${f.message}`)))));
+}
+
+function checkResults(report) {
+  const where = (p) => `“${p.path}”: ${p.reason}`;
+  const partial = report.complete ? null : banner({
+    tone: 'warn',
+    title: 'Cairn couldn’t read some pages',
+    text: h('div', null,
+      h('p', null, 'They were not checked, so this result is partial. Check that the shared folder is reachable, then check again:'),
+      h('ul', null, report.unreadable.map((p) => h('li', null, where(p))))),
+  });
+  if (report.complete && report.total_findings === 0) {
+    return [banner({
+      tone: 'ok',
+      title: 'No broken links or pictures found',
+      text: `Checked ${plural(report.checked, 'page', 'pages')}.`,
+      role: 'status',
+    })];
+  }
+  return [
+    partial,
+    report.total_findings === 0 ? null : h('p', { class: 'help' },
+      `Checked ${plural(report.checked, 'page', 'pages')}. Found ${plural(report.total_findings, 'problem', 'problems')} on ${plural(report.pages.length, 'page', 'pages')}. Line numbers count from the page title.`),
+    report.pages.length ? h('ul', { class: 'list' }, report.pages.map(findingRow)) : null,
+  ];
+}
+
+/** "Check documentation": looks through every page when asked. */
+function linkCheckSection() {
+  const results = h('div', { class: 'check-results', tabindex: '-1' });
+  const go = button('Check documentation', {
+    icon: 'link',
+    onClick: async () => {
+      try {
+        const report = await whileBusy(go, 'Checking…', () => post('/api/health/check'), { guard: false });
+        results.replaceChildren(...checkResults(report).filter(Boolean));
+        announce(report.total_findings === 0 && report.complete
+          ? 'No broken links or pictures found'
+          : `${plural(report.total_findings, 'problem', 'problems')} found`);
+        results.focus({ preventScroll: true });
+        results.scrollIntoView({ block: 'nearest' });
+      } catch (err) {
+        results.replaceChildren(banner({ tone: 'danger', title: 'The check didn’t finish', text: errorText(err) }));
+      }
+    },
+  });
+  return h('section', { class: 'section', 'aria-labelledby': 'check-title' },
+    h('h2', { id: 'check-title' }, 'Links and pictures'),
+    h('p', { class: 'help' }, 'Looks through every page for links to pages, files, or headings that don’t exist, and for missing pictures. Web addresses are not visited. It reads every page once, so on a large shared folder it can take a moment.'),
+    h('div', { class: 'actions' }, go),
+    results);
 }
 
 function filterBar(data, current) {
@@ -93,7 +158,8 @@ export async function healthView(ctx) {
     clean ? null : filterBar(data, current),
     clean ? null : (shown.length
       ? h('ul', { class: 'list' }, shown.map(problemRow))
-      : emptyState({ title: 'Nothing in this list', text: 'No page has this problem. Choose another filter to see the rest.' })));
+      : emptyState({ title: 'Nothing in this list', text: 'No page has this problem. Choose another filter to see the rest.' })),
+    linkCheckSection());
   announce(clean ? 'Nothing needs attention' : `${shown.length} of ${pagesWord(data.total)} listed`);
   return { title: 'Documentation health' };
 }

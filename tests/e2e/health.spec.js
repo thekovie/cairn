@@ -59,3 +59,28 @@ test('it says nothing needs attention only when every page is in order', async (
   await expect(page.getByText('Nothing needs attention')).toHaveCount(0);
   await expect(page.locator('main .list').getByRole('link', { name: /Printer/ })).toContainText('No owner');
 });
+
+test('Check documentation finds broken links and pictures, then goes quiet once they are fixed', async ({ page, cairn }) => {
+  const fine = `owner: Sam\nstatus: active\nlast_reviewed: ${daysAgo(10)}`;
+  write(cairn.docs, 'README.md', fine);
+  write(cairn.docs, 'Guides/Printer.md', fine);
+  writeFileSync(join(cairn.docs, 'Guides', 'Links.md'),
+    `---\n${fine}\n---\n# Links\n\n[a page](Gone.md) [heading](Printer.md#nowhere) [web](https://example.com)\n\n![shot](Links.assets/none.png)\n`);
+
+  await page.getByRole('link', { name: 'Documentation health' }).click();
+  await page.getByRole('button', { name: 'Check documentation' }).click();
+
+  const results = page.locator('.check-results');
+  await expect(results).toContainText('Found 3 problems on 1 page');
+  await expect(results).toContainText('“Guides/Gone.md” doesn’t exist'.replace('’', "'"));
+  await expect(results).toContainText('no heading called “nowhere”');
+  await expect(results).toContainText('picture “Guides/Links.assets/none.png” is missing');
+  await expect(results.getByText('example.com')).toHaveCount(0);
+
+  // Fix the page; checking again says so.
+  writeFileSync(join(cairn.docs, 'Guides', 'Links.md'),
+    `---\n${fine}\n---\n# Links\n\n[a page](Printer.md) [web](https://example.com)\n`);
+  await page.getByRole('button', { name: 'Check documentation' }).click();
+  await expect(results).toContainText('No broken links or pictures found');
+  await expect(results.locator('.list')).toHaveCount(0);
+});

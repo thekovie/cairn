@@ -15,6 +15,7 @@ pub mod fsutil;
 pub mod health;
 pub mod history;
 pub mod images;
+pub mod linkcheck;
 pub mod links;
 pub mod locks;
 pub mod manage;
