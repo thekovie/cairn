@@ -522,6 +522,29 @@ pub fn set_version_cleanup(root: &Path, cleanup: &crate::history::Cleanup) -> Re
     Ok(())
 }
 
+/// Give the documentation folder at `root` a new identity (a new
+/// `instance_id`), keeping every other field of its marker file as it is.
+/// For a restored copy that will sit beside the original: people's unpublished
+/// changes, saved on their own computers under the old identity, then don't
+/// attach to the wrong folder. Returns the new id.
+pub fn assign_new_identity(root: &Path) -> Result<String> {
+    let path = root.join(MARKER_FILE);
+    let bytes = read_optional(&path)?
+        .ok_or_else(|| CairnError::NotFound("The marker file is missing.".into()))?;
+    let mut value: Value = serde_json::from_slice(&bytes)
+        .map_err(|_| CairnError::BadRequest("The marker file is not valid JSON.".into()))?;
+    let id = uuid::Uuid::new_v4().to_string();
+    value["instance_id"] = Value::String(id.clone());
+    let out = serde_json::to_vec_pretty(&value).expect("marker serializes");
+    write_atomic(&path, &out)?;
+    match parse_marker(&out) {
+        MarkerStatus::Valid(m) if m.instance_id == id => Ok(id),
+        _ => Err(CairnError::Io(
+            "The marker could not be verified after giving it a new identity.".into(),
+        )),
+    }
+}
+
 pub fn rename_workspace(root: &Path, new_name: &str) -> Result<Marker> {
     let new_name = new_name.trim();
     if new_name.is_empty() || new_name.chars().count() > 120 {

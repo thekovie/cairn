@@ -12,8 +12,9 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use cairn::backup::{
-    MANIFEST_NAME, Progress, create, create_backup, create_checked, restore, restore_checked,
-    restore_space_needed, restore_with, verify, verify_with,
+    Identity, MANIFEST_NAME, Progress, create, create_backup, create_checked, restore,
+    restore_checked, restore_space_needed, restore_with, restore_with_identity, verify,
+    verify_with,
 };
 use cairn::export::archive::enumerate_backup;
 use cairn::workspace::{MarkerStatus, read_marker};
@@ -181,6 +182,116 @@ fn a_backup_restores_into_a_new_folder_exactly() {
     };
     assert_eq!(copy, original);
     assert!(cairn::paths::Root::new(&dest).is_ok());
+}
+
+#[test]
+fn a_restore_can_take_a_new_identity_so_it_can_sit_beside_the_original() {
+    let ws = common::workspace();
+    sample(&ws);
+    // A field this version doesn't know must survive, as renaming does.
+    let marker_path = ws.path.join("shared-docs.json");
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&marker_path).unwrap()).unwrap();
+    value["version_cleanup"] = serde_json::json!({ "mode": "keep_all" });
+    std::fs::write(&marker_path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    create_backup(&ws.root, &zip).unwrap();
+    let MarkerStatus::Valid(original) = read_marker(&ws.path) else {
+        panic!("marker")
+    };
+
+    let first = out.path().join("First");
+    let second = out.path().join("Second");
+    let a = restore_with_identity(
+        &zip,
+        &first,
+        &cairn::fsutil::available_space,
+        &|_, _| {},
+        Identity::New,
+    )
+    .unwrap();
+    let b = restore_with_identity(
+        &zip,
+        &second,
+        &cairn::fsutil::available_space,
+        &|_, _| {},
+        Identity::New,
+    )
+    .unwrap();
+
+    assert_eq!(a.identity, Identity::New);
+    assert_ne!(a.instance_id, original.instance_id);
+    assert_ne!(
+        a.instance_id, b.instance_id,
+        "each restore is its own folder"
+    );
+    let MarkerStatus::Valid(copy) = read_marker(&first) else {
+        panic!("restored marker")
+    };
+    assert_eq!(copy.instance_id, a.instance_id);
+    assert_eq!(copy.display_name, original.display_name);
+    let restored_value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(first.join("shared-docs.json")).unwrap()).unwrap();
+    assert_eq!(restored_value["version_cleanup"], value["version_cleanup"]);
+
+    // Everything but the marker is exactly as backed up.
+    let mut expected: BTreeMap<String, Vec<u8>> = enumerate_backup(&ws.root)
+        .unwrap()
+        .entries
+        .iter()
+        .map(|e| (e.rel.clone(), std::fs::read(ws.path.join(&e.rel)).unwrap()))
+        .collect();
+    expected.remove("shared-docs.json");
+    let mut restored_files = tree(&first);
+    restored_files.remove("shared-docs.json");
+    assert_eq!(restored_files, expected);
+    assert!(cairn::paths::Root::new(&first).is_ok());
+
+    // Keeping the identity is still the default.
+    let kept = restore(&zip, &out.path().join("Kept")).unwrap();
+    assert_eq!(kept.identity, Identity::Keep);
+    assert_eq!(kept.instance_id, original.instance_id);
+}
+
+#[test]
+fn the_command_line_restores_with_a_new_identity_only_when_asked() {
+    let ws = common::workspace();
+    sample(&ws);
+    let out = out_dir();
+    let zip = out.path().join("backup.zip");
+    create_backup(&ws.root, &zip).unwrap();
+    let MarkerStatus::Valid(original) = read_marker(&ws.path) else {
+        panic!("marker")
+    };
+    let run = |dest: &Path, extra: &[&str]| {
+        let home = out.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_cairn"))
+            .env("CAIRN_HOME", &home)
+            .arg("restore")
+            .arg(&zip)
+            .arg(dest)
+            .args(extra)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let MarkerStatus::Valid(marker) = read_marker(dest) else {
+            panic!("restored marker")
+        };
+        (
+            marker.instance_id,
+            String::from_utf8_lossy(&output.stdout).into_owned(),
+        )
+    };
+
+    let (kept, said) = run(&out.path().join("Kept"), &[]);
+    assert_eq!(kept, original.instance_id);
+    assert!(said.contains("keeps the identity"), "{said}");
+
+    let (fresh, said) = run(&out.path().join("Fresh"), &["--new-identity"]);
+    assert_ne!(fresh, original.instance_id);
+    assert!(said.contains("new identity"), "{said}");
 }
 
 #[test]
