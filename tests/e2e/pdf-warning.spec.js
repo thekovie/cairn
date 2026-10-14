@@ -6,6 +6,11 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from './cairn.js';
 
+// Making a PDF starts a headless browser, which can take well over the usual
+// ten seconds on a busy machine; Cairn itself allows it a minute.
+const PDF_DONE = /is in your Downloads folder|can.t be made automatically/;
+const PDF_WAIT = { timeout: 50_000 };
+
 function pages(docs) {
   writeFileSync(join(docs, 'Guides', 'Linky.md'),
     '# Linky\n\nSee the [printer guide](Printer.md) and the [web](https://example.com).\n');
@@ -42,7 +47,7 @@ test('after the warning, Download anyway carries on', async ({ page, cairn }) =>
   await dialog.getByRole('button', { name: 'Download', exact: true }).click();
   await dialog.getByRole('button', { name: 'Download anyway' }).click();
   // Either the PDF is made, or (no browser here) it says so: it did proceed.
-  await expect(dialog).toContainText(/is in your Downloads folder|can.t be made automatically/);
+  await expect(dialog).toContainText(PDF_DONE, PDF_WAIT);
 });
 
 test('a page without such links goes straight ahead', async ({ page, cairn }) => {
@@ -51,7 +56,7 @@ test('a page without such links goes straight ahead', async ({ page, cairn }) =>
   await page.getByRole('button', { name: 'Download' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(dialog).toContainText(/is in your Downloads folder|can.t be made automatically/);
+  await expect(dialog).toContainText(PDF_DONE, PDF_WAIT);
   await expect(dialog).not.toContainText('Links to other pages will change');
 });
 
