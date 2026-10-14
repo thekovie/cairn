@@ -1,0 +1,3 @@
+# Third-party bundles: minified code that would drown out Cairn's own
+# structure in the graph (about 1,400 single-letter functions).
+assets/vendor/
