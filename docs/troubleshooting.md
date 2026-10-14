@@ -3,7 +3,7 @@
 ## Cairn doesn't open in the browser
 
 - Look for the small Cairn window. It shows an address like `http://127.0.0.1:52341/#t=…`. Copy the **whole** address into your browser.
-- If the browser says **Please open Cairn from its program window**, the tab isn't connected to the running Cairn (for example, it was bookmarked during an earlier run). Close it and use the address from the Cairn window. Every start uses a new address, for security.
+- If the browser says **Please open Cairn from its program window**, the tab isn't connected to the running Cairn (for example, it was bookmarked during an earlier run, or it was opened when no other Cairn tab was open). Close it and use the address from the Cairn window. Every start uses a new address, for security. While any Cairn tab is open, a new tab (a duplicated tab, a link opened in a new tab, or the pasted address) connects by itself.
 - If the Cairn window closes immediately, open a Command Prompt (Terminal on a Mac or Linux), run Cairn from there (`cairn.exe`; on a Mac `/Applications/Cairn.app/Contents/MacOS/cairn`; on Linux the AppImage or `./cairn`), and read the message.
 - **On a Mac, nothing happens or it says Cairn can't be opened:** the first time, choose **Open Anyway** in System Settings → Privacy & Security (see [Getting started](getting-started.md#mac)).
 

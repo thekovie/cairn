@@ -6,15 +6,49 @@
 const TOKEN_KEY = 'cairn.token';
 let token = null;
 
-export function bootstrapToken() {
+// A tab opened from another one (a link opened in a new tab, or the address
+// pasted) starts with no token, since browsers keep it per tab. It asks the
+// Cairn tabs already open, which answer over a channel only pages from this
+// same address can join. Nothing is written to disk.
+const TAB_CHANNEL = 'cairn.tabs';
+const ASK_TABS_MS = 400;
+const TOKEN_SHAPE = /^[0-9a-f]{64}$/;
+
+function remember(value) {
+  token = value;
+  try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* private mode: keep in memory */ }
+}
+
+function answerOtherTabs() {
+  if (!('BroadcastChannel' in window)) return;
+  const channel = new BroadcastChannel(TAB_CHANNEL);
+  channel.onmessage = (e) => { if (e.data === 'need-token' && token) channel.postMessage({ token }); };
+}
+
+function askOtherTabs() {
+  if (!('BroadcastChannel' in window)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const channel = new BroadcastChannel(TAB_CHANNEL);
+    const finish = (value) => { clearTimeout(timer); channel.close(); resolve(value); };
+    const timer = setTimeout(() => finish(null), ASK_TABS_MS);
+    channel.onmessage = (e) => { if (TOKEN_SHAPE.test(e.data?.token ?? '')) finish(e.data.token); };
+    channel.postMessage('need-token');
+  });
+}
+
+export async function bootstrapToken() {
   const m = location.hash.match(/(?:^#|[?&])t=([0-9a-f]{64})/);
   if (m) {
-    token = m[1];
-    try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* private mode: keep in memory */ }
+    remember(m[1]);
     history.replaceState(null, '', `${location.pathname}#/`);
-    return;
+  } else {
+    try { token = sessionStorage.getItem(TOKEN_KEY); } catch { token = null; }
+    if (!token) {
+      const lent = await askOtherTabs();
+      if (lent) remember(lent);
+    }
   }
-  try { token = sessionStorage.getItem(TOKEN_KEY); } catch { token = null; }
+  if (token) answerOtherTabs();
 }
 
 export const hasToken = () => Boolean(token);

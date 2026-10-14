@@ -2,6 +2,12 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Fixed
+
+- **A second tab works.** Opening a page in a new tab, or pasting its address into one, used to show “Please open Cairn from its program window”. The new tab now connects by itself while another Cairn tab is open, so you can keep one page open to refer to while you read or write another. Duplicating a tab that is in the editor opens a second editor on the same page; only publish from one of them.
+
 ## 1.1.0 (2026-10-14)
 
 ### Added
