@@ -181,10 +181,12 @@ fn cmd_run(args: RunArgs) -> ExitCode {
     let state = AppState::with_secrets(dir, cfg, warning, secrets);
     let after_stop = state.clone();
 
-    // Open the requested workspace, or the one used last time.
-    if let Some(path) = args.workspace.clone().or(last) {
-        open_initial_workspace(&state, &path);
-    }
+    // The requested workspace, or the one used last time. It is opened once
+    // the browser has been sent here (see below), not before: on a slow
+    // network share that can take a while, and the person should see
+    // "Starting up Cairn" meanwhile, not nothing.
+    let initial = args.workspace.clone().or(last);
+    state.set_starting(initial.is_some());
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -206,22 +208,38 @@ fn cmd_run(args: RunArgs) -> ExitCode {
             }
         };
         let port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
+        state.set_port(port);
         let url = format!("http://127.0.0.1:{port}/#t={}", state.token);
-        if args.handoff {
-            println!("Cairn {} has started.", env!("CARGO_PKG_VERSION"));
-        }
-        print_banner(&url);
-        // The icon stays until the server has stopped.
-        #[cfg(windows)]
-        let _tray = start_tray(windowless, &state, &url);
+        // Answer from now on, so the page the browser opens next can load.
+        let server = tokio::spawn(server::run(state.clone(), listener));
         if open_browser && let Err(e) = open::that_detached(&url) {
             eprintln!("  (Could not open the browser automatically: {e})");
         }
-        match server::run(state, listener).await {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(e) => fail(e),
+        // The icon stays until the server has stopped.
+        #[cfg(windows)]
+        let _tray = start_tray(windowless, &state, &url);
+        // The address is printed once the folder is open, so anything reading
+        // it (a script, a test) can use Cairn straight away.
+        let opener = state.clone();
+        let announce = args.handoff;
+        tokio::task::spawn_blocking(move || {
+            if let Some(path) = initial {
+                open_initial_workspace(&opener, &path);
+            }
+            opener.set_starting(false);
+            if announce {
+                println!("Cairn {} has started.", env!("CARGO_PKG_VERSION"));
+            }
+            print_banner(&url);
+        });
+        match server.await {
+            Ok(Ok(())) => ExitCode::SUCCESS,
+            Ok(Err(e)) => fail(e),
+            Err(e) => fail(format!("Cairn stopped unexpectedly: {e}")),
         }
     });
+    // Opening the folder may still be waiting on a slow share; don't wait for it.
+    runtime.shutdown_background();
     let restart_into = after_stop.restart_into.lock().expect("restart lock").take();
     match restart_into {
         Some(exe) if code == ExitCode::SUCCESS => become_new_version(&exe, after_stop.port()),
@@ -247,9 +265,10 @@ fn start_tray(
     match cairn::tray::start(url.to_string(), state.clone()) {
         Ok(tray) => Some(tray),
         Err(why) => {
+            // The console is back, and the address is printed there once the
+            // folder is open.
             cairn::tray::show_console_again();
             eprintln!("Note: Cairn's icon could not be added ({why}).");
-            print_banner(url);
             None
         }
     }

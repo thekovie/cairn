@@ -97,24 +97,25 @@ Run steps 1–14 with B on a Mac or Linux computer that has the same share mount
 
 ## Windows: no window, tray icon
 
-One Windows computer is enough. Not yet run: written when the tray icon was added, on a Mac that cannot run it.
+One Windows computer is enough. Only partly run: the maintainer used the Start menu, the tray icon, and **Quit Cairn** on a work laptop and they worked. Every other row is not yet run.
 
 | Step | Expected result | Pass |
 | --- | --- | --- |
-| Start Cairn from the Start menu. | The browser opens Cairn. There is no black window left open (it may flash for a moment). A Cairn icon is in the notification area, possibly behind the **^** arrow. Hovering says “Cairn is running”. | ☐ |
+| Start Cairn from the Start menu. | The browser opens straight away and the tab says “Starting up Cairn” before it shows your documentation. There is no black window left open (it may flash for a moment: Windows makes it before Cairn can run). A Cairn icon is in the notification area, possibly behind the **^** arrow. Hovering says “Cairn is running”. | ☐ |
 | Click the icon. | Cairn opens in the browser. | ☐ |
 | With the keyboard (Win+B, arrow to the icon), press Enter, then Shift+F10 or the menu key. | Enter opens Cairn. The menu key opens the menu beside the icon. | ☐ |
 | Right-click the icon. | A menu with **Open Cairn** (bold) and **Quit Cairn**. Clicking elsewhere closes it. | ☐ |
 | Choose **Quit Cairn**, then start Cairn from the Start menu within a second or two. | Cairn starts afresh (it does not hand over to the copy that is stopping). | ☐ |
 | Start Cairn from the Start menu again while it runs. | The browser opens Cairn. No second icon appears and Task Manager shows one `cairn.exe`. | ☐ |
-| Edit a page, then choose **Quit Cairn** from the icon menu. | The icon goes away at once. The page is unlocked for others. The tab can't reach Cairn. | ☐ |
+| Edit a page, then choose **Quit Cairn** from the icon menu. | The icon goes away at once. The page is unlocked for others. Within a few seconds the open tab shows a red notice, **Cairn has stopped**, that says how to start Cairn again. | ☐ |
 | Edit a page, then sign out of Windows (or restart). | The page is unlocked afterwards (`cairn locks list <folder>` shows nothing). | ☐ |
 | With Cairn running, run the installer for a newer version. | The installer closes Cairn by itself, installs, and offers to start it. The old icon is gone. | ☐ |
 | **Settings → Updates → Update and restart.** | The tab reconnects. Exactly one icon, with no console window opening. | ☐ |
 | In Task Manager, end Explorer and start it again. | The icon comes back. | ☐ |
 | Run `cairn.exe` from PowerShell. | The terminal shows “Cairn is running” as before. No icon. Ctrl+C stops it. | ☐ |
 | Start Cairn so that it can't listen (give `--port` of one already in use, from a shortcut with that option). | A message box says Cairn couldn't start, instead of nothing. | ☐ |
-| **Settings → Quit Cairn.** | Cairn stops, the icon goes, and the page says Cairn has stopped. | ☐ |
+| **Settings → Quit Cairn.** | Cairn stops, the icon goes, and the page says Cairn has stopped (once, with no red notice on top). | ☐ |
+| Start Cairn with the last folder on a network drive that is slow or unplugged. | The browser opens at once and says “Starting up Cairn”, then “taking longer than usual” after a few seconds. Cairn keeps trying. Quit Cairn from the icon still works meanwhile. | ☐ |
 
 ## Updates on each system (before a release)
 

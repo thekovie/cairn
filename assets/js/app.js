@@ -13,7 +13,7 @@
 
 import {
   bootstrapToken, hasToken, get, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
-  appendChildren, actionInProgress, toast, linkButton,
+  appendChildren, actionInProgress, toast, linkButton, START_AGAIN,
 } from './core.js';
 import * as views from './views.js';
 import { setupView } from './setup.js';
@@ -23,6 +23,7 @@ import { printView } from './export.js';
 import { deletedView } from './manage.js';
 import { healthView } from './health.js';
 import { watchUpdates, updateBanner } from './update.js';
+import { watchConnection } from './connection.js';
 
 const app = {
   state: null,
@@ -471,7 +472,8 @@ async function onRoute() {
     // A page that is gone won't come back by trying again: offer ways to find it.
     const gone = ['not_found', 'path_rejected'].includes(err?.code);
     main.append(banner({
-      tone: 'danger', title: 'This screen could not be shown', text: errorText(err),
+      tone: 'danger', title: err?.code === 'offline' ? 'Cairn isn’t running' : 'This screen could not be shown',
+      text: errorText(err),
       actions: gone
         ? [linkButton('Go to the home page', href.home(), { icon: 'home' }),
           linkButton('Search all pages', href.search(''), { icon: 'search' })]
@@ -481,6 +483,29 @@ async function onRoute() {
 }
 
 // ------------------------------------------------------------------ boot
+
+const START_POLL_MS = 400;
+/** After this long, say why it may be slow. */
+const START_SLOW_MS = 8000;
+
+/** Cairn opens the last documentation folder after the browser is sent here, so the tab can say so. */
+async function waitForStart() {
+  if (!app.state.starting) return;
+  const slow = h('p', { class: 'help' });
+  clear(document.getElementById('app')).append(h('main', { id: 'main', class: 'setup' },
+    h('h1', null, 'Starting up Cairn'),
+    h('p', { class: 'loading-label lede', role: 'status' },
+      h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Opening your documentation…'),
+    slow));
+  const started = Date.now();
+  while (app.state.starting) {
+    if (Date.now() - started > START_SLOW_MS) {
+      slow.textContent = 'This is taking longer than usual. A folder on a network drive can be slow to answer; Cairn keeps trying.';
+    }
+    await new Promise((resolve) => setTimeout(resolve, START_POLL_MS));
+    await refreshState();
+  }
+}
 
 async function boot() {
   await bootstrapToken();
@@ -494,17 +519,19 @@ async function boot() {
     if (e.key === 'Escape' && app.shell?.root.classList.contains('nav-open')) closeNav(true);
   });
   if (!hasToken()) {
-    renderFatal('Please open Cairn from its program window',
-      'This browser tab is not connected to Cairn. Start Cairn (or find its window) and it will open your documentation in a new tab. You can close this tab.');
+    renderFatal('Please open Cairn again',
+      `This browser tab is not connected to Cairn. ${START_AGAIN}, and it will open your documentation in a new tab. You can close this tab.`);
     return;
   }
   try {
     await refreshState();
+    await waitForStart();
   } catch (err) {
-    renderFatal('Cairn is not responding', errorText(err),
+    renderFatal(err?.code === 'offline' ? 'Cairn isn’t running' : 'Cairn is not responding', errorText(err),
       [button('Try again', { icon: 'refresh', kind: 'primary', onClick: () => location.reload() })]);
     return;
   }
+  watchConnection();
   window.addEventListener('hashchange', onRoute);
   window.addEventListener('cairn:nav-changed', () => refreshNav());
   await onRoute();

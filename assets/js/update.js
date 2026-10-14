@@ -4,12 +4,9 @@
 import {
   get, post, h, icon, button, linkButton, banner, href, toast, errorText, confirmDialog,
   whileBusy, relativeTime, clear, appendChildren,
-  IS_MAC, IS_WINDOWS,
+  IS_WINDOWS, START_AGAIN,
 } from './core.js';
-
-const START_AGAIN = IS_WINDOWS
-  ? 'Start Cairn from the Start menu (or double-click cairn.exe)'
-  : IS_MAC ? 'Open Cairn from your Applications folder' : 'Start Cairn again (double-click the Cairn AppImage, or run cairn)';
+import { pauseWatching, resumeWatching } from './connection.js';
 
 const DISMISSED_KEY = 'cairn.updateDismissed';
 /** How often the page asks this computer's Cairn what it last found. */
@@ -112,6 +109,8 @@ function showRestarting(version, back) {
   dlg.addEventListener('cancel', (e) => e.preventDefault());
   document.body.append(dlg);
   dlg.showModal();
+  // Cairn is meant to be away for a few seconds: that is not "stopped".
+  pauseWatching();
   const started = Date.now();
   const poll = async () => {
     try {
@@ -122,6 +121,7 @@ function showRestarting(version, back) {
       }
     } catch { /* still restarting */ }
     if (Date.now() - started > RESTART_GIVE_UP_MS) {
+      resumeWatching();
       clear(note).append(`Cairn hasn’t started again by itself. ${START_AGAIN}, then reload this tab. Your unsaved changes are kept.`);
       note.classList.replace('help', 'field-error');
       return;

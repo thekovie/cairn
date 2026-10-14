@@ -97,8 +97,8 @@ pub async fn guard(State(state): State<Arc<AppState>>, req: Request, next: Next)
         if !constant_time_eq(supplied, state.token.as_bytes()) {
             return deny(
                 StatusCode::UNAUTHORIZED,
-                "This page has lost its connection to Cairn. Please reopen Cairn from its \
-                 program window.",
+                "This page has lost its connection to Cairn. Please open Cairn again; it opens \
+                 a fresh page.",
             );
         }
     } else if path.starts_with("/ws-file/") || path == "/draft-file" {

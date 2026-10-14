@@ -14,6 +14,7 @@ import { openPageDownload, openBulkDownload, openBackup } from './export.js';
 import { markReviewedButton } from './health.js';
 import { pageMoreActions, folderOrganizeSection } from './manage.js';
 import { updatesSection } from './update.js';
+import { pauseWatching } from './connection.js';
 import { timezoneSection } from './timezone.js';
 
 // ---------------------------------------------------------------- pieces
@@ -934,6 +935,7 @@ function quitSection() {
           confirmLabel: 'Quit Cairn', cancelLabel: 'Keep Cairn open', danger: true, iconName: 'power',
         });
         if (!ok) return;
+        pauseWatching();
         try { await post('/api/quit'); } catch { /* already stopping */ }
         const root = clear(document.getElementById('app'));
         root.append(h('main', { class: 'setup', id: 'main' }, h('h1', null, 'Cairn has stopped'),

@@ -4,6 +4,12 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Changed
+
+- **A browser tab now says so when Cairn stops.** If Cairn is closed (from its icon, **Quit Cairn**, or because the computer is shutting down) while a tab is open, a red notice, **Cairn has stopped**, appears at the top within a few seconds, saying how to start Cairn again and that it opens in a new tab. It goes away by itself if Cairn comes back. Before, the tab only said “This screen could not be shown” and pointed at a Cairn window, which on Windows no longer exists.
+- **The browser opens as soon as Cairn is ready to answer.** The tab shows **Starting up Cairn** while the documentation folder from last time is opened, which can take a while on a network drive. Before, nothing appeared until the folder had opened.
+- The messages for a tab that is no longer connected no longer tell you to look for a “program window”: they say how to start Cairn in the words of your computer.
+
 ### Added
 
 - **`cairn restore … --new-identity`** restores a backup as a copy with an identity of its own, so it can sit beside the original (to look at an old state, or to test) without sharing the original's identity. The default is unchanged: a restore keeps the identity, for replacing a lost folder.

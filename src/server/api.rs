@@ -122,6 +122,7 @@ fn state_view(state: &AppState) -> Value {
     let ws = state.workspace.read().expect("workspace lock").clone();
     json!({
         "version": env!("CARGO_PKG_VERSION"),
+        "starting": state.starting(),
         "workspace": ws.as_ref().map(|w| workspace_view(state, w)),
         "user": { "display_name": me.display_name, "os_user": me.os_user, "host": me.host },
         "config": {
@@ -211,6 +212,12 @@ pub fn open_at(state: &AppState, root: &FsPath) -> Result<Arc<OpenWorkspace>> {
 }
 
 // -------------------------------------------------------------- workspace
+
+/// The cheapest way to ask "is Cairn still there?": the page does it every
+/// few seconds, so it does no work.
+pub async fn ping() -> Json<Value> {
+    Json(json!({ "ok": true }))
+}
 
 pub async fn get_state(State(state): State<Arc<AppState>>) -> ApiResult {
     blocking(state, |st| Ok(state_view(st))).await
