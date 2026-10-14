@@ -181,8 +181,49 @@ function helpTable() {
 
 // --------------------------------------------------------------- the view
 
+/**
+ * Claims the right to edit `path` in this tab. Cairn keeps one editing
+ * session per page, not per tab, so a second editor on the same page (a
+ * duplicated tab) would overwrite the first one's unsaved text and break it
+ * when either closed. Returns a function that gives the claim back, or null
+ * when another tab is editing the page. The browser drops a claim when its
+ * tab closes or reloads, so a reload is never turned away by itself.
+ */
+async function claimEditing(path) {
+  if (!navigator.locks) return () => {};
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const claimed = await new Promise((resolve) => {
+    navigator.locks
+      .request(`cairn-editing:${path}`, { signal: AbortSignal.timeout(CLAIM_WAIT_MS) }, () => { resolve(true); return held; })
+      .catch(() => resolve(false));
+  });
+  return claimed ? release : null;
+}
+
+// Long enough for a reloading tab to let go of its own claim.
+const CLAIM_WAIT_MS = 1500;
+
 export async function editorView(ctx) {
   const path = ctx.path;
+  const release = await claimEditing(path);
+  if (!release) return openElsewhereScreen(ctx, path);
+  let view;
+  try {
+    view = await startEditing(ctx, path);
+  } finally {
+    if (!view?.cleanup) release();
+  }
+  if (!view.cleanup) return view; // a screen that stands in for the editor
+  // The claim lasts as long as the editor does.
+  return {
+    ...view,
+    cleanup: () => { view.cleanup(); release(); },
+    abandon: () => Promise.resolve(view.abandon()).finally(release),
+  };
+}
+
+async function startEditing(ctx, path) {
   const isNew = ctx.query.get('new') === '1';
   const newKey = `cairn.new.${path}`;
   let initial = null;
@@ -208,14 +249,30 @@ export async function editorView(ctx) {
   return mountEditor(ctx, path, start);
 }
 
-function lockedScreen(ctx, path, lock) {
+/** "Back to the page" and "Try again", for a screen that stands in for the editor. */
+function waitActions(path) {
   const back = isTemplatePath(path)
     ? linkButton('Back to templates', href.templates(), { icon: 'back', kind: 'primary' })
     : linkButton('Back to the page', href.page(path), { icon: 'back', kind: 'primary' });
-  const actions = [
+  return [
     back,
     button('Try again', { icon: 'refresh', onClick: () => window.dispatchEvent(new HashChangeEvent('hashchange')) }),
   ];
+}
+
+function openElsewhereScreen(ctx, path) {
+  ctx.main.append(
+    h('div', { class: 'page-head' }, h('h1', null, 'This page is open in another tab')),
+    banner({
+      tone: 'warn', title: 'You are already editing this page in another tab.',
+      text: 'Cairn lets one tab edit a page at a time, so the two can’t overwrite each other. Go to the other tab to carry on, or close the editor there and try again here.',
+      actions: waitActions(path),
+    }));
+  return { title: 'Page is open in another tab' };
+}
+
+function lockedScreen(ctx, path, lock) {
+  const actions = waitActions(path);
   if (lock.reclaimable_by_me) {
     actions.unshift(button('Continue where you left off', {
       icon: 'edit', kind: 'primary',
