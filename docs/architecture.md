@@ -63,6 +63,8 @@ Visual editing never becomes a second source of truth: the Markdown text box is.
 | `assets/js/visual.js` | Visual editing, on top of the vendored editor engine |
 | `assets/vendor/milkdown.js` | [Milkdown](https://milkdown.dev) (ProseMirror + remark, MIT), pre-built from `vendor/milkdown/` and loaded only when visual editing is first used. Licenses in `milkdown.LICENSES.txt`. |
 
+**One editor per page.** The server keeps one editing session, one lock and one draft per page, not per browser tab. A second editor on the same page would therefore share the first one's unsaved copy, overwrite it, and break when either closed. So the editor view (`editorView` in `editor.js`) first claims the page with a Web Lock named `cairn-editing:<path>` and holds it until the editor is closed or left; a tab that can't get it within 1.5 seconds shows "This page is open in another tab" and offers **Try again**. The browser drops the claim when a tab closes or reloads, so a reload is never refused by its own old tab. The claim covers tabs of one browser; the same page opened in two different browsers still shares a session. A browser without Web Locks behaves as before.
+
 Text from files is always inserted as text, never as HTML. The only HTML inserted is page HTML the server has already sanitized.
 
 ## Library modules (`src/`)

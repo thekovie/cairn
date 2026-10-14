@@ -117,6 +117,17 @@ One Windows computer is enough. Only partly run: the maintainer used the Start m
 | **Settings → Quit Cairn.** | Cairn stops, the icon goes, and the page says Cairn has stopped (once, with no red notice on top). | ☐ |
 | Start Cairn with the last folder on a network drive that is slow or unplugged. | The browser opens at once and says “Starting up Cairn”, then “taking longer than usual” after a few seconds. Cairn keeps trying. Quit Cairn from the icon still works meanwhile. | ☐ |
 
+## One page in two tabs (any system, one computer is enough)
+
+Added with 1.3.1. The automated browser tests cover Chromium only; run these in the browsers people really use (Edge, Chrome, Firefox, Safari).
+
+| Step | Expected result | Pass |
+| --- | --- | --- |
+| Open a page for editing, then duplicate the tab. | The new tab says **This page is open in another tab**, with **Back to the page** and **Try again**. No editor opens in it, and typing in the first tab is unaffected. | ☐ |
+| In the first tab choose **Close editor**, then **Try again** in the second. | The editor opens in the second tab. | ☐ |
+| Reload the tab that has the editor open. | The editor opens again; it is not refused. | ☐ |
+| Close the first tab altogether (not with **Close editor**), then **Try again** in the second. | The editor opens in the second tab. | ☐ |
+
 ## Updates on each system (before a release)
 
 Publish a pre-release (tag `vX.Y.Z-rc.1`) and check that no copy offers it as an update. Then, on each system, with the previous release installed:
