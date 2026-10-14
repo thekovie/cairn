@@ -1,7 +1,7 @@
 // Tells the person at once if Cairn stops while this tab is open, so they
 // are not left typing into a page that can no longer save.
 
-import { api, h, button, banner, START_AGAIN } from './core.js';
+import { api, h, button, banner, START_SHORT } from './core.js';
 
 const POLL_MS = 3000;
 /** One missed answer can be a busy moment; two in a row is a stop. */
@@ -33,7 +33,7 @@ function show() {
   notice = h('div', { class: 'connection-lost' }, banner({
     tone: 'danger',
     title: 'Cairn has stopped',
-    text: `This page can’t reach Cairn any more, so nothing more can be saved or opened here. ${START_AGAIN}. It opens in a new tab, and you can close this one. If you were typing, copy your text from here first: the last few seconds may not have been saved.`,
+    text: `${START_SHORT}; it opens in a new tab. Copy any text you were typing first.`,
     actions: [button('Check again', { icon: 'refresh', onClick: () => check() })],
   }));
   document.body.prepend(notice);
