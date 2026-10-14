@@ -119,6 +119,13 @@ Pushing a tag such as `v1.0.0` (matching `Cargo.toml`) runs `.github/workflows/r
 
 Only when all three have built does the last job sign every download and publish them together, so a release always has every system's update. A tag with a `-`, such as `v1.0.0-rc.1`, is published as a pre-release: a trial run that no copy of Cairn offers as an update.
 
+**Cutting a release.** Do it like the earlier ones (`git log --oneline` shows them as `chore: release X.Y.Z`):
+
+1. On a branch such as `chore/release-1.3.2` from up-to-date `main`, change the version in `Cargo.toml` and in the `cairn` entry of `Cargo.lock`, and turn the `## Unreleased` heading in `CHANGELOG.md` into `## X.Y.Z (date)`. Nothing else changes.
+2. Open a pull request, wait for every check (including Windows and the browser tests) to pass, and squash-merge it.
+3. On `main`, tag the merge commit with an **annotated** tag and push it: `git tag -a vX.Y.Z -m "Cairn X.Y.Z"` then `git push origin vX.Y.Z`. A plain `git tag vX.Y.Z` can fail with “no tag message?” on some setups.
+4. Watch the Release workflow (`gh run list --workflow release.yml`). It builds the three systems, signs, publishes the downloads, and refreshes the website. Then check `gh release view vX.Y.Z` shows the 18 downloads and is neither a draft nor a pre-release.
+
 **The website.** After a stable release is published, the last job of the workflow calls a Vercel deploy hook so [cairn.thekovie.com](https://cairn.thekovie.com) rebuilds at once with the new version, download buttons and PDF brief (it would catch up within the hour anyway). The hook's address is the repository secret `SITE_DEPLOY_HOOK` (made in the website's Vercel project: *Settings → Git → Deploy Hooks*, branch `main`). Without the secret the job does nothing and the release is unaffected. Facts that aren't numbers (limits, supported systems, install steps) still need a human; see the website's `docs/CONTENT.md`.
 
 The app icons are made from `assets/favicon.svg` by `installer/icons/make-icons.sh`; run it after changing the logo and commit the results.

@@ -114,7 +114,7 @@ When editing starts, Cairn records a SHA-256 hash of the published page. Immedia
 5. Write the new text into a temporary file **in the same folder**, and flush it to disk.
 6. Replace the page by renaming the temporary file over it. The live file is never truncated or opened for writing.
 7. Read the page and the new pictures back and compare them byte for byte.
-8. If anything fails: before step 6, the old page is untouched; after step 6, the old page is written back. Only then are the pictures created by this attempt removed. If the old page can't be put back, the new pictures are kept, so no page ever refers to a missing picture. The draft is kept in every case.
+8. If anything fails: before step 6, the old page is untouched; after step 6, the old page is written back. Only then are the pictures created by this attempt removed. If the old page can't be put back, the new pictures are kept, so no page ever refers to a missing picture. The draft is kept in every case. The copy saved in step 4 is removed again when the attempt fails (unless the old page could not be put back, when it is the only copy left), so trying again does not list the same earlier version twice.
 
 Each failure point is covered by an automated test (`tests/editing.rs`).
 

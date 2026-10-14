@@ -73,6 +73,12 @@ A page can stay locked if the editor's computer crashed, lost power, or was disc
 
 Never delete files in `_system/locks/` by hand while anyone might be using Cairn.
 
+## “This page is open in another tab”
+
+You are already editing this page in another browser tab (for example a tab you duplicated while the editor was open). Cairn lets only one tab edit a page at a time, because two editors would share one unsaved copy and overwrite each other's typing. Go to the other tab to carry on, or close the editor there (**Close editor**) and choose **Try again** here. If you can't find the other tab, closing it works too. Reloading the editor in the same tab is fine.
+
+If the other editor is in a different browser (say Chrome and Edge), Cairn can't tell. Close one of them before editing.
+
 ## Restoring unsaved changes
 
 When you open a page you had unsaved changes for, Cairn asks **Continue with your unsaved changes?**

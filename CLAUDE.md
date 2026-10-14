@@ -4,6 +4,10 @@
 
 Use the caveman skill in chat: answer first, no filler, fewest words that keep every fact. Code, commit messages, PR text, docs, and code comments stay in plain prose.
 
+## Handoff
+
+Read `docs/HANDOFF.md` first in a new session: where the project stands, how work is done here (a branch and pull request for every change, no attribution anywhere), what has not been checked on real machines, the open items, and the decisions already made.
+
 ## Graphify
 
 `graphify-out/` holds a knowledge graph of this repository, made with `/graphify`. Use it as an architectural reference, not as source code.
