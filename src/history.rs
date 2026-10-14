@@ -186,6 +186,19 @@ pub fn save_version(root: &Root, article_rel: &str, bytes: &[u8]) -> Result<Stri
     ))
 }
 
+/// Take back a version `save_version` just made, when the change it was
+/// saved for did not happen. Otherwise the next try would save the same text
+/// again, and the page would list it twice. Best effort.
+pub fn discard_version(root: &Root, article_rel: &str, id: &str) {
+    if validate_id(id).is_err() {
+        return;
+    }
+    if let Ok(dir) = history_dir(root, article_rel) {
+        let _ = fs::remove_file(dir.join(id));
+        let _ = fs::remove_file(author_file(&dir, id));
+    }
+}
+
 /// Strictly validate a version id so it can only name a file in the
 /// article's own history folder.
 fn validate_id(id: &str) -> Result<()> {
