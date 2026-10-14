@@ -26,6 +26,8 @@ pub mod server;
 pub mod templates;
 pub mod timefmt;
 pub mod trash;
+#[cfg(windows)]
+pub mod tray;
 pub mod update;
 pub mod update_net;
 #[cfg(windows)]

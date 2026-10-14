@@ -289,14 +289,21 @@ fn restart(st: &AppState, exe: &Path) -> Result<()> {
         st.shutdown.notify_one();
         return Ok(());
     }
-    let spawned = Command::new(exe)
-        .args([
-            "--no-browser",
-            "--handoff",
-            "--port",
-            &handoff.port.to_string(),
-        ])
-        .spawn();
+    let mut command = Command::new(exe);
+    command.args([
+        "--no-browser",
+        "--handoff",
+        "--port",
+        &handoff.port.to_string(),
+    ]);
+    // The new program must not open a console window of its own.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let spawned = command.spawn();
     if let Err(e) = spawned {
         let _ = fs::remove_file(&file);
         return Err(CairnError::Io(format!(

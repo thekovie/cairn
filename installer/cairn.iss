@@ -58,11 +58,11 @@ Source: "{#SourceDir}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Cairn"; Filename: "{app}\cairn.exe"; Comment: "Shared documentation"
-Name: "{autodesktop}\Cairn"; Filename: "{app}\cairn.exe"; Comment: "Shared documentation"; Tasks: desktopicon
+Name: "{autoprograms}\Cairn"; Filename: "{app}\cairn.exe"; Comment: "Shared documentation"; Flags: runminimized
+Name: "{autodesktop}\Cairn"; Filename: "{app}\cairn.exe"; Comment: "Shared documentation"; Tasks: desktopicon; Flags: runminimized
 
 [Run]
-Filename: "{app}\cairn.exe"; Description: "Start Cairn now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\cairn.exe"; Description: "Start Cairn now"; Flags: nowait postinstall skipifsilent runminimized
 
 [UninstallDelete]
 ; Files Cairn's own updates leave beside it.
