@@ -148,7 +148,10 @@ pub fn delete_article(
         ));
     }
     let version = history::save_version(root, &rel, &current)?;
-    fs::remove_file(&path)?;
+    if let Err(e) = fs::remove_file(&path) {
+        history::discard_version(root, &rel, &version);
+        return Err(e.into());
+    }
     Ok(version)
 }
 
@@ -283,7 +286,15 @@ pub fn publish(req: PublishRequest, opts: &PublishOptions) -> Result<PublishOutc
         },
         None => None,
     };
+    // The earlier version is only worth keeping if the page gets replaced;
+    // otherwise the next try would save the same text a second time.
+    let forget_version = || {
+        if let Some(id) = &history_id {
+            history::discard_version(root, &rel, id);
+        }
+    };
     if injected(FailPoint::AfterHistory) {
+        forget_version();
         remove_created(&created);
         return Err(unchanged_msg(
             "Publishing failed while saving the earlier version.",
@@ -294,12 +305,14 @@ pub fn publish(req: PublishRequest, opts: &PublishOptions) -> Result<PublishOutc
     let temp = match write_temp_beside(&article_path, req.content.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
+            forget_version();
             remove_created(&created);
             return Err(e.into());
         }
     };
     if injected(FailPoint::BeforeReplace) {
         let _ = fs::remove_file(&temp);
+        forget_version();
         remove_created(&created);
         return Err(unchanged_msg(
             "Publishing failed before the page was replaced.",
@@ -309,6 +322,7 @@ pub fn publish(req: PublishRequest, opts: &PublishOptions) -> Result<PublishOutc
     // 6. Replace.
     if let Err(e) = fs::rename(&temp, &article_path) {
         let _ = fs::remove_file(&temp);
+        forget_version();
         remove_created(&created);
         return Err(e.into());
     }
@@ -328,6 +342,7 @@ pub fn publish(req: PublishRequest, opts: &PublishOptions) -> Result<PublishOutc
             None => fs::remove_file(&article_path).is_ok(),
         };
         if rolled_back {
+            forget_version();
             remove_created(&created);
             return Err(CairnError::Io(
                 "The page could not be verified after publishing, so the previous version was \

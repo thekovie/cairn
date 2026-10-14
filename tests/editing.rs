@@ -445,6 +445,10 @@ fn every_failure_point_keeps_the_previous_article_and_leaves_no_dangling_picture
             "{fail_at:?}: no temp files"
         );
         assert!(
+            history::list_versions(&ws.root, PAGE).unwrap().is_empty(),
+            "{fail_at:?}: the failed publish saved no earlier version"
+        );
+        assert!(
             locks::verify_held(&ws.root, PAGE, &alex).is_ok(),
             "user can retry"
         );
