@@ -6,7 +6,7 @@ All notable changes that people using Cairn would notice are listed here.
 
 ### Changed
 
-- **A browser tab now says so when Cairn stops.** If Cairn is closed (from its icon, **Quit Cairn**, or a shutdown) while a tab is open, a short red notice, **Cairn has stopped**, appears at the top within a few seconds and says how to start Cairn again. It goes away by itself if Cairn comes back. Before, the tab pointed at a Cairn window, which on Windows no longer exists.
+- **A browser tab now says so when Cairn stops.** If Cairn is closed (from its icon, **Quit Cairn**, or a shutdown) while a tab is open, a short red notice, **Cairn has stopped**, appears at the top within a few seconds and says how to start Cairn again and asks whether you have copied what you were typing; closing the tab asks first. It goes away by itself if Cairn comes back. Before, the tab pointed at a Cairn window, which on Windows no longer exists.
 - **The browser opens as soon as Cairn is ready to answer.** The tab shows **Starting up Cairn** while the documentation folder from last time is opened, which can take a while on a network drive. Before, nothing appeared until the folder had opened.
 - The messages for a tab that is no longer connected no longer tell you to look for a “program window”: they say how to start Cairn in the words of your computer.
 
