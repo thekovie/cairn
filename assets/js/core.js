@@ -70,6 +70,11 @@ const SYSTEM = (navigator.userAgentData?.platform || navigator.platform || '').t
 export const IS_MAC = SYSTEM.startsWith('mac');
 export const IS_WINDOWS = SYSTEM.startsWith('win');
 
+/** How to start Cairn again, in the words of this computer. */
+export const START_AGAIN = IS_WINDOWS
+  ? 'Start Cairn from the Start menu (or double-click cairn.exe)'
+  : IS_MAC ? 'Open Cairn from your Applications folder' : 'Start Cairn again (double-click the Cairn AppImage, or run cairn)';
+
 // On a Mac ⌘H hides the browser and redo is ⇧⌘Z.
 const MAC_KEYS = { 'Ctrl+Y': 'Shift+Ctrl+Z', 'Ctrl+H': 'Shift+Ctrl+H' };
 
@@ -96,6 +101,15 @@ export class ApiError extends Error {
   }
 }
 
+/** What a person is told when this page can no longer reach Cairn. */
+export const OFFLINE_TEXT = `Cairn isn’t running, so this page can’t reach it. ${START_AGAIN}. It opens in a new tab, and you can close this one.`;
+
+/** Raised when a request gets no answer at all, so the connection watcher can look at once. */
+function offline() {
+  window.dispatchEvent(new Event('cairn:offline'));
+  return new ApiError(0, 'offline', OFFLINE_TEXT);
+}
+
 export async function api(method, path, body, { keepalive = false, raw = false } = {}) {
   const headers = { 'X-Cairn-Token': token || '' };
   let payload;
@@ -110,8 +124,7 @@ export async function api(method, path, body, { keepalive = false, raw = false }
   try {
     res = await fetch(path, { method, headers, body: payload, keepalive, cache: 'no-store' });
   } catch {
-    throw new ApiError(0, 'offline',
-      "Cairn isn't responding. Check that the Cairn window is still open, then try again.");
+    throw offline();
   }
   const text = await res.text();
   let data = null;
@@ -800,8 +813,7 @@ export async function downloadFile(path, query, fallbackName = 'download') {
   try {
     res = await fetch(url, { headers: { 'X-Cairn-Token': token || '' }, cache: 'no-store' });
   } catch {
-    throw new ApiError(0, 'offline',
-      "Cairn isn't responding. Check that the Cairn window is still open, then try again.");
+    throw offline();
   }
   if (!res.ok) {
     let data = null;

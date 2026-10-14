@@ -172,6 +172,42 @@ async fn api_requires_the_per_launch_token() {
     assert_eq!(res.headers()["cache-control"], "no-store");
 }
 
+async fn json_of(state: &Arc<AppState>, uri: &str) -> (StatusCode, serde_json::Value) {
+    let req = local(uri)
+        .header("x-cairn-token", &state.token)
+        .body(Body::empty())
+        .unwrap();
+    let res = send(state, req).await;
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+#[tokio::test]
+async fn ping_is_cheap_but_still_needs_the_token() {
+    let (_home, st) = state();
+    let without = local("/api/ping").body(Body::empty()).unwrap();
+    assert_eq!(send(&st, without).await.status(), StatusCode::UNAUTHORIZED);
+
+    let (status, body) = json_of(&st, "/api/ping").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["ok"], true);
+}
+
+#[tokio::test]
+async fn the_state_says_while_cairn_is_still_opening_the_folder() {
+    let (_home, st) = state();
+    assert_eq!(json_of(&st, "/api/state").await.1["starting"], false);
+
+    st.set_starting(true);
+    assert_eq!(json_of(&st, "/api/state").await.1["starting"], true);
+
+    st.set_starting(false);
+    assert_eq!(json_of(&st, "/api/state").await.1["starting"], false);
+}
+
 #[tokio::test]
 async fn write_endpoints_reject_other_origins_and_rebinding_hosts() {
     let (_home, st) = state();

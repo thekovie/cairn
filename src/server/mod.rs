@@ -12,7 +12,7 @@ pub mod security;
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -79,6 +79,9 @@ pub struct AppState {
     pub token: String,
     pub read_key: String,
     port: AtomicU16,
+    /// True while the documentation folder from last time is still being
+    /// opened, so a browser tab that is already here can say so.
+    starting: AtomicBool,
     pub config_dir: PathBuf,
     pub config: RwLock<AppConfig>,
     pub config_warning: Option<String>,
@@ -143,6 +146,7 @@ impl AppState {
             token,
             read_key,
             port: AtomicU16::new(0),
+            starting: AtomicBool::new(false),
             config_dir,
             config: RwLock::new(config),
             config_warning,
@@ -164,6 +168,14 @@ impl AppState {
 
     pub fn set_port(&self, port: u16) {
         self.port.store(port, Ordering::SeqCst);
+    }
+
+    pub fn starting(&self) -> bool {
+        self.starting.load(Ordering::SeqCst)
+    }
+
+    pub fn set_starting(&self, starting: bool) {
+        self.starting.store(starting, Ordering::SeqCst);
     }
 
     pub fn identity(&self) -> Identity {
@@ -303,6 +315,7 @@ pub fn embedded_asset(path: &str) -> Option<Vec<u8>> {
 pub fn build_router(state: Arc<AppState>) -> Router {
     let image_limit = DefaultBodyLimit::max(64 * 1024 * 1024);
     let api = Router::new()
+        .route("/api/ping", get(api::ping))
         .route("/api/state", get(api::get_state))
         .route("/api/workspace/pick", post(api::pick_folder))
         .route("/api/workspace/discover", post(api::discover))

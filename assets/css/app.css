@@ -56,6 +56,9 @@ a:hover { color: var(--accent-hover); }
 .skip-link:focus { top: var(--space-4); color: var(--accent-fg); }
 
 .boot { padding: var(--space-7); font-size: var(--text-md); color: var(--fg-muted); }
+/* Shown above everything when Cairn has stopped, and stays as you scroll. */
+.connection-lost { position: sticky; top: 0; z-index: var(--z-overlay); }
+.connection-lost .banner { margin: 0; border-radius: 0; border-width: 0 0 var(--border-width); box-shadow: var(--shadow-overlay); }
 
 /* ---------------------------------------------------------------- icons */
 .icon {
@@ -267,6 +270,7 @@ main:has(.editor-panes) { --column: 100rem; }
 /* Shown while a screen is loading (only if it takes a moment): what's
    happening in words, and grey bars where the page will appear. */
 .route-loading { display: flex; flex-direction: column; gap: var(--space-4); max-width: 46rem; }
+.setup .loading-label { margin-block: var(--space-4); }
 .loading-label { display: flex; align-items: center; gap: var(--space-3); margin: 0; font-weight: 600; color: var(--fg-muted); }
 .skeleton { display: flex; flex-direction: column; gap: var(--space-3); }
 .sk {

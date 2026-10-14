@@ -28,5 +28,5 @@ test('a tab with no Cairn tab to ask still says what to do', async ({ page, cont
   await page.close();
   const lonely = await context.newPage();
   await lonely.goto(address);
-  await expect(lonely.locator('h1')).toHaveText('Please open Cairn from its program window');
+  await expect(lonely.locator('h1')).toHaveText('Please open Cairn again');
 });
