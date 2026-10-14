@@ -882,6 +882,8 @@ fn a_backup_never_follows_a_file_swapped_for_a_link() {
 /// page). Every backup must either verify as a whole, or fail saying files
 /// kept changing, and never leave a half-written file behind.
 fn backups_while_people_save(pause: std::time::Duration) -> (usize, usize) {
+    /// Saves that must have happened during the backups for the test to mean anything.
+    const MIN_SAVES: usize = 8;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -919,9 +921,18 @@ fn backups_while_people_save(pause: std::time::Duration) -> (usize, usize) {
         })
     };
 
+    // Keep making backups until there have been at least 25 of them *and* the
+    // writer has saved enough times for the backups to have overlapped real
+    // saving. On a fast machine 25 backups of a small folder can all finish
+    // before a slow writer has saved more than a few times.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     let (mut finished, mut gave_up) = (0, 0);
-    for round in 0..25 {
+    let mut round = 0;
+    while round < 25
+        || (saves.load(Ordering::SeqCst) < MIN_SAVES && std::time::Instant::now() < deadline)
+    {
         let zip = out.path().join(format!("backup-{round}.zip"));
+        round += 1;
         match create_backup(&ws.root, &zip) {
             Ok(_) => {
                 verify(&zip).expect("a backup that was kept must verify");
@@ -938,8 +949,11 @@ fn backups_while_people_save(pause: std::time::Duration) -> (usize, usize) {
     stop.store(true, Ordering::SeqCst);
     writer.join().unwrap();
 
-    assert!(saves.load(Ordering::SeqCst) > 5, "the writer barely ran");
-    assert_eq!(finished + gave_up, 25);
+    assert!(
+        saves.load(Ordering::SeqCst) >= MIN_SAVES,
+        "the writer barely ran"
+    );
+    assert_eq!(finished + gave_up, round);
     let leftovers: Vec<String> = std::fs::read_dir(out.path())
         .unwrap()
         .flatten()
@@ -959,14 +973,16 @@ fn backups_while_people_save(pause: std::time::Duration) -> (usize, usize) {
 #[test]
 fn backups_during_constant_saving_still_finish_and_verify() {
     let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_micros(300));
-    assert_eq!((finished, gave_up), (25, 0));
+    assert!(finished >= 25, "{finished} backups finished");
+    assert_eq!(gave_up, 0);
 }
 
 /// Someone saving now and then, which is a busy office.
 #[test]
 fn backups_during_ordinary_saving_finish_and_verify() {
     let (finished, gave_up) = backups_while_people_save(std::time::Duration::from_millis(40));
-    assert_eq!((finished, gave_up), (25, 0));
+    assert!(finished >= 25, "{finished} backups finished");
+    assert_eq!(gave_up, 0);
 }
 
 // ---------------------------------------------------------------- progress
