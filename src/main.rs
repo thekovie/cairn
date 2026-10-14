@@ -151,10 +151,11 @@ fn cmd_run(args: RunArgs) -> ExitCode {
     // A second shortcut click asks the running copy to open the browser.
     #[cfg(windows)]
     if args.plain && cairn::tray::hand_over_to_running_copy() {
+        println!("Cairn is already running. Opening it in your browser.");
         return ExitCode::SUCCESS;
     }
     #[cfg(windows)]
-    let windowless = cairn::tray::detach_console_if_ours();
+    let windowless = cairn::tray::detach_console_if_ours(args.handoff);
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::WARN)
         .init();

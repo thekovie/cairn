@@ -103,7 +103,9 @@ One Windows computer is enough. Not yet run: written when the tray icon was adde
 | --- | --- | --- |
 | Start Cairn from the Start menu. | The browser opens Cairn. There is no black window left open (it may flash for a moment). A Cairn icon is in the notification area, possibly behind the **^** arrow. Hovering says “Cairn is running”. | ☐ |
 | Click the icon. | Cairn opens in the browser. | ☐ |
+| With the keyboard (Win+B, arrow to the icon), press Enter, then Shift+F10 or the menu key. | Enter opens Cairn. The menu key opens the menu beside the icon. | ☐ |
 | Right-click the icon. | A menu with **Open Cairn** (bold) and **Quit Cairn**. Clicking elsewhere closes it. | ☐ |
+| Choose **Quit Cairn**, then start Cairn from the Start menu within a second or two. | Cairn starts afresh (it does not hand over to the copy that is stopping). | ☐ |
 | Start Cairn from the Start menu again while it runs. | The browser opens Cairn. No second icon appears and Task Manager shows one `cairn.exe`. | ☐ |
 | Edit a page, then choose **Quit Cairn** from the icon menu. | The icon goes away at once. The page is unlocked for others. The tab can't reach Cairn. | ☐ |
 | Edit a page, then sign out of Windows (or restart). | The page is unlocked afterwards (`cairn locks list <folder>` shows nothing). | ☐ |

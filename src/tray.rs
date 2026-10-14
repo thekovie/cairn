@@ -17,24 +17,26 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock, mpsc};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
-use windows_sys::Win32::System::Console::{AllocConsole, FreeConsole, GetConsoleProcessList};
+use windows_sys::Win32::System::Console::{
+    AllocConsole, FreeConsole, GetConsoleProcessList, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+    STD_OUTPUT_HANDLE, SetStdHandle,
+};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Shell::{
-    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFY_ICON_MESSAGE, NOTIFYICONDATAW,
-    Shell_NotifyIconW,
+    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_SETVERSION, NIN_SELECT,
+    NOTIFY_ICON_MESSAGE, NOTIFYICON_VERSION_4, NOTIFYICONDATAW, Shell_NotifyIconW,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-    DispatchMessageW, FindWindowW, GetCursorPos, GetMessageW, IDI_APPLICATION, LoadIconW,
+    DispatchMessageW, ENDSESSION_CLOSEAPP, FindWindowW, GetMessageW, IDI_APPLICATION, LoadIconW,
     MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MF_STRING, MSG, MessageBoxW, PostMessageW,
-    PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SetForegroundWindow,
-    SetMenuDefaultItem, TPM_BOTTOMALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu,
-    TranslateMessage, WM_APP, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_LBUTTONUP, WM_NULL,
-    WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
+    PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SMTO_ABORTIFHUNG, SendMessageTimeoutW,
+    SetForegroundWindow, SetMenuDefaultItem, TPM_BOTTOMALIGN, TPM_RETURNCMD, TPM_RIGHTBUTTON,
+    TrackPopupMenu, TranslateMessage, WM_APP, WM_CLOSE, WM_CONTEXTMENU, WM_DESTROY, WM_ENDSESSION,
+    WM_NULL, WNDCLASSW, WS_OVERLAPPED,
 };
 
 use crate::server::AppState;
@@ -49,14 +51,28 @@ const MENU_OPEN: usize = 1;
 const MENU_QUIT: usize = 2;
 /// The id of the program's icon in `cairn.exe` (see `build.rs`).
 const EXE_ICON_ID: usize = 1;
-/// How long to wait for the icon to appear before giving up on it.
-const READY_WAIT: Duration = Duration::from_secs(5);
+/// What a keyboard press on the icon (Enter) arrives as: a select with the
+/// key flag set.
+const NIN_KEYSELECT: u32 = NIN_SELECT | 1;
+/// Explorer may not be ready when Cairn starts at sign-in, so adding the icon
+/// is tried for a while before giving up on it.
+const ADD_TRIES: u32 = 20;
+const ADD_PAUSE: Duration = Duration::from_millis(500);
+/// Longer than all the tries, so the wait only runs out if something is stuck.
+const READY_WAIT: Duration = Duration::from_secs(15);
+/// How long stopping waits for the icon's thread before leaving it behind.
+const STOP_WAIT: Duration = Duration::from_secs(3);
+/// How long a second copy waits for the running one to answer.
+const HANDOVER_WAIT_MS: u32 = 2000;
 
 /// True once Cairn has let go of its console window.
 static WINDOWLESS: AtomicBool = AtomicBool::new(false);
 /// Set when Cairn itself is closing the hidden window, so that the closing
 /// is not mistaken for Windows asking Cairn to quit.
 static CLOSING: AtomicBool = AtomicBool::new(false);
+/// Cairn is stopping (Quit, or Windows asking it to close), so a second copy
+/// started now must not hand over to it.
+static QUITTING: AtomicBool = AtomicBool::new(false);
 /// The hidden window, as a number so it can be shared between threads.
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// Windows' message for "the taskbar was rebuilt, add your icon again".
@@ -78,20 +94,30 @@ pub fn windowless() -> bool {
     WINDOWLESS.load(Ordering::SeqCst)
 }
 
-/// Let go of the console window if it was opened just for Cairn (a shortcut,
-/// the Start menu, or an update restarting Cairn). Returns whether Cairn is
-/// now without a window. From a terminal it keeps using that terminal.
-pub fn detach_console_if_ours() -> bool {
+/// Let go of the console window if it was opened just for Cairn (a shortcut
+/// or the Start menu). Returns whether Cairn is now without a window. From a
+/// terminal it keeps using that terminal.
+///
+/// With no console at all, Cairn was started by a script or another program,
+/// which may be reading its output, so it stays as it is. The exception is
+/// `handoff`: an update starts the new program with no console on purpose.
+pub fn detach_console_if_ours(handoff: bool) -> bool {
     let mut attached = [0u32; 2];
     // SAFETY: the buffer holds the two entries it is told about.
     let count = unsafe { GetConsoleProcessList(attached.as_mut_ptr(), 2) };
     let ours = match count {
-        // No console at all: started without one.
-        0 => true,
+        0 => handoff,
         // Only Cairn is using this console, so it was made for Cairn.
         1 => {
-            // SAFETY: plain call; Cairn has no other use for the console.
-            unsafe { FreeConsole() };
+            // SAFETY: plain calls. The handles that pointed at the console are
+            // cleared too, so nothing printed later can land on an unrelated
+            // handle that Windows reuses for a file or a connection.
+            unsafe {
+                FreeConsole();
+                SetStdHandle(STD_INPUT_HANDLE, std::ptr::null_mut());
+                SetStdHandle(STD_OUTPUT_HANDLE, std::ptr::null_mut());
+                SetStdHandle(STD_ERROR_HANDLE, std::ptr::null_mut());
+            }
             true
         }
         _ => false,
@@ -124,19 +150,31 @@ pub fn show_error(message: &str) {
 }
 
 /// If Cairn is already running (with its icon), ask it to open the browser
-/// and return true, so a second copy isn't started that nobody can see.
+/// and return true, so a second copy isn't started that nobody can see. If it
+/// is stopping, or doesn't answer, return false and let this copy start.
 pub fn hand_over_to_running_copy() -> bool {
     let class = wide(CLASS_NAME);
-    // SAFETY: the class name is NUL-terminated and outlives the call.
+    let mut answer = 0usize;
+    // SAFETY: the class name is NUL-terminated and `answer` outlives the call.
     unsafe {
         let window = FindWindowW(class.as_ptr(), std::ptr::null());
-        !window.is_null() && PostMessageW(window, WM_OPEN, 0, 0) != 0
+        !window.is_null()
+            && SendMessageTimeoutW(
+                window,
+                WM_OPEN,
+                0,
+                0,
+                SMTO_ABORTIFHUNG,
+                HANDOVER_WAIT_MS,
+                &mut answer,
+            ) != 0
+            && answer == 1
     }
 }
 
 /// The icon in the notification area. It goes away when this is dropped.
 pub struct Tray {
-    thread: Option<JoinHandle<()>>,
+    finished: mpsc::Receiver<()>,
 }
 
 /// Add the icon. `url` is what **Open Cairn** opens; **Quit Cairn** stops
@@ -144,16 +182,23 @@ pub struct Tray {
 pub fn start(url: String, state: Arc<AppState>) -> Result<Tray, String> {
     let _ = CONTEXT.set(Context { url, state });
     let (ready, waiting) = mpsc::channel();
-    let thread = std::thread::Builder::new()
+    let (done, finished) = mpsc::channel();
+    std::thread::Builder::new()
         .name("tray".into())
-        .spawn(move || run(&ready))
+        .spawn(move || {
+            run(&ready);
+            let _ = done.send(());
+        })
         .map_err(|e| format!("the icon could not be started: {e}"))?;
     match waiting.recv_timeout(READY_WAIT) {
-        Ok(Ok(())) => Ok(Tray {
-            thread: Some(thread),
-        }),
+        Ok(Ok(())) => Ok(Tray { finished }),
         Ok(Err(why)) => Err(why),
-        Err(_) => Err("the icon did not appear in time".into()),
+        Err(_) => {
+            // Stuck: have it close its window if it ever gets that far, so
+            // no icon is left behind (it checks for this before adding one).
+            drop(Tray { finished });
+            Err("the icon did not appear in time".into())
+        }
     }
 }
 
@@ -165,9 +210,8 @@ impl Drop for Tray {
             // SAFETY: posting to a window that may already be gone is allowed.
             unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
         }
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
+        // Not forever: Cairn is on its way out whatever the icon is doing.
+        let _ = self.finished.recv_timeout(STOP_WAIT);
     }
 }
 
@@ -208,7 +252,13 @@ fn run(ready: &mpsc::Sender<Result<(), String>>) {
             return;
         }
         WINDOW.store(window as usize, Ordering::SeqCst);
-        if !notify(window, NIM_ADD) {
+        // Cairn gave up waiting for this and is already closing.
+        if CLOSING.load(Ordering::SeqCst) {
+            DestroyWindow(window);
+            let _ = ready.send(Err("Cairn was already closing".into()));
+            return;
+        }
+        if !add_icon_with_retries(window) {
             DestroyWindow(window);
             let _ = ready.send(Err("Windows did not accept the icon".into()));
             return;
@@ -222,8 +272,30 @@ fn run(ready: &mpsc::Sender<Result<(), String>>) {
     }
 }
 
-/// Add, or remove, the icon.
-fn notify(window: HWND, action: NOTIFY_ICON_MESSAGE) -> bool {
+/// Add the icon, and ask Windows for the newer way of telling Cairn what was
+/// done to it, which also covers the keyboard.
+fn add_icon(window: HWND) -> bool {
+    if !notify(window, NIM_ADD, 0) {
+        return false;
+    }
+    notify(window, NIM_SETVERSION, NOTIFYICON_VERSION_4);
+    true
+}
+
+fn add_icon_with_retries(window: HWND) -> bool {
+    for attempt in 0..ADD_TRIES {
+        if attempt > 0 {
+            std::thread::sleep(ADD_PAUSE);
+        }
+        if add_icon(window) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Add, change, or remove the icon. `version` is only used to set it.
+fn notify(window: HWND, action: NOTIFY_ICON_MESSAGE, version: u32) -> bool {
     let tip = wide(TOOLTIP);
     // SAFETY: the data is fully set before it is handed over, and the icon
     // handle comes from Windows.
@@ -235,6 +307,7 @@ fn notify(window: HWND, action: NOTIFY_ICON_MESSAGE) -> bool {
         data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         data.uCallbackMessage = WM_TRAY;
         data.hIcon = program_icon();
+        data.Anonymous.uVersion = version;
         let len = tip.len().min(data.szTip.len());
         data.szTip[..len].copy_from_slice(&tip[..len]);
         Shell_NotifyIconW(action, &data) != 0
@@ -257,19 +330,33 @@ fn program_icon() -> *mut c_void {
     }
 }
 
+/// Opening the browser can take a moment; the icon must not freeze meanwhile.
 fn open_cairn() {
     if let Some(context) = CONTEXT.get() {
-        let _ = open::that_detached(&context.url);
+        let url = context.url.clone();
+        std::thread::spawn(move || {
+            let _ = open::that_detached(url);
+        });
     }
 }
 
 fn quit_cairn() {
+    QUITTING.store(true, Ordering::SeqCst);
     if let Some(context) = CONTEXT.get() {
         context.state.shutdown.notify_one();
     }
 }
 
-fn show_menu(window: HWND) {
+/// The screen position Windows gives with an icon event (packed in `wparam`):
+/// where the mouse was, or the icon itself for a key press.
+fn anchor(wparam: WPARAM) -> POINT {
+    POINT {
+        x: i32::from((wparam & 0xFFFF) as u16 as i16),
+        y: i32::from(((wparam >> 16) & 0xFFFF) as u16 as i16),
+    }
+}
+
+fn show_menu(window: HWND, at: POINT) {
     let open_text = wide("Open Cairn");
     let quit_text = wide("Quit Cairn");
     // SAFETY: the strings outlive the calls; the menu is destroyed after use.
@@ -278,8 +365,6 @@ fn show_menu(window: HWND) {
         AppendMenuW(menu, MF_STRING, MENU_OPEN, open_text.as_ptr());
         AppendMenuW(menu, MF_STRING, MENU_QUIT, quit_text.as_ptr());
         SetMenuDefaultItem(menu, MENU_OPEN as u32, 0);
-        let mut at = POINT { x: 0, y: 0 };
-        GetCursorPos(&mut at);
         // Without this the menu would not close when clicking elsewhere.
         SetForegroundWindow(window);
         let chosen = TrackPopupMenu(
@@ -309,17 +394,23 @@ unsafe extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
+        // With the newer icon protocol the event is in the low word.
         WM_TRAY => {
-            match lparam as u32 {
-                WM_LBUTTONUP => open_cairn(),
-                WM_RBUTTONUP => show_menu(window),
+            match (lparam as u32) & 0xFFFF {
+                NIN_SELECT | NIN_KEYSELECT => open_cairn(),
+                WM_CONTEXTMENU => show_menu(window, anchor(wparam)),
                 _ => {}
             }
             0
         }
+        // From a second copy of Cairn. 1 tells it this copy took over.
         WM_OPEN => {
-            open_cairn();
-            0
+            if QUITTING.load(Ordering::SeqCst) || CLOSING.load(Ordering::SeqCst) {
+                0
+            } else {
+                open_cairn();
+                1
+            }
         }
         // Windows (the installer, say) asks Cairn to close: stop properly.
         // Cairn closing its own window is told apart by `CLOSING`.
@@ -332,25 +423,29 @@ unsafe extern "system" fn window_proc(
             }
             0
         }
-        // Signing out or shutting down: no time to stop the server, but the
+        // Signing out, shutting down, or an installer closing Cairn so it can
+        // replace the program. There is no time to stop the server, but the
         // edit locks must not be left behind for everyone else.
         WM_ENDSESSION => {
             if wparam != 0
                 && let Some(context) = CONTEXT.get()
             {
                 context.state.release_all_locks();
+                if (lparam as u32) & ENDSESSION_CLOSEAPP != 0 {
+                    quit_cairn();
+                }
             }
             0
         }
         WM_DESTROY => {
-            notify(window, NIM_DELETE);
+            notify(window, NIM_DELETE, 0);
             // SAFETY: plain call, ends this thread's message loop.
             unsafe { PostQuitMessage(0) };
             0
         }
         other if other != 0 && other == TASKBAR_CREATED.load(Ordering::SeqCst) => {
             // Explorer restarted and lost the icon.
-            notify(window, NIM_ADD);
+            add_icon(window);
             0
         }
         // SAFETY: the arguments are those Windows gave this procedure.
