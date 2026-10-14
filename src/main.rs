@@ -53,6 +53,9 @@ struct RunArgs {
     /// Started by the previous version after an update: take over its port
     /// and keys (see `server::api_update`).
     handoff: bool,
+    /// Started with no options at all, as a shortcut does (used on Windows).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    plain: bool,
 }
 
 /// How long a restarted Cairn waits for the old one to free its port.
@@ -87,6 +90,7 @@ fn main() -> ExitCode {
                 .unwrap_or(0),
             workspace: value_after(&args, "--workspace").map(PathBuf::from),
             handoff: args.iter().any(|a| a == "--handoff"),
+            plain: args.is_empty(),
         }),
     }
 }
@@ -101,7 +105,13 @@ fn plain(text: impl std::fmt::Display) -> String {
 }
 
 fn fail(msg: impl std::fmt::Display) -> ExitCode {
-    eprintln!("Error: {}", plain(msg));
+    let text = plain(msg);
+    eprintln!("Error: {text}");
+    // With no console window, nobody would see it.
+    #[cfg(windows)]
+    if cairn::tray::windowless() {
+        cairn::tray::show_error(&text);
+    }
     ExitCode::FAILURE
 }
 
@@ -137,6 +147,14 @@ fn print_banner(url: &str) {
 }
 
 fn cmd_run(args: RunArgs) -> ExitCode {
+    // On Windows, Cairn runs from its tray icon rather than a console window.
+    // A second shortcut click asks the running copy to open the browser.
+    #[cfg(windows)]
+    if args.plain && cairn::tray::hand_over_to_running_copy() {
+        return ExitCode::SUCCESS;
+    }
+    #[cfg(windows)]
+    let windowless = cairn::tray::detach_console_if_ours();
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::WARN)
         .init();
@@ -190,6 +208,9 @@ fn cmd_run(args: RunArgs) -> ExitCode {
             println!("Cairn {} has started.", env!("CARGO_PKG_VERSION"));
         }
         print_banner(&url);
+        // The icon stays until the server has stopped.
+        #[cfg(windows)]
+        let _tray = start_tray(windowless, &state, &url);
         if open_browser && let Err(e) = open::that_detached(&url) {
             eprintln!("  (Could not open the browser automatically: {e})");
         }
@@ -205,6 +226,28 @@ fn cmd_run(args: RunArgs) -> ExitCode {
             // The window may already be closed, so a failed print is fine.
             let _ = writeln!(std::io::stdout(), "Cairn has stopped.");
             code
+        }
+    }
+}
+
+/// The icon that stands in for the console window on Windows. If it can't be
+/// made, the console comes back, so there is still a way to quit.
+#[cfg(windows)]
+fn start_tray(
+    windowless: bool,
+    state: &std::sync::Arc<AppState>,
+    url: &str,
+) -> Option<cairn::tray::Tray> {
+    if !windowless {
+        return None;
+    }
+    match cairn::tray::start(url.to_string(), state.clone()) {
+        Ok(tray) => Some(tray),
+        Err(why) => {
+            cairn::tray::show_console_again();
+            eprintln!("Note: Cairn's icon could not be added ({why}).");
+            print_banner(url);
+            None
         }
     }
 }

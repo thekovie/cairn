@@ -4,6 +4,10 @@ All notable changes that people using Cairn would notice are listed here.
 
 ## Unreleased
 
+### Changed
+
+- **On Windows, Cairn no longer keeps a black window open.** A Cairn icon sits in the notification area instead: click it to open Cairn, or right-click it for **Open Cairn** and **Quit Cairn**. Windows often hides new icons behind the **^** arrow. Signing out, shutting down, and the installer updating Cairn still unlock the pages being edited. Starting Cairn again while it runs opens it in your browser instead of starting a second copy. If the icon can't be added, the window comes back. Started from a Command Prompt or PowerShell, Cairn behaves as before and shows no icon. Mac and Linux are unchanged.
+
 ### Fixed
 
 - **A second tab works.** Opening a page in a new tab, or pasting its address into one, used to show “Please open Cairn from its program window”. The new tab now connects by itself while another Cairn tab is open, so you can keep one page open to refer to while you read or write another. Duplicating a tab that is in the editor opens a second editor on the same page; only publish from one of them.

@@ -29,9 +29,10 @@ To build Cairn yourself from the source code, follow [Building Cairn](building.m
 
 Start **Cairn** from the Start menu (Windows), your Applications folder (Mac), or by double-clicking the AppImage (Linux).
 
-- A small window opens: the black **Cairn** window on Windows, a **Terminal** window on a Mac or Linux. It says **Cairn is running** and shows an address.
-- Your web browser opens a new tab with Cairn in it. If it doesn't, copy the address from the small window into your browser.
-- **Keep the small window open** while you use Cairn. Closing it stops Cairn (and unlocks any page you're editing). You can also stop Cairn from **Settings → Quit Cairn**.
+- **On Windows**, Cairn has no window. A small Cairn icon appears in the notification area at the bottom right of the screen. Windows often tucks new icons behind the **^** arrow, so look there if you don't see it. Click the icon to open Cairn in your browser; right-click it for **Open Cairn** and **Quit Cairn**. Starting Cairn again from the Start menu while it runs just opens it in your browser.
+- **On a Mac or Linux**, a **Terminal** window opens. It says **Cairn is running** and shows an address. Keep it open while you use Cairn; closing it stops Cairn.
+- Your web browser opens a new tab with Cairn in it. If it doesn't, use the tray icon (Windows), or copy the address from the Terminal window into your browser.
+- Stopping Cairn unlocks any page you're editing. Besides the tray icon (Windows) or closing the Terminal window (Mac and Linux), you can stop Cairn from **Settings → Quit Cairn**.
 
 Cairn only works on your own computer. The address starts with `127.0.0.1`, which means “this computer”. Nobody else on the network can open it.
 

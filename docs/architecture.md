@@ -18,7 +18,9 @@ Coordination between people happens entirely through files in the shared folder,
 
 ## The local program
 
-The program (`cairn.exe` on Windows, `cairn` elsewhere; `src/main.rs`) loads the user's settings, reopens the last documentation folder, binds an HTTP server to **127.0.0.1 on a random free port**, opens the default browser, and runs until its window is closed (the console on Windows, the Terminal window on a Mac or Linux), Ctrl+C is pressed, the computer signs out or shuts down, or **Quit Cairn** is chosen. On exit it releases any edit locks it holds.
+The program (`cairn.exe` on Windows, `cairn` elsewhere; `src/main.rs`) loads the user's settings, reopens the last documentation folder, binds an HTTP server to **127.0.0.1 on a random free port**, opens the default browser, and runs until its window is closed (the Terminal window on a Mac or Linux), Ctrl+C is pressed, the computer signs out or shuts down, or **Quit Cairn** is chosen. On exit it releases any edit locks it holds.
+
+On Windows, a plain start (a shortcut or the Start menu) lets go of the console window if it was opened just for Cairn, and `src/tray.rs` adds a notification-area icon in its place. A hidden window on its own thread owns the icon and hears what the console used to: Windows asking Cairn to close (the installer does this), signing out, and shutting down, each of which releases the edit locks. A second plain start finds that window and asks the running copy to open the browser instead of starting another. Started from a terminal, Cairn keeps that terminal and shows no icon. If the icon can't be added, a console window is opened again so there is still a way to quit. The update restart starts the new program with no console of its own.
 
 The server is [axum](https://github.com/tokio-rs/axum) on tokio. Every filesystem operation runs on the blocking thread pool, so a slow network share never freezes the server.
 

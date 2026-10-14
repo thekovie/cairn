@@ -95,6 +95,25 @@ Run steps 1–14 with B on a Mac or Linux computer that has the same share mount
 | **Linux:** with pages `Guides/printer.md` and `Guides/Printer.md` both there (make the second in a file manager), rename one onto the other in Cairn. Then rename a page changing only its capitals. | The first is refused and both pages stay; the second works, and links and pictures follow. | ☐ |
 | **Windows:** look at the Start menu shortcut, the taskbar while Cairn runs, and **Settings → Apps → Cairn**. | All show the Cairn logo, not a blank program icon. | ☐ |
 
+## Windows: no window, tray icon
+
+One Windows computer is enough. Not yet run: written when the tray icon was added, on a Mac that cannot run it.
+
+| Step | Expected result | Pass |
+| --- | --- | --- |
+| Start Cairn from the Start menu. | The browser opens Cairn. There is no black window left open (it may flash for a moment). A Cairn icon is in the notification area, possibly behind the **^** arrow. Hovering says “Cairn is running”. | ☐ |
+| Click the icon. | Cairn opens in the browser. | ☐ |
+| Right-click the icon. | A menu with **Open Cairn** (bold) and **Quit Cairn**. Clicking elsewhere closes it. | ☐ |
+| Start Cairn from the Start menu again while it runs. | The browser opens Cairn. No second icon appears and Task Manager shows one `cairn.exe`. | ☐ |
+| Edit a page, then choose **Quit Cairn** from the icon menu. | The icon goes away at once. The page is unlocked for others. The tab can't reach Cairn. | ☐ |
+| Edit a page, then sign out of Windows (or restart). | The page is unlocked afterwards (`cairn locks list <folder>` shows nothing). | ☐ |
+| With Cairn running, run the installer for a newer version. | The installer closes Cairn by itself, installs, and offers to start it. The old icon is gone. | ☐ |
+| **Settings → Updates → Update and restart.** | The tab reconnects. Exactly one icon, with no console window opening. | ☐ |
+| In Task Manager, end Explorer and start it again. | The icon comes back. | ☐ |
+| Run `cairn.exe` from PowerShell. | The terminal shows “Cairn is running” as before. No icon. Ctrl+C stops it. | ☐ |
+| Start Cairn so that it can't listen (give `--port` of one already in use, from a shortcut with that option). | A message box says Cairn couldn't start, instead of nothing. | ☐ |
+| **Settings → Quit Cairn.** | Cairn stops, the icon goes, and the page says Cairn has stopped. | ☐ |
+
 ## Updates on each system (before a release)
 
 Publish a pre-release (tag `vX.Y.Z-rc.1`) and check that no copy offers it as an update. Then, on each system, with the previous release installed:

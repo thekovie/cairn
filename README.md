@@ -88,7 +88,7 @@ If you stop using Cairn, your documentation is still just a folder of `.md` file
    - **Linux:** `cairn-…-linux-x86_64.AppImage`. Double-click it, or run it from a terminal.
 
    Cairn is installed just for you and can update itself. (Or build it yourself: see [Building Cairn](docs/building.md).)
-2. Start **Cairn**. A small window opens (a Terminal window on a Mac or Linux) and your browser shows Cairn.
+2. Start **Cairn**. Your browser shows Cairn. On Windows, Cairn has no window: its icon sits in the notification area at the bottom right (click it to open Cairn, right-click it to quit). On a Mac or Linux, a Terminal window opens.
 3. Choose **Create a new documentation folder** (or **Open a documentation folder we already use**).
 4. Choose **New page**, give it a title, and start writing. Choose **Publish changes** when you're done.
 
