@@ -70,7 +70,7 @@ cargo clippy --all-targets -- -D warnings
 
 ### Browser tests (optional)
 
-`tests/e2e/` drives the real program in a browser with [Playwright](https://playwright.dev): unsaved changes survive a failed save, and closing, leaving, or reloading is held back while Cairn is publishing, adding a picture, or preparing a download. They need **Node.js** 22 or newer; `cargo test` doesn't need them. CI doesn't run them, so run them yourself before a release or after changing the editor, leaving, or download code.
+`tests/e2e/` drives the real program in a browser with [Playwright](https://playwright.dev): unsaved changes survive a failed save, and closing, leaving, or reloading is held back while Cairn is publishing, adding a picture, or preparing a download. They need **Node.js** 22 or newer; `cargo test` doesn't need them. CI runs them on Linux (the **Browser tests** job). Run them yourself when changing the editor, leaving, or download code, to find a failure sooner than CI would, and on Windows when changing anything that behaves differently there.
 
 ```powershell
 cd tests\e2e

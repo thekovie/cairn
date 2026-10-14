@@ -67,6 +67,48 @@ jobs:
       - name: Test
         run: cargo test
 
+  # The browser tests drive the real program in Chromium: unsaved changes,
+  # leaving a page, downloads, backup, search, health, tabs, accessibility.
+  # Linux only: they test the page, which is the same everywhere, and the
+  # file handling that differs by system is covered by the Rust tests above.
+  browser:
+    name: Browser tests (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install the browser tests
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run the browser tests
+        working-directory: tests/e2e
+        run: npm test
+
+      # Traces of failed tests, to open with `npx playwright show-trace`.
+      - name: Keep the traces of failures
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-test-traces
+          path: tests/e2e/test-results
+          retention-days: 7
+
   installer:
     name: Installer (Windows)
     runs-on: windows-latest
