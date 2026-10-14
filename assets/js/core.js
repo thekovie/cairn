@@ -75,6 +75,11 @@ export const START_AGAIN = IS_WINDOWS
   ? 'Start Cairn from the Start menu (or double-click cairn.exe)'
   : IS_MAC ? 'Open Cairn from your Applications folder' : 'Start Cairn again (double-click the Cairn AppImage, or run cairn)';
 
+/** The short form of the above, for notices. */
+export const START_SHORT = IS_WINDOWS
+  ? 'Start Cairn from the Start menu'
+  : IS_MAC ? 'Open Cairn from Applications' : 'Start Cairn again';
+
 // On a Mac ⌘H hides the browser and redo is ⇧⌘Z.
 const MAC_KEYS = { 'Ctrl+Y': 'Shift+Ctrl+Z', 'Ctrl+H': 'Shift+Ctrl+H' };
 
@@ -102,7 +107,7 @@ export class ApiError extends Error {
 }
 
 /** What a person is told when this page can no longer reach Cairn. */
-export const OFFLINE_TEXT = `Cairn isn’t running, so this page can’t reach it. ${START_AGAIN}. It opens in a new tab, and you can close this one.`;
+export const OFFLINE_TEXT = `Cairn isn’t running. ${START_SHORT}; it opens in a new tab.`;
 
 /** Raised when a request gets no answer at all, so the connection watcher can look at once. */
 function offline() {
