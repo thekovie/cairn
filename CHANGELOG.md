@@ -2,12 +2,16 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
-## Unreleased
+## 1.3.1 (2026-10-14)
 
 ### Fixed
 
 - **A page can be open in the editor in only one tab.** Duplicating a tab that was in the editor used to open a second editor on the same page. The two shared one unsaved copy, so each overwrote the other's typing, and closing the editor in one left the other unable to save. The second tab now says **This page is open in another tab**, with **Back to the page** and **Try again**; once the first editor is closed, **Try again** opens the editor. Reloading the editor is not affected.
 - **A publish that fails no longer leaves an extra earlier version.** When publishing failed after Cairn had saved the earlier version, trying again saved the same text a second time, so the page's earlier versions listed it twice. The unused copy is now removed when publishing fails (and when deleting a template fails).
+
+### Security
+
+- Two components were updated to their latest fixes: the one that cleans page text before it is shown, and the one that makes the secure connection for the update check. Neither problem could be reached in the way Cairn uses them.
 
 ## 1.3.0 (2026-10-14)
 
