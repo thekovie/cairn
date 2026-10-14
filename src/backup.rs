@@ -30,7 +30,9 @@ use crate::export::archive::{Enumeration, count, enumerate_backup, name_list, re
 use crate::fsutil::{available_space, human_size};
 use crate::locks::LOCKS_DIR;
 use crate::paths::{Root, SYSTEM_DIR, split_relative};
-use crate::workspace::{MARKER_FILE, Marker, MarkerStatus, parse_marker, read_marker};
+use crate::workspace::{
+    MARKER_FILE, Marker, MarkerStatus, assign_new_identity, parse_marker, read_marker,
+};
 
 /// The contents list inside every backup.
 pub const MANIFEST_NAME: &str = "cairn-backup.json";
@@ -99,13 +101,25 @@ enum PassResult {
     Done(Summary),
 }
 
+/// Whose identity a restored folder has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Identity {
+    /// That of the original, so people's unpublished changes find their pages
+    /// again. For replacing a lost folder.
+    Keep,
+    /// A new one, so the copy can sit beside the original.
+    New,
+}
+
 /// What a restore wrote.
 #[derive(Debug)]
 pub struct Restored {
     pub files: usize,
     pub bytes: u64,
     pub display_name: String,
+    /// The id the restored folder has now.
     pub instance_id: String,
+    pub identity: Identity,
 }
 
 /// Lets a long backup report progress and be cancelled.
@@ -780,6 +794,17 @@ pub fn restore_with(
     space: SpaceFn,
     progress: &dyn Fn(usize, usize),
 ) -> Result<Restored> {
+    restore_with_identity(zip, dest, space, progress, Identity::Keep)
+}
+
+/// [`restore_with`], choosing whose identity the restored folder has.
+pub fn restore_with_identity(
+    zip: &Path,
+    dest: &Path,
+    space: SpaceFn,
+    progress: &dyn Fn(usize, usize),
+    identity: Identity,
+) -> Result<Restored> {
     let name = dest
         .file_name()
         .ok_or_else(|| bad("Choose a folder name to restore into."))?;
@@ -834,14 +859,21 @@ pub fn restore_with(
     let suffix = uuid::Uuid::new_v4().simple().to_string();
     let staging = parent.join(format!(".cairn-restore-{}", &suffix[..12]));
     fs::create_dir(&staging).map_err(|e| write_problem(&e))?;
+    // The identity is changed in the hidden folder, before it is moved into
+    // place, so a copy never appears under the original's identity.
     let outcome = read_entries(&mut archive, &manifest, Some(&staging), progress)
-        .and_then(|bytes| move_into_place(&staging, &dest).map(|()| bytes));
+        .and_then(|bytes| match identity {
+            Identity::Keep => Ok((bytes, manifest.instance_id.clone())),
+            Identity::New => assign_new_identity(&staging).map(|id| (bytes, id)),
+        })
+        .and_then(|(bytes, id)| move_into_place(&staging, &dest).map(|()| (bytes, id)));
     match outcome {
-        Ok(bytes) => Ok(Restored {
+        Ok((bytes, instance_id)) => Ok(Restored {
             files: manifest.files.len(),
             bytes,
             display_name: manifest.display_name,
-            instance_id: manifest.instance_id,
+            instance_id,
+            identity,
         }),
         Err(e) => {
             let _ = fs::remove_dir_all(&staging);

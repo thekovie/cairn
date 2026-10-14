@@ -9,7 +9,7 @@
 //! cairn locks release <workspace> <page> --session <id>
 //! cairn backup create <workspace> <backup.zip>
 //! cairn backup verify <backup.zip>
-//! cairn restore <backup.zip> <new-folder>
+//! cairn restore <backup.zip> <new-folder> [--new-identity]
 //! ```
 
 use std::io::{IsTerminal, Write};
@@ -36,12 +36,14 @@ USAGE:
     cairn locks release <workspace-folder> <page-path> --session <session-id>
     cairn backup create <workspace-folder> <backup.zip>
     cairn backup verify <backup.zip>
-    cairn restore <backup.zip> <new-folder>
+    cairn restore <backup.zip> <new-folder> [--new-identity]
 
 OPTIONS:
     --no-browser        Don't open the web browser automatically
     --port <n>          Use this local port instead of a random free one
     --workspace <dir>   Open this documentation folder (or the one containing it)
+    --new-identity      With restore: give the copy a new identity, so it can sit
+                        beside the original (the default keeps the original's)
     -h, --help          Show this help
     -V, --version       Show the version
 ";
@@ -441,13 +443,18 @@ fn verify_shown(file: &str) -> CairnResult<backup::Manifest> {
     checked
 }
 
-fn restore_shown(file: &str, folder: &str) -> CairnResult<backup::Restored> {
+fn restore_shown(
+    file: &str,
+    folder: &str,
+    identity: backup::Identity,
+) -> CairnResult<backup::Restored> {
     let show = progress_printer("Restoring file");
-    let restored = backup::restore_with(
+    let restored = backup::restore_with_identity(
         Path::new(file),
         Path::new(folder),
         &fsutil::available_space,
         &show,
+        identity,
     );
     end_progress();
     restored
@@ -519,9 +526,14 @@ fn cmd_backup(args: &[String]) -> ExitCode {
 
 fn cmd_restore(args: &[String]) -> ExitCode {
     let (Some(file), Some(folder)) = (args.first(), args.get(1)) else {
-        return fail("usage: cairn restore <backup.zip> <new-folder>");
+        return fail("usage: cairn restore <backup.zip> <new-folder> [--new-identity]");
     };
-    match restore_shown(file, folder) {
+    let identity = if args.iter().any(|a| a == "--new-identity") {
+        backup::Identity::New
+    } else {
+        backup::Identity::Keep
+    };
+    match restore_shown(file, folder, identity) {
         Ok(done) => {
             println!(
                 "Restored \"{}\" ({} files, {}) to {folder}.",
@@ -529,11 +541,25 @@ fn cmd_restore(args: &[String]) -> ExitCode {
                 done.files,
                 megabytes(done.bytes)
             );
-            println!(
-                "It keeps the identity of the original (id {}).",
-                done.instance_id
-            );
-            println!("Use it to replace a lost folder, not alongside the original.");
+            match done.identity {
+                backup::Identity::Keep => {
+                    println!(
+                        "It keeps the identity of the original (id {}).",
+                        done.instance_id
+                    );
+                    println!(
+                        "Use it to replace a lost folder, not alongside the original, \
+                         or restore again with --new-identity."
+                    );
+                }
+                backup::Identity::New => {
+                    println!("It has a new identity (id {}).", done.instance_id);
+                    println!(
+                        "It can sit beside the original. People's unpublished changes \
+                         saved under the original's identity won't attach to it."
+                    );
+                }
+            }
             println!("Open the folder from Cairn's start screen to use it.");
             ExitCode::SUCCESS
         }

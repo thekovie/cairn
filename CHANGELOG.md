@@ -2,6 +2,12 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **`cairn restore … --new-identity`** restores a backup as a copy with an identity of its own, so it can sit beside the original (to look at an old state, or to test) without sharing the original's identity. The default is unchanged: a restore keeps the identity, for replacing a lost folder.
+
 ## 1.2.0 (2026-10-14)
 
 ### Changed

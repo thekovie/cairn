@@ -99,7 +99,15 @@ Cairn:
 
 Then open the restored folder in Cairn from the start screen or **Settings → Open a different documentation folder**.
 
-The restored folder keeps the identity of the original, so people's unpublished changes that are saved on their own computers find their pages again. Use a restore to replace a lost folder. Do not run the original and a restored copy side by side for the same team: they would share one identity.
+The restored folder keeps the identity of the original, so people's unpublished changes that are saved on their own computers find their pages again. Use a restore like this to replace a lost folder. Do not run the original and a restored copy side by side for the same team: they would share one identity.
+
+To keep a restored copy beside the original (to look at an old state, say, or to test), add `--new-identity`:
+
+```text
+cairn restore Docs-2026-10-13.zip "D:\Restored Docs" --new-identity
+```
+
+The copy then has an identity of its own. Nothing else in it changes, and the original is untouched. People's unpublished changes that were saved under the original's identity don't attach to the copy, which is what you want for a copy that is not the team's folder.
 
 A backup is an ordinary zip. To recover just one earlier version of one page, open the `.zip`, find it under `_system/history/<page path>/`, and copy it out.
 
