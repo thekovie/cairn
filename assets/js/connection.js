@@ -23,9 +23,16 @@ async function answers() {
   }
 }
 
+/** Closing this tab asks first, so nobody loses typed text by accident. */
+const barrier = (e) => {
+  e.preventDefault();
+  e.returnValue = '';
+};
+
 function hide() {
   notice?.remove();
   notice = null;
+  window.removeEventListener('beforeunload', barrier);
 }
 
 function show() {
@@ -33,10 +40,11 @@ function show() {
   notice = h('div', { class: 'connection-lost' }, banner({
     tone: 'danger',
     title: 'Cairn has stopped',
-    text: `${START_SHORT}; it opens in a new tab. Copy any text you were typing first.`,
+    text: `${START_SHORT}; it opens in a new tab. Before you close this tab, have you copied everything you were typing?`,
     actions: [button('Check again', { icon: 'refresh', onClick: () => check() })],
   }));
   document.body.prepend(notice);
+  window.addEventListener('beforeunload', barrier);
 }
 
 async function check() {

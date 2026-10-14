@@ -17,6 +17,20 @@ test('the tab says so, in words, when Cairn stops', async ({ page }) => {
   await expect(notice.getByRole('button', { name: 'Check again' })).toBeVisible();
 });
 
+test('while Cairn is stopped, closing the tab asks first', async ({ page }) => {
+  await page.route('**/api/ping', (route) => route.abort());
+  await expect(stopped(page)).toBeVisible({ timeout: 15000 });
+  await expect(stopped(page)).toContainText('have you copied everything');
+  // Browsers only ask after the person has used the page.
+  await page.locator('body').click();
+  const asked = new Promise((resolve) => page.once('dialog', (dialog) => resolve(dialog)));
+  await page.close({ runBeforeUnload: true });
+  const dialog = await asked;
+  expect(dialog.type()).toBe('beforeunload');
+  await dialog.dismiss();
+  expect(page.isClosed()).toBe(false);
+});
+
 test('a failed request looks at once instead of waiting for the next check', async ({ page }) => {
   await page.route('**/api/ping', (route) => route.abort());
   await page.route('**/api/folder?*', (route) => route.abort());
