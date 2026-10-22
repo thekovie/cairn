@@ -12,6 +12,11 @@ function daysAgo(days) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Only what is on the screen. Cairn also announces the same sentence in a
+// hidden region for screen readers, which a search of the whole page can match
+// a moment later.
+const allClear = (page) => page.locator('main').getByText('Nothing needs attention');
+
 function write(docs, name, front) {
   writeFileSync(join(docs, name), `---\n${front}\n---\n# ${name}\n\nText.\n`);
 }
@@ -50,13 +55,13 @@ test('it says nothing needs attention only when every page is in order', async (
   write(cairn.docs, 'Guides/Printer.md', fine);
 
   await page.getByRole('link', { name: 'Documentation health' }).click();
-  await expect(page.getByText('Nothing needs attention')).toBeVisible();
+  await expect(allClear(page)).toBeVisible();
   await expect(page.locator('main .list')).toHaveCount(0);
 
   // One page loses its owner: the all-clear goes away.
   write(cairn.docs, 'Guides/Printer.md', `status: active\nlast_reviewed: ${daysAgo(10)}`);
   await page.reload();
-  await expect(page.getByText('Nothing needs attention')).toHaveCount(0);
+  await expect(allClear(page)).toHaveCount(0);
   await expect(page.locator('main .list').getByRole('link', { name: /Printer/ })).toContainText('No owner');
 });
 
@@ -97,7 +102,7 @@ test('Mark as reviewed today works from the list, keeps the status, and clears t
   await row.getByRole('button', { name: /Mark as reviewed today/ }).click();
 
   // Nothing else is wrong with it, so it leaves the list (and the all-clear shows).
-  await expect(page.getByText('Nothing needs attention')).toBeVisible();
+  await expect(allClear(page)).toBeVisible();
   const text = readFileSync(join(cairn.docs, 'Overdue.md'), 'utf8');
   expect(text).toContain(`last_reviewed: ${daysAgo(0)}`);
   expect(text).toContain('status: active');
