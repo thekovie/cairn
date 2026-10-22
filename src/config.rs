@@ -51,6 +51,9 @@ pub struct AppConfig {
     /// Proxy for reaching GitHub, as `host:port`. `None` uses Windows'
     /// proxy settings.
     pub update_proxy: Option<String>,
+    /// The first-run tour has been seen (or skipped). Kept here rather than
+    /// in the browser, which forgets it whenever Cairn picks a new port.
+    pub tour_seen: bool,
 }
 
 impl Default for AppConfig {
@@ -74,6 +77,7 @@ impl Default for AppConfig {
             toolbar_labels: true,
             update_check: "daily".into(),
             update_proxy: None,
+            tour_seen: false,
         }
     }
 }

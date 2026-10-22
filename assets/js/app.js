@@ -12,7 +12,7 @@
 //   #/print/<path>      a page laid out for printing (PDF fallback)
 
 import {
-  bootstrapToken, hasToken, get, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
+  bootstrapToken, hasToken, get, post, h, clear, icon, button, iconButton, banner, href, announce, errorText, applyPrefs,
   appendChildren, actionInProgress, toast, linkButton, START_AGAIN,
 } from './core.js';
 import * as views from './views.js';
@@ -24,9 +24,13 @@ import { deletedView } from './manage.js';
 import { healthView } from './health.js';
 import { watchUpdates, updateBanner } from './update.js';
 import { watchConnection } from './connection.js';
+import { startTour } from './tour.js';
+import { openHelp } from './help.js';
 
 const app = {
   state: null,
+  // The welcome tour starts as soon as the home screen has been drawn.
+  tourPending: false,
   nav: [],
   tree: null,
   // Folders open in the page tree (lower-case paths).
@@ -145,6 +149,7 @@ function renderShell() {
         h('span', { class: 'brand-ws' }, ws.name))),
     searchForm,
     h('div', { class: 'topbar-actions' },
+      button('Help', { icon: 'help', class: 'btn btn-quiet', onClick: () => openHelp(parseHash().route, showTour) }),
       h('a', { class: 'btn btn-quiet', href: href.settings() }, icon('settings'), h('span', null, 'Settings'))));
 
   const banners = h('div', { class: 'banners', id: 'banners' });
@@ -177,6 +182,31 @@ function closeNav(returnFocus = false) {
   scrim.hidden = true;
   navToggle.setAttribute('aria-expanded', 'false');
   if (returnFocus) navToggle.focus();
+}
+
+/** Plays the welcome tour on the home screen, going there first if need be. */
+function showTour() {
+  if (parseHash().route === '') {
+    runTour();
+    return;
+  }
+  app.tourPending = true;
+  location.hash = href.home();
+}
+
+function runTour() {
+  app.tourPending = false;
+  startTour({
+    openNav,
+    closeNav,
+    isDrawer: () => app.shell.navToggle.offsetParent !== null,
+    onEnd: async () => {
+      try {
+        await post('/api/settings', { tour_seen: true });
+        app.state.config.tour_seen = true;
+      } catch { /* the tour comes back next time */ }
+    },
+  });
 }
 
 function renderBanners() {
@@ -323,6 +353,7 @@ function makeContext(main, parsed) {
       return app.state;
     },
     refreshNav,
+    showTour,
   };
 }
 
@@ -385,6 +416,7 @@ async function onRoute() {
   if (app.current?.canLeave) {
     const ok = await app.current.canLeave();
     if (!ok) {
+      app.tourPending = false;
       // Put the address back without triggering another route change.
       history.replaceState(null, '', app.currentHash);
       renderNav();
@@ -466,6 +498,7 @@ async function onRoute() {
       heading.focus({ preventScroll: true });
     }
     if (result?.title) announce(`${result.title} opened`);
+    if (app.tourPending && parsed.route === '') runTour();
   } catch (err) {
     if (!isCurrent()) return;
     document.title = ['Could not be shown', app.state.workspace?.name, 'Cairn'].filter(Boolean).join(' – ');
@@ -534,7 +567,10 @@ async function boot() {
   watchConnection();
   window.addEventListener('hashchange', onRoute);
   window.addEventListener('cairn:nav-changed', () => refreshNav());
+  // First visit: the tour starts if the first screen is the home screen.
+  app.tourPending = Boolean(app.state.workspace) && !app.state.config.tour_seen;
   await onRoute();
+  app.tourPending = false;
   watchUpdates(() => renderBanners());
 }
 

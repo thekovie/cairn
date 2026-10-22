@@ -140,6 +140,7 @@ fn state_view(state: &AppState) -> Value {
             "toolbar_labels": cfg.toolbar_labels,
             "update_check": cfg.update_check,
             "update_proxy": cfg.update_proxy,
+            "tour_seen": cfg.tour_seen,
             "pdf_available":
                 !crate::export::pdf::find_browsers(cfg.pdf_browser.as_deref()).is_empty(),
         },
@@ -1433,6 +1434,7 @@ pub struct SettingsBody {
     update_check: Option<String>,
     /// "host:port", or "" to use Windows' proxy settings.
     update_proxy: Option<String>,
+    tour_seen: Option<bool>,
 }
 
 pub async fn save_settings(
@@ -1469,6 +1471,9 @@ pub async fn save_settings(
         }
         if let Some(v) = body.update_check {
             cfg.update_check = v;
+        }
+        if let Some(v) = body.tour_seen {
+            cfg.tour_seen = v;
         }
         if let Some(v) = body.update_proxy {
             cfg.update_proxy = if v.trim().is_empty() {

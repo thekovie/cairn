@@ -106,36 +106,6 @@ export function lockSentence(lock) {
 
 // ------------------------------------------------------------------ home
 
-const WELCOMED_KEY = 'cairn.welcomed';
-
-/** First visit: the three things worth knowing, and who you'll appear as. */
-function welcomePanel(ctx) {
-  let seen = false;
-  try { seen = localStorage.getItem(WELCOMED_KEY) === '1'; } catch { seen = false; }
-  if (seen) return null;
-  const { user, config } = ctx.app.state;
-  const panel = h('section', { class: 'welcome', 'aria-labelledby': 'welcome-h' },
-    h('h2', { id: 'welcome-h' }, 'Welcome to Cairn'),
-    h('ul', { class: 'welcome-points' },
-      h('li', null, h('strong', null, 'Reading: '), 'choose a folder on the left, or search for any word.'),
-      h('li', null, h('strong', null, 'Changing a page: '), 'choose “Edit this page”, write as you would in a letter, then “Publish”. Nobody else sees your changes until you publish.'),
-      h('li', null, h('strong', null, 'Mistakes can be undone: '), `every page keeps its ${ctx.app.state.workspace?.version_cleanup?.enabled ? 'recent ' : ''}earlier versions, and deleted pages wait in “Recently deleted”.`)),
-    config.display_name
-      ? null
-      : h('p', null, `While you edit, others see you as “${user.os_user}”. `,
-        h('a', { href: href.settings() }, 'Set the name they see')),
-    h('div', { class: 'actions' },
-      button('Got it', {
-        icon: 'check', kind: 'primary',
-        onClick: () => {
-          try { localStorage.setItem(WELCOMED_KEY, '1'); } catch { /* shown again next time */ }
-          panel.remove();
-          document.getElementById('home-search')?.focus();
-        },
-      })));
-  return panel;
-}
-
 export async function homeView(ctx) {
   const [data, drafts] = await Promise.all([get('/api/home'), loadDrafts()]);
   const readOnly = Boolean(ctx.app.state.workspace?.read_only);
@@ -147,7 +117,6 @@ export async function homeView(ctx) {
       h('h1', null, data.name),
       h('p', { class: 'lede' }, `${count} of shared documentation. Choose a folder, or search for what you need.`),
       h('p', { class: 'ws-location' }, 'Stored in ', h('span', { class: 'path' }, ctx.app.state.workspace.root))),
-    welcomePanel(ctx),
     h('form', {
       role: 'search',
       onsubmit: (e) => { e.preventDefault(); ctx.navigate(href.search(searchInput.value.trim())); },
@@ -975,7 +944,8 @@ export async function settingsView(ctx) {
 
   const jump = [['set-you', 'Your name'], ['set-look', 'Appearance'], ['set-time', 'Time'],
     ['set-edit', 'Stepping away'], ['set-drafts', 'Unsaved changes'], ['set-pdf', 'PDFs'],
-    ['set-ws', 'Documentation folder'], ['set-updates', 'Updates'], ['set-quit', 'Close Cairn']];
+    ['set-ws', 'Documentation folder'], ['set-updates', 'Updates'], ['set-help', 'Help and tour'],
+    ['set-quit', 'Close Cairn']];
 
   ctx.main.append(
     h('div', { class: 'page-head' }, h('h1', null, 'Settings')),
@@ -1045,6 +1015,11 @@ export async function settingsView(ctx) {
     state.workspace ? workspaceSection(ctx, state.workspace) : null,
     state.workspace ? backupSection(state.workspace) : null,
     updatesSection(cfg, { radioGroup, save: (body, message) => saveSettings(ctx, body, message) }),
+
+    h('section', { class: 'settings-section', 'aria-labelledby': 'set-help' },
+      h('h2', { id: 'set-help' }, 'Help and tour'),
+      h('p', { class: 'help' }, 'The Help button at the top explains each screen. The tour is the short welcome shown the first time Cairn is opened.'),
+      button('Show the tour again', { icon: 'eye', onClick: () => ctx.showTour() })),
     quitSection());
   return { title: 'Settings' };
 }
