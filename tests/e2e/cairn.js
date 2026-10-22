@@ -23,13 +23,14 @@ text
 `;
 
 /** Starts cairn; resolves to { url, docs, stop }. */
-async function startCairn() {
+async function startCairn(tourSeen) {
   const dir = mkdtempSync(join(tmpdir(), 'cairn-e2e-'));
   const home = join(dir, 'home');
   const docs = join(dir, 'docs');
   mkdirSync(home);
-  // No look for new versions: tests stay offline.
-  writeFileSync(join(home, 'config.json'), JSON.stringify({ update_check: 'manual', display_name: 'Tester' }));
+  // No look for new versions: tests stay offline. The first-run tour is
+  // already seen, so it doesn't cover the screen; tour.spec.js turns that off.
+  writeFileSync(join(home, 'config.json'), JSON.stringify({ update_check: 'manual', display_name: 'Tester', tour_seen: tourSeen }));
   execFileSync(BIN, ['init', docs, '--name', 'E2E Docs'], { env: { ...process.env, CAIRN_HOME: home } });
   mkdirSync(join(docs, 'Guides'), { recursive: true });
   writeFileSync(join(docs, 'Guides', 'Printer.md'), PRINTER);
@@ -55,8 +56,9 @@ async function startCairn() {
 }
 
 export const test = base.extend({
-  cairn: async ({}, use) => {
-    const cairn = await startCairn();
+  tourSeen: [true, { option: true }],
+  cairn: async ({ tourSeen }, use) => {
+    const cairn = await startCairn(tourSeen);
     await use(cairn);
     cairn.stop();
   },

@@ -2,6 +2,13 @@
 
 All notable changes that people using Cairn would notice are listed here.
 
+## Unreleased
+
+### Added
+
+- **A short tour the first time you open Cairn.** Five steps point at the page list, search, adding and changing a page, and Help. Skip it at any time; it does not come back once seen. **Settings → Help and tour → Show the tour again** plays it once more. This replaces the welcome box on the home screen, which kept coming back because the browser forgot it each time Cairn started.
+- **A Help button at the top of every screen** explains in a few lines what you can do on the screen you are looking at. Nothing appears until you choose it.
+
 ## 1.3.1 (2026-10-14)
 
 ### Fixed

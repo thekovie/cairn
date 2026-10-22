@@ -138,6 +138,8 @@ fn js_files() -> Vec<(String, String)> {
         "js/export.js",
         "js/timezone.js",
         "js/visual.js",
+        "js/tour.js",
+        "js/help.js",
     ]
     .iter()
     .map(|f| (f.to_string(), asset(f)))
@@ -296,6 +298,8 @@ fn the_whole_ui_is_embedded_and_nothing_loads_from_the_network() {
         "js/export.js",
         "js/timezone.js",
         "js/visual.js",
+        "js/tour.js",
+        "js/help.js",
         "vendor/milkdown.js",
         "fonts/InterVariable-latin.woff2",
         "fonts/Inter-LICENSE.txt",

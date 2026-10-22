@@ -426,15 +426,35 @@ mark { background: var(--mark); color: var(--fg); padding: 0 0.1em; border-radiu
 .hero-search input { flex: 1 1 16rem; }
 .hero-search input { min-height: 2.5rem; }
 
-/* First visit: three plain sentences, then out of the way for good. */
-.welcome {
-  max-width: 44rem; margin-bottom: var(--space-6);
-  padding: var(--space-5); border-radius: var(--radius-lg);
-  background: var(--accent-soft); color: var(--fg);
+/* First-run tour: a ring around the part of the screen being described, and a
+   small card beside it. The card is a modal <dialog> whose backdrop is clear,
+   because the ring's shadow does the dimming. The transparent outline shows
+   up in Windows High Contrast, where shadows are dropped. */
+.tour-ring {
+  position: fixed; z-index: var(--z-overlay);
+  border-radius: var(--radius);
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 100vmax var(--scrim);
+  pointer-events: none;
 }
-.welcome h2 { font-size: var(--text-lg); margin-bottom: var(--space-3); }
-.welcome-points { margin: 0 0 var(--space-4); padding-left: 1.2em; display: grid; gap: var(--space-2); }
-.welcome p { margin: 0 0 var(--space-4); }
+dialog.tour-card::backdrop { background: transparent; }
+dialog.tour-card {
+  position: fixed; margin: 0; inset: auto;
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--fg);
+  box-shadow: var(--shadow-overlay);
+}
+/* On a phone the card sits along the bottom edge, clear of what is lit. */
+dialog.tour-card.is-docked { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); width: auto; }
+.tour-card h2 { font-size: var(--text-lg); margin: 0 0 var(--space-2); }
+.tour-card p { margin: 0; }
+.tour-card .tour-count { margin-bottom: var(--space-1); color: var(--fg-muted); font-size: var(--text-sm); }
+.tour-card .actions { margin-top: var(--space-4); flex-wrap: wrap; justify-content: flex-end; }
+.tour-card .actions > :first-child { margin-right: auto; }
+.help-points { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-2); }
 .suggestion { font-size: var(--text-md); margin-bottom: var(--space-2); }
 .suggestion a { font-weight: 700; }
 
