@@ -70,6 +70,7 @@ export function startTour({ openNav, closeNav, isDrawer, onEnd }) {
   function place() {
     const rect = targetOf(steps[index])?.getBoundingClientRect();
     ring.hidden = !rect;
+    card.classList.toggle('no-target', !rect);
     if (rect) {
       Object.assign(ring.style, {
         top: `${rect.top - RING_PADDING}px`, left: `${rect.left - RING_PADDING}px`,

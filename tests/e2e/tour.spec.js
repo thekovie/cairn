@@ -75,6 +75,18 @@ test('Help can start the tour', async ({ page }) => {
   await expect(card(page)).toContainText('Step 1 of 5');
 });
 
+test('on a phone the Help button leaves room for the name of the documentation', async ({ page }) => {
+  await card(page).getByRole('button', { name: 'Skip tour' }).click();
+  await page.setViewportSize({ width: 390, height: 800 });
+  const name = page.locator('.brand-ws');
+  await expect(name).toHaveText('E2E Docs');
+  const { clientWidth, scrollWidth } = await name.evaluate((el) => ({ clientWidth: el.clientWidth, scrollWidth: el.scrollWidth }));
+  expect(scrollWidth, 'the name is cut off').toBeLessThanOrEqual(clientWidth);
+  // Icon only here, but screen readers still hear the names.
+  await expect(page.getByRole('button', { name: 'Help' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+});
+
 test('on a narrow window the tour opens the page list for its steps and closes it after', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.reload();

@@ -438,6 +438,8 @@ mark { background: var(--mark); color: var(--fg); padding: 0 0.1em; border-radiu
   pointer-events: none;
 }
 dialog.tour-card::backdrop { background: transparent; }
+/* A step with nothing lit has no ring to do the dimming. */
+dialog.tour-card.no-target::backdrop { background: var(--scrim); }
 dialog.tour-card {
   position: fixed; margin: 0; inset: auto;
   width: min(24rem, calc(100vw - 2 * var(--space-4)));
@@ -1129,6 +1131,12 @@ dialog.dlg[open] { animation: dlg-in var(--duration) var(--ease-out); }
   .nav-toggle { grid-area: menu; }
   .brand { grid-area: brand; }
   .topbar-actions { grid-area: actions; }
+  /* Help and Settings keep their names for screen readers but show only the
+     icon here, so the documentation's name still fits beside them. */
+  .topbar-actions .btn span {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
   .topbar-search { grid-area: search; padding: 0 var(--space-2); max-width: none; }
   .has-own-search .topbar-search { display: none; }
   .brand-ws { font-size: var(--text-base); }
